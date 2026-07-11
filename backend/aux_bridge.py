@@ -249,7 +249,6 @@ class AuxBridge:
     # -- main loop ------------------------------------------------------------
 
     def run(self):
-        models.init_db()
         self._write_state()
         while True:
             self.connect()
@@ -282,6 +281,9 @@ def main():
         print("[*] AUX_SERIAL empty: no aux module on this node, exiting cleanly.")
         audit_logger.info("AUX_BRIDGE_SKIP | reason=no_aux_serial_configured")
         sys.exit(0)
+    # init_db BEFORE constructing the bridge: __init__ reads the messages
+    # table for the last rowid, which must exist on a fresh node.
+    models.init_db()
     AuxBridge().run()
 
 
