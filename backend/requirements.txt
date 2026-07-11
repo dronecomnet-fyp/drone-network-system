@@ -1,0 +1,11 @@
+# Pinned for reproducibility (file 01 step 6: the Phase 1 docs installed
+# unpinned, which was not reproducible). Resolved 2026-07-11 on Python 3.14
+# (macOS dev machine); re-verify installation on the Pi's Python 3.11
+# (Raspberry Pi OS Bookworm) during deploy: deploy/VERIFY.md step 0.
+fastapi==0.139.0
+uvicorn[standard]==0.51.0
+pydantic==2.13.4
+requests==2.34.2
+cryptography==49.0.0
+python-dotenv==1.2.2
+pyserial==3.5

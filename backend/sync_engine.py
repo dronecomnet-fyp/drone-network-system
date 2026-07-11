@@ -1,139 +1,244 @@
+"""
+sync_engine.py: pull-sync client and record ingest with per-table conflict
+rules (file 02 task 2.3). Rewritten from Phase 1: the pull pattern and the
+signature-verification-per-record loop are kept, extended from messages
+alone to ALL replicated tables (fixing the Phase 1 gap where gs_messages
+never left the node they were filed on).
+
+Conflict rules (file 02):
+  messages       CLAIMED beats NEW; if both CLAIMED, the EARLIER claimed_at
+                 wins and its claimed_by is retained.
+  personnel      REVOKED beats ACTIVE; otherwise newest (signed, origin)
+                 updated_at wins.
+  announcements, gs_messages, checkins: append-only by primary key.
+
+Every ingested row is stamped with a fresh LOCAL local_ts so it propagates
+onward to peers that sync from us (DTN store-and-forward). The per-peer
+cursor advances in the PEER's local_ts space (see models.py header).
+"""
+
+import json
+
 import requests
-import sqlite3
-import os
-import hmac
-import hashlib
-import logging
 
-DB_FILE = "drone_mesh.db"
-SYNC_API_KEY = os.getenv("SYNC_API_KEY", "rk_team_a_alpha")
-INTER_NODE_SECRET = os.getenv("INTER_NODE_SECRET", "mesh_change_me")
-NODE_SHARED_SECRET = os.getenv("NODE_SHARED_SECRET", "mesh_signing_change_me")
-SYNC_SCHEME = os.getenv("SYNC_SCHEME", "http")
-SYNC_PORT = int(os.getenv("SYNC_PORT", "8000"))
-SYNC_VERIFY_TLS = os.getenv("SYNC_VERIFY_TLS", "false").strip().lower() in {"1", "true", "yes", "on"}
-SYNC_CA_CERT = os.getenv("SYNC_CA_CERT", "drone_ca.crt")
-SYNC_CLIENT_CERT = os.getenv("SYNC_CLIENT_CERT", "")
-SYNC_CLIENT_KEY = os.getenv("SYNC_CLIENT_KEY", "")
+import audit
+import config
+import crypto_keys
+import models
 
-AUDIT_LOG_FILE = os.getenv("AUDIT_LOG_FILE", "audit.log")
-audit_logger = logging.getLogger("audit")
-if not audit_logger.handlers:
-    audit_logger.setLevel(logging.INFO)
-    audit_handler = logging.FileHandler(AUDIT_LOG_FILE)
-    audit_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
-    audit_logger.addHandler(audit_handler)
+audit_logger = audit.get_audit_logger()
+
+# API path per replicated table (hyphenated on the wire, file 02).
+SYNC_PATHS = {
+    "messages": "messages",
+    "personnel": "personnel",
+    "announcements": "announcements",
+    "gs_messages": "gs-messages",
+    "checkins": "checkins",
+}
 
 
-def sign_message(msg_id, content, timestamp):
-    payload = f"{msg_id}:{content}:{timestamp}"
-    return hmac.new(NODE_SHARED_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+# ---------------------------------------------------------------------------
+# Ingest (used by the sync daemon after pulling from a peer)
+# ---------------------------------------------------------------------------
 
-
-def verify_message_signature(msg_id, content, timestamp, signature):
-    expected = sign_message(msg_id, content, timestamp)
-    return hmac.compare_digest(expected, signature)
-
-def sync_with_peer(peer_ip):
-    print(f"[*] Attempting to sync with peer at {peer_ip}...")
-    audit_logger.info(f"SYNC_START | peer={peer_ip}")
+def ingest_message(record: dict, peer_node_id: str) -> str:
+    """Returns one of: inserted, updated, kept, rejected."""
+    if not models.verify_record("messages", record):
+        return "rejected"
+    existing = models.get_message_by_id(record["msg_id"])
+    now = models.iso_now()
+    conn = models.get_conn()
     try:
-        peer_url = f"{SYNC_SCHEME}://{peer_ip}:{SYNC_PORT}/messages"
-        verify_tls = SYNC_CA_CERT if SYNC_VERIFY_TLS else False
-        client_cert = (SYNC_CLIENT_CERT, SYNC_CLIENT_KEY) if SYNC_CLIENT_CERT and SYNC_CLIENT_KEY else None
-
-        # 1. Fetch messages from the other drone's API
-        response = requests.get(
-            peer_url,
-            headers={
-                "X-Node-Auth": INTER_NODE_SECRET,
-            },
-            verify=verify_tls,
-            cert=client_cert,
-            timeout=5
-        )
-        
-        if response.status_code == 200:
-            peer_messages = response.json()
-            print(f"[+] Downloaded {len(peer_messages)} messages from peer.")
-            
-            # 2. Save them to our local database with status precedence
-            conn = sqlite3.connect(DB_FILE)
-            c = conn.cursor()
-            
-            new_count = 0
-            updated_count = 0
-            
-            for msg in peer_messages:
-                try:
-                    msg_id = msg['msg_id']
-                    peer_status = msg.get('status', 'NEW')
-                    peer_signature = msg.get('signature', '')
-
-                    if not verify_message_signature(
-                        msg_id,
-                        msg['content'],
-                        msg['timestamp'],
-                        peer_signature
-                    ):
-                        print(f"[-] Rejected unsigned or tampered message {msg_id} from {peer_ip}")
-                        audit_logger.warning(f"SYNC_REJECT | peer={peer_ip} | msg_id={msg_id} | reason=bad_signature")
-                        continue
-                    
-                    # Check if message already exists
-                    c.execute("SELECT status FROM messages WHERE msg_id = ?", (msg_id,))
-                    existing = c.fetchone()
-                    
-                    if existing:
-                        # Message exists: apply status precedence
-                        local_status = existing[0]
-                        
-                        # CLAIMED status takes precedence over NEW
-                        if local_status == 'CLAIMED':
-                            # Keep local CLAIMED status
-                            pass
-                        elif peer_status == 'CLAIMED':
-                            # Update to CLAIMED from peer
-                            c.execute('''
-                                UPDATE messages SET status = 'CLAIMED' WHERE msg_id = ?
-                            ''', (msg_id,))
-                            updated_count += 1
-                        # else: both NEW, no need to update
-                    else:
-                        # New message from peer: insert with all fields
-                        c.execute('''
-                            INSERT INTO messages 
-                            (
-                                msg_id, content, location, timestamp, origin_node,
-                                synced, status, signature, is_encrypted, encryption_alg, encryption_kid
-                            )
-                            VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
-                        ''', (msg_id, msg['content'], msg['location'], msg['timestamp'], 
-                            msg['origin_node'], peer_status, peer_signature,
-                            1 if msg.get('is_encrypted', 0) else 0,
-                            msg.get('encryption_alg', ''),
-                            msg.get('encryption_kid', ''),
-                        ))
-                        new_count += 1
-                        
-                except (sqlite3.IntegrityError, KeyError) as e:
-                    print(f"[-] Error processing message {msg.get('msg_id', 'UNKNOWN')}: {e}")
-                    continue
-            
+        if existing is None:
+            conn.execute("""
+                INSERT INTO messages (
+                    msg_id, content, user_lat, user_lon, node_lat, node_lon,
+                    timestamp, time_source, node_id, status, claimed_by,
+                    claimed_at, synced_from, signature, is_encrypted,
+                    encryption_alg, encryption_kid, victim_device_id, local_ts
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                record["msg_id"], record.get("content"), record.get("user_lat"),
+                record.get("user_lon"), record.get("node_lat"), record.get("node_lon"),
+                record.get("timestamp"), record.get("time_source", "relative"),
+                record.get("node_id"), record.get("status", "NEW"),
+                record.get("claimed_by", ""), record.get("claimed_at", ""),
+                peer_node_id, record.get("signature"),
+                1 if record.get("is_encrypted") else 0,
+                record.get("encryption_alg", ""), record.get("encryption_kid", ""),
+                record.get("victim_device_id", ""), now,
+            ))
             conn.commit()
-            conn.close()
-            print(f"[+] Sync complete. Added {new_count} new messages, updated {updated_count} message statuses.")
-            audit_logger.info(
-                f"SYNC_OK | peer={peer_ip} | imported={new_count} | updated={updated_count}"
-            )
-        else:
-            print(f"[-] Peer returned status code {response.status_code}")
-            audit_logger.warning(f"SYNC_FAIL | peer={peer_ip} | status_code={response.status_code}")
-            
-    except requests.exceptions.RequestException as e:
-        print(f"[-] Failed to connect to peer {peer_ip}: {e}")
-        audit_logger.warning(f"SYNC_FAIL | peer={peer_ip} | reason=request_exception")
+            return "inserted"
 
-if __name__ == "__main__":
-    # If run manually, try to sync with the standard gateway IP
-    sync_with_peer("10.42.0.1")
+        peer_status = record.get("status", "NEW")
+        if existing["status"] == "CLAIMED" and peer_status == "CLAIMED":
+            # Both claimed: earlier claim wins, keep its claimed_by.
+            peer_claimed_at = record.get("claimed_at") or ""
+            if peer_claimed_at and (not existing["claimed_at"]
+                                    or peer_claimed_at < existing["claimed_at"]):
+                conn.execute(
+                    """UPDATE messages SET claimed_by = ?, claimed_at = ?, local_ts = ?
+                       WHERE msg_id = ?""",
+                    (record.get("claimed_by", ""), peer_claimed_at, now, record["msg_id"]),
+                )
+                conn.commit()
+                return "updated"
+            return "kept"
+        if peer_status == "CLAIMED" and existing["status"] != "CLAIMED":
+            conn.execute(
+                """UPDATE messages SET status = 'CLAIMED', claimed_by = ?,
+                   claimed_at = ?, local_ts = ? WHERE msg_id = ?""",
+                (record.get("claimed_by", ""), record.get("claimed_at", ""),
+                 now, record["msg_id"]),
+            )
+            conn.commit()
+            return "updated"
+        return "kept"
+    finally:
+        conn.close()
+
+
+def ingest_personnel(record: dict, peer_node_id: str) -> str:
+    if not models.verify_record("personnel", record):
+        return "rejected"
+    existing = models.get_personnel_by_id(record["personnel_id"])
+    if existing is None:
+        models.write_personnel_record(record)
+        return "inserted"
+    if existing["status"] == "REVOKED" and record.get("status") != "REVOKED":
+        return "kept"
+    if record.get("status") == "REVOKED" and existing["status"] != "REVOKED":
+        models.write_personnel_record(record)
+        return "updated"
+    if (record.get("updated_at") or "") > (existing["updated_at"] or ""):
+        models.write_personnel_record(record)
+        return "updated"
+    return "kept"
+
+
+def _ingest_append_only(table: str, record: dict, columns: list) -> str:
+    if not models.verify_record(table, record):
+        return "rejected"
+    pk = models.REPLICATED_TABLES[table]
+    now = models.iso_now()
+    conn = models.get_conn()
+    try:
+        exists = conn.execute(
+            f"SELECT 1 FROM {table} WHERE {pk} = ?", (record[pk],)
+        ).fetchone()
+        if exists:
+            return "kept"
+        col_list = ", ".join(columns) + ", local_ts"
+        placeholders = ", ".join("?" for _ in columns) + ", ?"
+        values = [record.get(c) for c in columns] + [now]
+        conn.execute(f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})", values)
+        conn.commit()
+        return "inserted"
+    finally:
+        conn.close()
+
+
+def ingest_announcement(record, peer_node_id):
+    return _ingest_append_only(
+        "announcements", record,
+        ["id", "title", "body", "priority", "created_by", "created_at", "signature"],
+    )
+
+
+def ingest_gs_message(record, peer_node_id):
+    return _ingest_append_only(
+        "gs_messages", record,
+        ["id", "content", "sender", "timestamp", "node_id", "location_lat",
+         "location_lon", "location_accuracy", "location_timestamp", "signature"],
+    )
+
+
+def ingest_checkin(record, peer_node_id):
+    return _ingest_append_only(
+        "checkins", record,
+        ["id", "device_id", "lat", "lon", "accuracy", "recorded_at",
+         "uploaded_at", "node_id", "sos", "signature"],
+    )
+
+
+INGEST_FN = {
+    "messages": ingest_message,
+    "personnel": ingest_personnel,
+    "announcements": ingest_announcement,
+    "gs_messages": ingest_gs_message,
+    "checkins": ingest_checkin,
+}
+
+
+# ---------------------------------------------------------------------------
+# Pull client
+# ---------------------------------------------------------------------------
+
+def sync_table_with_peer(peer: dict, table: str) -> dict:
+    """Pull one table's delta from one peer and ingest it. Returns a stats
+    dict. Raises requests exceptions upward; the caller isolates failures
+    per table (file 02 task 2.5 error handling)."""
+    peer_ip = peer["ip"]
+    peer_node_id = peer["node_id"]
+    api_port = peer.get("api_port") or config.API_PORT
+    since = models.get_sync_cursor(peer_node_id, table)
+    url = f"{config.SYNC_SCHEME}://{peer_ip}:{api_port}/sync/{SYNC_PATHS[table]}"
+    verify = config.SYNC_CA_CERT if config.SYNC_VERIFY_TLS else False
+    resp = requests.get(
+        url,
+        params={"since": since},
+        headers={"X-Node-Auth": crypto_keys.NODE_AUTH_VALUE},
+        verify=verify,
+        timeout=10,
+    )
+    resp.raise_for_status()
+    rows = resp.json()
+    stats = {"inserted": 0, "updated": 0, "kept": 0, "rejected": 0}
+    max_ts = since
+    ingest = INGEST_FN[table]
+    for record in rows:
+        try:
+            outcome = ingest(record, peer_node_id)
+        except (KeyError, TypeError, ValueError):
+            outcome = "rejected"
+        stats[outcome] += 1
+        if outcome == "rejected":
+            audit_logger.warning(
+                f"SYNC_REJECT | peer={peer_node_id} | table={table} | "
+                f"pk={record.get(models.REPLICATED_TABLES[table], 'UNKNOWN')} | reason=bad_signature"
+            )
+        row_ts = record.get("local_ts") or ""
+        if row_ts > max_ts:
+            max_ts = row_ts
+    if max_ts != since:
+        models.set_sync_cursor(peer_node_id, table, max_ts)
+    return stats
+
+
+def sync_with_peer(peer: dict) -> bool:
+    """Sync every replicated table from one peer, isolating failures per
+    table so one bad table does not stop the rest."""
+    peer_node_id = peer["node_id"]
+    audit_logger.info(f"SYNC_START | peer={peer_node_id} | ip={peer['ip']}")
+    any_fail = False
+    for table in models.REPLICATED_TABLES:
+        try:
+            stats = sync_table_with_peer(peer, table)
+            audit_logger.info(
+                f"SYNC_OK | peer={peer_node_id} | table={table} | "
+                f"imported={stats['inserted']} | updated={stats['updated']} | "
+                f"rejected={stats['rejected']}"
+            )
+        except requests.exceptions.RequestException as e:
+            any_fail = True
+            audit_logger.warning(
+                f"SYNC_FAIL | peer={peer_node_id} | table={table} | reason={type(e).__name__}"
+            )
+        except (json.JSONDecodeError, ValueError) as e:
+            any_fail = True
+            audit_logger.warning(
+                f"SYNC_FAIL | peer={peer_node_id} | table={table} | reason=bad_response_{type(e).__name__}"
+            )
+    return not any_fail
