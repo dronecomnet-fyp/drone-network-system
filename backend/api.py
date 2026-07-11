@@ -548,6 +548,22 @@ def post_announcement(
 
 
 # ---------------------------------------------------------------------------
+# Checkins read-back for the rescue plane (the WRITE side is public on the
+# victim plane, http_app.py). The GCC map renders these as its emergency
+# app layer (file 04 screen 1); rescue-scoped like everything else here.
+# ---------------------------------------------------------------------------
+
+@app.get("/checkins")
+def get_checkins(
+    auth: Auth = Depends(require_roles({Role.RESCUE_TEAM, Role.HQ, Role.SYNC_NODE})),
+):
+    try:
+        return JSONResponse(content=models.get_checkins())
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal error listing checkins")
+
+
+# ---------------------------------------------------------------------------
 # Health (file 02 task 2.5: the real payload design v3 requires)
 # ---------------------------------------------------------------------------
 

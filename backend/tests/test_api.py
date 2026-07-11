@@ -80,6 +80,11 @@ def test_checkin_with_sos_creates_message():
     assert sos_msg["user_lat"] == 6.91  # newest point attached
     checkins = models.get_checkins()
     assert all(models.verify_record("checkins", c) for c in checkins)
+    # read-back lives on the authenticated plane (GCC map layer), not here
+    listing = authed.get("/checkins", headers=RESCUE)
+    assert listing.status_code == 200
+    assert any(c["device_id"] == "emg-1" for c in listing.json())
+    assert authed.get("/checkins").status_code == 403
 
 
 def test_victim_plane_has_no_read_endpoints():

@@ -1,0 +1,17 @@
+name: rescue_mesh_shared
+description: >-
+  Shared models and API client for the rescue mesh apps (GCC desktop,
+  rescue personnel app, emergency app). Keeps the backend contract in one
+  place (file 04).
+version: 0.2.0
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  http: ^1.2.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6
