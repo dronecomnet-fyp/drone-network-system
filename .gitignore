@@ -1,0 +1,35 @@
+# Phase 1 evidence repos and snapshots stay outside the monorepo (rule: copied, not moved)
+local-server/
+rescue-personnel-app/
+previous_codes/
+
+# Secrets are NEVER committed (file 09 F4). deploy/setup_node.sh generates them
+# at deploy time per SECRETS_ROTATION.md; anything that ever touched git history
+# is treated as burned and rotated.
+.env
+.env.*
+!.env.example
+keys/
+deploy/secrets/
+*.pem
+*.key
+*.crt
+*.csr
+*.srl
+
+# Runtime artifacts
+*.db
+*.db-wal
+*.db-shm
+audit.log
+*.log
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Firmware build output
+firmware/aux/.pio/
+
+# OS noise
+.DS_Store
