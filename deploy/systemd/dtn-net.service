@@ -1,0 +1,18 @@
+# dtn-net.service: one-shot IBSS bring-up for wlan1 (file 01 step 5).
+# ExecStartPre sleep lets the USB adapter settle after boot; on-failure
+# restarts cover the case where the adapter enumerates late.
+[Unit]
+Description=Rescue mesh DTN radio (wlan1 IBSS)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/bin/sleep 5
+ExecStart=/usr/local/sbin/dtn-net-up.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

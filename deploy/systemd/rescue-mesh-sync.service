@@ -1,0 +1,18 @@
+# rescue-mesh-sync.service: always-on DTN sync daemon (file 02 task 2.3).
+# Replaces the retired Phase 1 rescue-mesh-switcher.service.
+[Unit]
+Description=Rescue mesh DTN sync daemon (beacons + pull sync)
+After=network.target dtn-net.service rescue-mesh-runtime.service
+Wants=dtn-net.service rescue-mesh-runtime.service
+
+[Service]
+User=drone
+Group=drone
+WorkingDirectory=/home/drone/rescue-mesh/backend
+EnvironmentFile=/etc/rescue-mesh/node.env
+ExecStart=/home/drone/rescue-mesh/backend/.venv/bin/python sync_daemon.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

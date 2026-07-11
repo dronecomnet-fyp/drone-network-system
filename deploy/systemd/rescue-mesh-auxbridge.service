@@ -1,0 +1,19 @@
+# rescue-mesh-auxbridge.service: serial bridge to the ESP32-C3 aux module
+# (file 02 task 2.2). On DRONE_S (AUX_SERIAL empty) the daemon exits 0
+# cleanly and Restart=on-failure leaves it stopped, as intended.
+[Unit]
+Description=Rescue mesh aux module bridge (serial JSON)
+After=rescue-mesh-runtime.service
+Wants=rescue-mesh-runtime.service
+
+[Service]
+User=drone
+Group=drone
+WorkingDirectory=/home/drone/rescue-mesh/backend
+EnvironmentFile=/etc/rescue-mesh/node.env
+ExecStart=/home/drone/rescue-mesh/backend/.venv/bin/python aux_bridge.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

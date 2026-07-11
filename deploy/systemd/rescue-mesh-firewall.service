@@ -1,0 +1,16 @@
+# rescue-mesh-firewall.service: applies the node's nftables rules
+# (file 09 plane 4 layer 1 / file 08 relay path). The rules file is
+# selected per node role by setup_node.sh.
+[Unit]
+Description=Rescue mesh firewall rules (nftables)
+After=network-pre.target
+Before=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/rescue-mesh/nftables.nft
+ExecReload=/usr/sbin/nft -f /etc/rescue-mesh/nftables.nft
+
+[Install]
+WantedBy=multi-user.target

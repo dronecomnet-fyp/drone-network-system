@@ -1,0 +1,28 @@
+#!/usr/sbin/nft -f
+# Volunteer node firewall (DRONE_A / DRONE_B): file 08 relay path + file 09
+# plane 4 layer 1. User-plane clients (GCC laptop on the 5 GHz AP) may
+# reach the mesh ONLY at DRONE_S's MAVLink port; everything else toward
+# the mesh subnet is dropped. Masquerade covers the case where
+# NetworkManager shared mode has not already NATted toward wlan1
+# (duplicate masquerade rules are harmless; VERIFY.md step 8 checks).
+
+table inet rescue_mesh
+delete table inet rescue_mesh
+
+table inet rescue_mesh {
+    chain forward {
+        type filter hook forward priority -5; policy accept;
+        ip saddr 10.42.0.0/24 ip daddr 10.99.0.3 udp dport 14550 accept
+        ip saddr 10.42.0.0/24 ip daddr 10.99.0.0/24 drop
+    }
+}
+
+table ip rescue_mesh_nat
+delete table ip rescue_mesh_nat
+
+table ip rescue_mesh_nat {
+    chain postrouting {
+        type nat hook postrouting priority srcnat + 5; policy accept;
+        ip saddr 10.42.0.0/24 oifname "wlan1" masquerade
+    }
+}

@@ -1,0 +1,15 @@
+# rescue-mesh-runtime.service: creates /run/rescue-mesh (tmpfs) for the
+# aux state file before any daemon starts (file 02 task 2.2 point 7).
+[Unit]
+Description=Rescue mesh runtime directory
+DefaultDependencies=no
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/mkdir -p /run/rescue-mesh
+ExecStart=/bin/chown drone:drone /run/rescue-mesh
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,4 @@
+# /etc/sudoers.d/rescue-mesh (file 02 task 2.2 point 4)
+# The aux bridge sets the system clock from GPS time. This entry allows
+# EXACTLY the date-set command for the service user, nothing else.
+drone ALL=(root) NOPASSWD: /bin/date -u -s *

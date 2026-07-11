@@ -1,0 +1,20 @@
+# rescue-portal.service: victim plane, plain HTTP on port 80 (file 09 F3).
+# Binds a privileged port without root via CAP_NET_BIND_SERVICE
+# (file 01 step 4: no iptables DNAT, no root).
+[Unit]
+Description=Rescue mesh victim portal (HTTP 80)
+After=network.target rescue-mesh-runtime.service
+Wants=rescue-mesh-runtime.service
+
+[Service]
+User=drone
+Group=drone
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+WorkingDirectory=/home/drone/rescue-mesh/backend
+EnvironmentFile=/etc/rescue-mesh/node.env
+ExecStart=/home/drone/rescue-mesh/backend/.venv/bin/python http_app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
