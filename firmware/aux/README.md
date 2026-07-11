@@ -31,6 +31,13 @@ pio device monitor   # serial at 115200
 
 Exact library versions are pinned in platformio.ini.
 
+Verified 2026-07-11: `pio run` compiles clean (231 objects, zero
+warnings/errors in this codebase; RAM 7.5%, Flash 43.9% of the XIAO
+ESP32-C3's budget). The only earlier failures were the toolchain download
+breaking mid-transfer on a slow connection, not a code issue; a retry
+loop resolved it. `pio run -t upload` and the bench tests in TESTS.md are
+still pending real hardware.
+
 ## Build: Arduino IDE alternative
 
 1. Boards manager: esp32 by Espressif Systems 2.x (platform
