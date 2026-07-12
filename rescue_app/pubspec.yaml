@@ -1,0 +1,34 @@
+name: rescue_app
+description: >-
+  Flutter app for rescue teams: victim requests, claims with personnel
+  identity, HQ uplink, announcements. Phase 2 adds PIN login (file 05) and
+  real fleet-CA pinning (file 09).
+
+publish_to: 'none'
+
+version: 2.0.0+2
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  encrypt: ^5.0.3
+  http: ^1.1.0
+  provider: ^6.0.0
+  intl: ^0.19.0
+  geolocator: ^12.0.0
+  flutter_secure_storage: ^9.2.2
+  url_launcher: ^6.1.10
+  cupertino_icons: ^1.0.2
+  rescue_mesh_shared:
+    path: ../shared_dart
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
