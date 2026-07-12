@@ -194,6 +194,36 @@ void main() {
     c.close();
   });
 
+  test('emergency-app checkin upload with SOS (file 06 / file 02 2.5)',
+      () async {
+    // The emergency app hits the PUBLIC victim plane (port 80), no auth.
+    final public = RescueMeshClient(baseUrl: 'http://127.0.0.1:$httpPort');
+    final result = await public.postCheckin(
+      deviceId: 'emg-app-1',
+      sos: true,
+      sosText: 'stranded on the roof',
+      points: [
+        {'lat': 6.90, 'lon': 79.80, 'accuracy': 8.0,
+          'recorded_at': '2026-07-12T01:00:00Z'},
+        {'lat': 6.91, 'lon': 79.81, 'accuracy': 6.0,
+          'recorded_at': '2026-07-12T13:00:00Z'},
+      ],
+    );
+    expect(result['stored'], 2);
+    expect(result['sos_msg_id'], isNotNull);
+    public.close();
+
+    // The SOS also entered the rescue message queue.
+    final hq = RescueMeshClient(
+        baseUrl: 'http://127.0.0.1:$apiPort', apiKey: hqKey);
+    final msgs = await hq.getMessages();
+    expect(msgs.any((m) => m.content.contains('stranded on the roof')), isTrue);
+    // and the stored points are readable on the rescue plane
+    final checkins = await hq.getCheckins();
+    expect(checkins.where((c) => c.deviceId == 'emg-app-1').length, 2);
+    hq.close();
+  });
+
   group('TLS pinning (file 09 T9.1 local drill)', () {
     late String fleetCaPem;
     late String wrongCaPem;

@@ -243,7 +243,27 @@ class RescueMeshClient {
     await _post('/personnel/$personnelId/revoke', {});
   }
 
-  // --- checkins / health --------------------------------------------------------
+  // --- checkins --------------------------------------------------------------
+
+  /// Upload stored location points and an optional SOS from the emergency
+  /// app (file 06). This is the PUBLIC victim plane (HTTP port 80): build
+  /// the client with an http base URL (e.g. http://10.42.0.1) and no auth.
+  /// An SOS also creates a rescue message server-side (file 02 task 2.5).
+  /// Returns {stored, sos_msg_id}.
+  Future<Map<String, dynamic>> postCheckin({
+    required String deviceId,
+    required List<Map<String, dynamic>> points,
+    bool sos = false,
+    String sosText = '',
+  }) async {
+    final data = await _post('/checkin', {
+      'device_id': deviceId,
+      'sos': sos,
+      'sos_text': sosText,
+      'points': points,
+    });
+    return data as Map<String, dynamic>;
+  }
 
   Future<List<Checkin>> getCheckins() async {
     final data = await _get('/checkins');
