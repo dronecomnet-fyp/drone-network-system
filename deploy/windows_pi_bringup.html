@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Raspberry Pi Node Bring-Up — DRONE_A</title>
+<style>
+@font-face {
+  font-family: "CascadiaFallback";
+  src: local("Cascadia Code"), local("Consolas");
+}
+
+:root {
+  --ink: #1b2028;
+  --paper: #f6f4ef;
+  --paper-raised: #eeebe3;
+  --line: #d8d3c6;
+  --wire: #5b6b7a;
+  --accent: #d9711c;
+  --accent-strong: #b85c14;
+  --pass: #1f8f5b;
+  --pass-bg: #e4f4ec;
+  --stop: #c23a3a;
+  --stop-bg: #fbe9e7;
+  --term-bg: #14181e;
+  --term-fg: #e6e2d6;
+  --term-dim: #8a93a3;
+  --code-fg: #2a2f38;
+
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+
+:root[data-theme="dark"] {
+  --ink: #e9e6dc;
+  --paper: #12161c;
+  --paper-raised: #191f27;
+  --line: #2b323d;
+  --wire: #8a97a8;
+  --accent: #ff8a3d;
+  --accent-strong: #ffab6f;
+  --pass: #3ecb8c;
+  --pass-bg: #12261d;
+  --stop: #ff6b6b;
+  --stop-bg: #2a1616;
+  --term-bg: #0c0f13;
+  --term-fg: #e6e2d6;
+  --term-dim: #7c8798;
+  --code-fg: #e9e6dc;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc;
+    --paper: #12161c;
+    --paper-raised: #191f27;
+    --line: #2b323d;
+    --wire: #8a97a8;
+    --accent: #ff8a3d;
+    --accent-strong: #ffab6f;
+    --pass: #3ecb8c;
+    --pass-bg: #12261d;
+    --stop: #ff6b6b;
+    --stop-bg: #2a1616;
+    --term-bg: #0c0f13;
+    --term-fg: #e6e2d6;
+    --term-dim: #7c8798;
+    --code-fg: #e9e6dc;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+  padding: 0 0 6rem;
+}
+
+::selection { background: var(--accent); color: #14181e; }
+a { color: var(--accent-strong); }
+
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; }
+
+.masthead {
+  border-bottom: 1px solid var(--line);
+  padding: 2.6rem 0 1.8rem;
+  margin-bottom: 2.2rem;
+}
+
+.kicker {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--wire);
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 0.9rem;
+}
+
+.kicker .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+h1.title {
+  font-family: var(--mono);
+  font-size: 1.9rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  margin: 0 0 0.6rem;
+}
+
+.dek { max-width: 46ch; color: var(--wire); font-size: 1.02rem; margin: 0; }
+
+.meta-row {
+  display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem;
+  margin-top: 1.4rem;
+  font-family: var(--mono); font-size: 0.78rem; color: var(--wire);
+}
+.meta-row b { color: var(--ink); font-weight: 600; }
+
+.legend {
+  display: flex; flex-wrap: wrap; gap: 0.6rem 1.2rem;
+  margin-top: 1.2rem;
+  font-family: var(--mono); font-size: 0.74rem; color: var(--wire);
+}
+.legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+.chip {
+  display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 3px;
+  border: 1px solid var(--line);
+}
+.chip.win { background: color-mix(in srgb, var(--accent) 30%, var(--paper)); }
+.chip.pi { background: color-mix(in srgb, var(--pass) 35%, var(--paper)); }
+
+.index {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1.1rem 1.3rem;
+  margin-bottom: 2.6rem;
+}
+.index-title {
+  font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--wire); margin: 0 0 0.7rem;
+}
+.index ol {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.25rem 1rem;
+}
+.index li a {
+  display: flex; gap: 0.55rem; align-items: baseline;
+  text-decoration: none; color: var(--ink); font-size: 0.88rem; padding: 0.2rem 0;
+}
+.index li a:hover { color: var(--accent-strong); }
+.index .n { font-family: var(--mono); color: var(--wire); font-size: 0.78rem; min-width: 1.4em; }
+
+.stage {
+  border-left: 3px solid var(--line);
+  padding: 0 0 0 1.3rem;
+  margin-bottom: 2.9rem;
+  scroll-margin-top: 1.5rem;
+}
+.stage.gate { border-left-color: var(--stop); }
+
+.stage-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 0.85rem; }
+.stage-num {
+  font-family: var(--mono); font-size: 0.85rem; color: var(--wire);
+  background: var(--paper-raised); border: 1px solid var(--line);
+  border-radius: 999px; padding: 0.12rem 0.6rem; flex-shrink: 0;
+}
+h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; margin: 0; text-wrap: balance; }
+
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+.stage ul, .stage ol.steps { margin: 0 0 1rem; padding-left: 1.25rem; max-width: 60ch; }
+.stage li { margin-bottom: 0.4rem; }
+.stage li:last-child { margin-bottom: 0; }
+
+.term {
+  background: var(--term-bg);
+  border-radius: 8px;
+  margin: 0 0 1rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000);
+}
+.term-bar { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.term-bar .cap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--term-dim); margin-left: 0.3rem; }
+.term-bar .where {
+  margin-left: auto; font-family: var(--mono); font-size: 0.64rem;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 0.08rem 0.5rem; border-radius: 999px;
+}
+.term-bar .where.win { color: #ffcfa3; background: rgba(217,113,28,0.18); }
+.term-bar .where.pi { color: #a7e8c6; background: rgba(31,143,91,0.2); }
+.term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
+.term-bar .led.r { background: #e5645c; }
+.term-bar .led.y { background: #e5b84f; }
+.term-bar .led.g { background: #57c273; }
+.term pre {
+  margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto;
+  font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg);
+}
+.term .prompt { color: var(--term-dim); }
+.term .comment { color: var(--term-dim); font-style: italic; }
+
+code.inline {
+  font-family: var(--mono); font-size: 0.88em;
+  background: var(--paper-raised); border: 1px solid var(--line);
+  border-radius: 4px; padding: 0.05rem 0.35rem; color: var(--code-fg);
+}
+
+.readout {
+  background: var(--pass-bg);
+  border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line));
+  border-radius: 8px; padding: 0.9rem 1.1rem 1rem; margin: 0 0 1rem;
+}
+.readout .label {
+  display: flex; align-items: center; gap: 0.4rem;
+  font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--pass); margin-bottom: 0.55rem;
+}
+.readout pre, .readout code {
+  font-family: var(--mono); font-size: 0.85rem; color: var(--code-fg);
+  white-space: pre-wrap; word-break: break-word; margin: 0;
+}
+.readout .hint { font-family: var(--sans); font-size: 0.85rem; color: var(--wire); margin-top: 0.55rem; white-space: normal; }
+
+.gatebox {
+  background: var(--stop-bg);
+  border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line));
+  border-radius: 8px; padding: 0.95rem 1.1rem 1.05rem; margin: 0 0 0.4rem;
+}
+.gatebox .label {
+  display: flex; align-items: center; gap: 0.45rem;
+  font-family: var(--mono); font-weight: 600; font-size: 0.78rem;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem;
+}
+.gatebox p { margin: 0; max-width: 58ch; font-size: 0.95rem; }
+
+.note {
+  border: 1px dashed var(--line); border-radius: 8px;
+  padding: 0.8rem 1rem; font-size: 0.88rem; color: var(--wire);
+  margin: 0 0 1rem; max-width: 60ch;
+}
+.note b { color: var(--ink); }
+.note.warn { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+.fieldtable-wrap { overflow-x: auto; margin-bottom: 1rem; }
+table.fieldtable { border-collapse: collapse; width: 100%; font-size: 0.85rem; min-width: 30rem; }
+table.fieldtable th, table.fieldtable td { text-align: left; padding: 0.45rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.fieldtable th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wire); font-weight: 600; }
+table.fieldtable code { font-family: var(--mono); font-size: 0.85em; }
+
+footer {
+  max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 0.78rem; color: var(--wire);
+}
+
+@media (max-width: 640px) {
+  h1.title { font-size: 1.55rem; }
+  .index ol { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; File 01 &middot; Node Bring-Up</div>
+    <h1 class="title">Raspberry Pi Node DRONE_A<br>Flash, Configure &amp; Verify</h1>
+    <p class="dek">Turn the Pi into one complete mesh node, then plug in the aux module you already flashed so its live GPS and battery data land in the node's health readout.</p>
+    <div class="meta-row">
+      <span><b>Node</b> DRONE_A</span>
+      <span><b>OS</b> Raspberry Pi OS Lite 64-bit (Bookworm)</span>
+      <span><b>You drive from</b> Windows (SSH)</span>
+      <span><b>Radios</b> onboard 5&nbsp;GHz AP + USB AR9271 2.4&nbsp;GHz</span>
+    </div>
+    <div class="legend">
+      <span><span class="chip win"></span>command runs on <b>&nbsp;Windows</b></span>
+      <span><span class="chip pi"></span>command runs on the <b>&nbsp;Pi</b> (over SSH)</span>
+    </div>
+  </header>
+
+  <div class="note warn" style="max-width:none;">
+    <b>Read this once before you start.</b> The setup script converts the Pi's onboard WiFi into an access point. If you SSH in over WiFi, you will cut your own connection mid-setup. <b>Connect the Pi by Ethernet cable for this whole process</b> (or use a keyboard + monitor). SSH over Ethernet.
+  </div>
+
+  <nav class="index">
+    <p class="index-title">Stages</p>
+    <ol>
+      <li><a href="#s0"><span class="n">0</span>What you're building</a></li>
+      <li><a href="#s1"><span class="n">1</span>Flash the SD card</a></li>
+      <li><a href="#s2"><span class="n">2</span>Boot + SSH in</a></li>
+      <li><a href="#s3"><span class="n">3</span>Get the code onto the Pi</a></li>
+      <li><a href="#s4"><span class="n">4</span>Gate &mdash; network stack + AR9271</a></li>
+      <li><a href="#s5"><span class="n">5</span>Generate the fleet trust files</a></li>
+      <li><a href="#s6"><span class="n">6</span>Run the node setup</a></li>
+      <li><a href="#s7"><span class="n">7</span>Reboot</a></li>
+      <li><a href="#s8"><span class="n">8</span>Gate &mdash; the node is alive</a></li>
+      <li><a href="#s9"><span class="n">9</span>Gate &mdash; plug in the aux module</a></li>
+      <li><a href="#s10"><span class="n">10</span>Troubleshooting</a></li>
+    </ol>
+  </nav>
+
+  <!-- 0 -->
+  <section class="stage" id="s0">
+    <div class="stage-head"><span class="stage-num">00</span><h2 class="stage-title">What you're building</h2></div>
+    <p>One complete node called <b>DRONE_A</b>, matching the aux module you provisioned as DRONE_A. On this single Pi:</p>
+    <ul>
+      <li><b>Onboard WiFi (wlan0)</b> becomes the 5&nbsp;GHz user access point <code class="inline">RESCUE_A</code> at <code class="inline">10.42.0.1</code> &mdash; what victims and rescuers connect to.</li>
+      <li><b>USB AR9271 (wlan1)</b> becomes the always-on 2.4&nbsp;GHz mesh radio (the DTN backbone). With one Pi it has no peer yet, which is fine &mdash; it just waits.</li>
+      <li><b>The XIAO aux module</b> plugs into a USB port and feeds GPS + battery telemetry to the node over serial (last stage).</li>
+    </ul>
+    <div class="note">With only one node, you can fully verify a working node and the aux integration. Node-to-node mesh sync is a later step that needs a second Pi.</div>
+  </section>
+
+  <!-- 1 -->
+  <section class="stage" id="s1">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">Flash the SD card</h2></div>
+    <p>On the Windows laptop, install <a href="https://www.raspberrypi.com/software/" target="_blank" rel="noopener">Raspberry Pi Imager</a>, insert the SD card, and open it.</p>
+    <ol class="steps">
+      <li><b>Choose Device:</b> Raspberry Pi 4.</li>
+      <li><b>Choose OS:</b> Raspberry Pi OS (other) &rarr; <b>Raspberry Pi OS Lite (64-bit)</b>. Lite = no desktop, which is what we want.</li>
+      <li><b>Choose Storage:</b> your SD card.</li>
+      <li>Click <b>Next</b>, then <b>Edit Settings</b>, and set:
+        <ul>
+          <li>Hostname: <code class="inline">drone-a</code></li>
+          <li>Enable SSH (Services tab) &mdash; password authentication is fine to start.</li>
+          <li>Username <code class="inline">drone</code>, and a password you'll remember.</li>
+          <li>Locale: timezone <code class="inline">Asia/Colombo</code>.</li>
+          <li><b>Do NOT configure wireless LAN</b> &mdash; leave WiFi blank. The setup script owns the radios.</li>
+        </ul>
+      </li>
+      <li>Save, then <b>Write</b>. When it finishes, put the card in the Pi.</li>
+    </ol>
+  </section>
+
+  <!-- 2 -->
+  <section class="stage" id="s2">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">Boot and SSH in</h2></div>
+    <ol class="steps">
+      <li>Plug the AR9271 USB WiFi adapter into the Pi.</li>
+      <li>Connect the Pi to your router with an <b>Ethernet cable</b>.</li>
+      <li>Power on. Give it about a minute to boot the first time.</li>
+    </ol>
+    <p>From Windows PowerShell:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell</span><span class="where win">Windows</span></div>
+      <pre><span class="prompt">PS&gt;</span> ssh drone@drone-a.local</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected</div>
+      <pre>The authenticity of host 'drone-a.local ...' can't be established.
+Are you sure you want to continue connecting (yes/no)? yes
+drone@drone-a.local's password: <span class="comment">(type your password)</span>
+drone@drone-a:~ $</pre>
+      <p class="hint">If <code class="inline">drone-a.local</code> doesn't resolve, find the Pi's IP address in your router's device list and use <code class="inline">ssh drone@THE.IP.ADDRESS</code> instead.</p>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="stage" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Get the code onto the Pi</h2></div>
+    <p>The Pi needs the <code class="inline">backend/</code> and <code class="inline">deploy/</code> folders under <code class="inline">/home/drone/rescue-mesh/</code>. Pick whichever transfer is easier for you.</p>
+
+    <p><b>Option A &mdash; git clone</b> (cleanest, if the repo is pushed to GitHub). On the Pi:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">Pi shell</span><span class="where pi">Pi &middot; SSH</span></div>
+      <pre><span class="prompt">$</span> git clone &lt;your-repo-url&gt; ~/rescue-mesh</pre>
+    </div>
+
+    <p><b>Option B &mdash; copy from the machine that has the repo</b> (e.g. the Mac), run there:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">from the repo folder</span><span class="where win">repo host</span></div>
+      <pre><span class="prompt">$</span> scp -r backend deploy tools drone@drone-a.local:~/rescue-mesh/</pre>
+    </div>
+
+    <p>Either way, confirm the layout on the Pi:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">Pi shell</span><span class="where pi">Pi &middot; SSH</span></div>
+      <pre><span class="prompt">$</span> ls ~/rescue-mesh
+<span class="comment"># expect at least:  backend  deploy</span></pre>
+    </div>
+    <div class="note">If you'd like the git route, say so and I'll push the repo to your GitHub from the Mac so <code class="inline">git clone</code> just works.</div>
+  </section>
+
+  <!-- 4: GATE -->
+  <section class="stage gate" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Gate &mdash; network stack and AR9271</h2></div>
+    <p>The setup script refuses to run if the network stack is wrong, so check it first. On the Pi:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">Pi shell</span><span class="where pi">Pi &middot; SSH</span></div>
+      <pre><span class="prompt">$</span> systemctl is-active NetworkManager   <span class="comment"># expect: active</span>
+<span class="prompt">$</span> systemctl is-active dhcpcd           <span class="comment"># expect: inactive (or failed)</span>
+<span class="prompt">$</span> lsusb                                <span class="comment"># expect an Atheros / AR9271 line</span>
+<span class="prompt">$</span> dmesg | grep -i ath9k                <span class="comment"># expect ath9k_htc firmware loaded</span>
+<span class="prompt">$</span> iw list | grep -A8 "Supported interface modes"</pre>
+    </div>
+    <div class="readout">
+      <div class="label">The one that matters most</div>
+      <pre>Supported interface modes:
+     * managed
+     * AP
+     * IBSS          &larr; this line must be present
+     * monitor</pre>
+      <p class="hint"><code class="inline">IBSS</code> is the ad-hoc mode the 2.4&nbsp;GHz backbone uses. If <code class="inline">dmesg</code> shows the ath9k firmware missing, install it: <code class="inline">sudo apt install firmware-ath9k-htc</code>, then re-check.</p>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Report the results, especially whether <code class="inline">IBSS</code> appears in the interface modes and whether the Atheros adapter shows in <code class="inline">lsusb</code>. These two are the foundation of the dual-radio design; if either is missing we sort it out before running setup.</p>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section class="stage" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Generate the fleet trust files (once)</h2></div>
+    <p>This creates the certificate authority and shared secrets the whole fleet uses. Run it once; every node reuses the same <code class="inline">deploy/secrets/</code> folder. On the Pi:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">Pi shell</span><span class="where pi">Pi &middot; SSH</span></div>
+      <pre><span class="prompt">$</span> cd ~/rescue-mesh/deploy
+<span class="prompt">$</span> chmod +x setup_node.sh make_fleet_ca.sh files/dtn-net-up.sh
+<span class="prompt">$</span> ./make_fleet_ca.sh</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected tail</div>
+      <pre>[1/3] Generating fleet CA key + certificate
+[2/3] Generating fleet secrets
+[3/3] Done. Copy deploy/secrets/ to each Pi ...</pre>
+      <p class="hint">This produces <code class="inline">deploy/secrets/</code> with <code class="inline">fleet_ca.crt</code> (the apps will need this later), <code class="inline">fleet_ca.key</code>, and <code class="inline">fleet_secrets.env</code>. They're git-ignored on purpose &mdash; never commit them.</p>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section class="stage" id="s6">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Run the node setup</h2></div>
+    <p>The <code class="inline">a</code> argument means DRONE_A (the config for SSID <code class="inline">RESCUE_A</code>, DTN address <code class="inline">10.99.0.1</code>, aux on <code class="inline">/dev/ttyACM0</code>). The interface MAC addresses are detected automatically, so there's nothing to edit.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">Pi shell</span><span class="where pi">Pi &middot; SSH</span></div>
+      <pre><span class="prompt">$</span> sudo ./setup_node.sh a</pre>
+    </div>
+    <div class="readout">
+      <div class="label">What you'll see scroll by</div>
+      <pre>[Step 2] Verifying network stack assumptions
+[Step 3] Pinning interface names (wlan0=onboard, wlan1=AR9271)
+[Step 6] Installing base packages
+[Step 6] Python venv + pinned requirements
+[Step 7] Writing /etc/rescue-mesh/node.env
+[Step 7] Issuing node TLS certificate from the fleet CA
+[Step 4] Configuring 5 GHz user AP (RESCUE_A, channel 36)
+[Step 5] Configuring IBSS DTN backbone on wlan1
+[Step 8] ... systemd units ... firewall ... disabling Bluetooth
+=== Setup complete for DRONE_A ===
+REBOOT NOW ...</pre>
+      <p class="hint">The package install and pip step need internet &mdash; that's why the Pi is on Ethernet. This takes a few minutes.</p>
+    </div>
+    <div class="note warn"><b>If the pip step fails:</b> the Python package versions were pinned on a newer Python than the Pi's 3.11. If you see a pip resolver error here, stop and tell me the error &mdash; it's a one-line fix to the version pins, and worth doing properly rather than hacking around.</div>
+  </section>
+
+  <!-- 7 -->
+  <section class="stage" id="s7">
+    <div class="stage-head"><span class="stage-num">07</span><h2 class="stage-title">Reboot</h2></div>
+    <p>The interface-name pinning and the Bluetooth-off change only take effect after a restart.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">Pi shell</span><span class="where pi">Pi &middot; SSH</span></div>
+      <pre><span class="prompt">$</span> sudo reboot</pre>
+    </div>
+    <p>Your SSH session drops. Wait about a minute, then reconnect: <code class="inline">ssh drone@drone-a.local</code>.</p>
+  </section>
+
+  <!-- 8: GATE -->
+  <section class="stage gate" id="s8">
+    <div class="stage-head"><span class="stage-num">08</span><h2 class="stage-title">Gate &mdash; the node is alive</h2></div>
+    <p>Back on the Pi after reboot:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">Pi shell</span><span class="where pi">Pi &middot; SSH</span></div>
+      <pre><span class="prompt">$</span> ip link                              <span class="comment"># wlan0 AND wlan1 both present</span>
+<span class="prompt">$</span> systemctl is-active rescue-mesh-api rescue-portal dtn-net rescue-mesh-sync
+<span class="prompt">$</span> iw dev wlan1 info                    <span class="comment"># type IBSS, ssid RESCUE_DTN</span>
+<span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected /health (aux not plugged in yet)</div>
+      <pre>{"status":"ok","node_id":"DRONE_A","aux":"absent",
+ "gps":{"lat":null,"lon":null,"fix":0,"sats":0},
+ "clock_source":"relative", ...}</pre>
+      <p class="hint"><code class="inline">aux":"absent"</code> is correct here &mdash; the module isn't connected yet. Then grab your phone: the <code class="inline">RESCUE_A</code> WiFi network should be visible; joining it (it's open) should pop the captive portal with the victim message form.</p>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Report: are all four services active, does <code class="inline">iw dev wlan1 info</code> say <b>type IBSS</b>, does <code class="inline">/health</code> return JSON, and does the <code class="inline">RESCUE_A</code> network appear on your phone with the portal? If <code class="inline">wlan1</code> won't become IBSS, tell me the exact error &mdash; there's a documented fallback and I'll walk you through it.</p>
+    </div>
+  </section>
+
+  <!-- 9: GATE -->
+  <section class="stage gate" id="s9">
+    <div class="stage-head"><span class="stage-num">09</span><h2 class="stage-title">Gate &mdash; plug in the aux module</h2></div>
+    <p>Now the two devices meet. Plug the XIAO (flashed and provisioned as DRONE_A) into a Pi USB port with the USB-A&rarr;USB-C cable. Put it near a window for GPS.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">Pi shell</span><span class="where pi">Pi &middot; SSH</span></div>
+      <pre><span class="prompt">$</span> ls /dev/ttyACM*                      <span class="comment"># expect /dev/ttyACM0</span>
+<span class="prompt">$</span> sudo systemctl restart rescue-mesh-auxbridge
+<span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health | python3 -m json.tool</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected after a GPS fix (give it a few minutes)</div>
+      <pre>"aux": "present",
+"gps": {"lat": 6.9271, "lon": 79.8612, "fix": 1, "sats": 7},
+"battery": {"a_v": 7.42, ...},
+"clock_source": "gps"</pre>
+      <p class="hint">Watch the bridge's own log for the moment it sets the clock from GPS:</p>
+    </div>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">Pi shell</span><span class="where pi">Pi &middot; SSH</span></div>
+      <pre><span class="prompt">$</span> journalctl -u rescue-mesh-auxbridge -n 20 --no-pager
+<span class="comment"># expect an AUX_CONNECT line, then after a fix a CLOCK_SYNC line</span></pre>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here &mdash; this is the finish line for one module</div>
+      <p>Report the <code class="inline">/health</code> output once the module is connected: <code class="inline">aux</code> should read <b>present</b>, <code class="inline">sats</code> should climb, and after a fix <code class="inline">clock_source</code> flips to <b>gps</b>. That's a complete, self-locating node. Paste it back and we'll mark DRONE_A done.</p>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section class="stage" id="s10">
+    <div class="stage-head"><span class="stage-num">10</span><h2 class="stage-title">Troubleshooting</h2></div>
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <thead><tr><th>Symptom</th><th>Try this</th></tr></thead>
+        <tbody>
+          <tr><td>SSH dies partway through setup</td><td>You were connected over WiFi. Use Ethernet and re-run <code class="inline">sudo ./setup_node.sh a</code> (it's safe to re-run).</td></tr>
+          <tr><td><code class="inline">setup_node.sh</code> aborts: "NetworkManager is not active"</td><td>Bookworm should have it by default. <code class="inline">sudo systemctl enable --now NetworkManager</code> and <code class="inline">sudo systemctl disable --now dhcpcd</code>, then re-run.</td></tr>
+          <tr><td>"missing fleet trust material"</td><td>You skipped Stage 5. Run <code class="inline">./make_fleet_ca.sh</code> from <code class="inline">~/rescue-mesh/deploy</code> first.</td></tr>
+          <tr><td>pip / package install error during setup</td><td>Likely the version pins vs the Pi's Python 3.11. Send me the exact error; it's a small fix to <code class="inline">backend/requirements.txt</code>.</td></tr>
+          <tr><td><code class="inline">wlan1</code> won't show type IBSS</td><td>Confirm ath9k firmware loaded (<code class="inline">dmesg | grep ath9k</code>); if it flaps, tell me &mdash; there's a documented AP/station fallback for this exact case.</td></tr>
+          <tr><td><code class="inline">RESCUE_A</code> WiFi not visible on the phone</td><td>Onboard 5 GHz AP needs the country code set (the script sets LK). Check <code class="inline">nmcli con show USER_AP</code> is active; some phones only see 2.4 GHz and won't list a 5 GHz AP (expected).</td></tr>
+          <tr><td>aux stays "absent" after plugging in</td><td><code class="inline">ls /dev/ttyACM*</code> to confirm it enumerated; <code class="inline">journalctl -u rescue-mesh-auxbridge -f</code> to watch it connect; restart the service.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><b>Full checklist reference:</b> <code class="inline">deploy/VERIFY.md</code> in the repo has the complete per-node acceptance list this runbook is based on.</div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="wrap" style="padding:0;">deploy &middot; file 01 &middot; rescue mesh phase 2 &middot; node DRONE_A</div>
+</footer>
+
+</body>
+</html>
