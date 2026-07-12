@@ -61,3 +61,16 @@ Phase 1 security docs) is flagged here, never silently drifted.
 9. gs_messages gain an HMAC signature column and sync fleet-wide, fixing
    the Phase 1 gap where field reports never left the node they were filed
    on (master plan section 2).
+
+## 2026-07-13 Aux module pin correction (bench finding, rule 5)
+
+10. LoRa MISO moved from D9 to D0 (GPIO2) on the XIAO ESP32-C3. File 03's
+    pin table and the firmware constant both listed MISO on D9; on the
+    first fully-soldered module, SPI reads from the RFM95 failed on D9 and
+    worked on D0 (LoRa.begin() returned false with D9, true with D0).
+    Fixed in firmware/aux/src/main.cpp (constant + header pin table) and
+    the Windows bring-up runbook troubleshooting table. Consequence: every
+    XIAO signal pin is now allocated; D0 is no longer the spare pin listed
+    in file 03. This supersedes the "LoRa MISO D9" entry in file 03's pin
+    map; update design v3/v4 accordingly. Confidence: High (reproduced on
+    the bench). All other pins in file 03's table were confirmed correct.

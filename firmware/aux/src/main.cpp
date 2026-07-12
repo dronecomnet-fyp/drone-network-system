@@ -12,14 +12,14 @@
  *   LoRa DIO0 D1
  *   LoRa RST  D2
  *   LoRa SCK  D8    custom SPI (FSPI)
- *   LoRa MISO D9    corrected value
+ *   LoRa MISO D0    (GPIO2) bench-confirmed 2026-07-13; D9 failed SPI
  *   LoRa MOSI D10
  *   GPS RX    D7    (GPIO20, module TX) Serial1 @ 9600
  *   GPS TX    D6    (GPIO21, module RX)
  *   I2C SDA   D4    (GPIO6) INA3221 @ 0x40 (A0 to GND)
  *   I2C SCL   D5    (GPIO7)
  *   Pi link   USB-C native CDC @ 115200 (no GPIO used)
- *   D0        free, reserved
+ *   (all signal pins now allocated; D0 was the former spare)
  *
  * State machine: INIT -> NORMAL -> FALLBACK, one-way per boot (design v3
  * default: stay in fallback until power cycle; simpler to reason about.
@@ -49,7 +49,10 @@ static const int PIN_LORA_CS = D3;
 static const int PIN_LORA_DIO0 = D1;
 static const int PIN_LORA_RST = D2;
 static const int PIN_LORA_SCK = D8;
-static const int PIN_LORA_MISO = D9;
+// MISO is on D0 (GPIO2), NOT D9: confirmed on the bench 2026-07-13 when
+// D9 failed SPI reads and D0 worked (docs/CHANGES.md). This uses every
+// signal pin; D0 is no longer spare.
+static const int PIN_LORA_MISO = D0;
 static const int PIN_LORA_MOSI = D10;
 static const int PIN_GPS_RX = D7;  // module TX -> our RX
 static const int PIN_GPS_TX = D6;  // module RX <- our TX

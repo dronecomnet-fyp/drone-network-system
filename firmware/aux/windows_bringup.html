@@ -659,7 +659,7 @@ Service Data: 41 7c 52 45 53 43 55 45 5f 41   ("A|RESCUE_A")</pre>
           <tr><td><code class="inline">pio run -t upload</code> hangs or times out</td><td>Repeat the BOOT-button trick above, then retry immediately. Also try a different USB port directly on the laptop rather than through a hub.</td></tr>
           <tr><td>Upload succeeds but nothing prints in the monitor</td><td>Confirm the monitor is pointed at the same COM port; close any other program (Arduino IDE, another terminal) that might be holding the port open.</td></tr>
           <tr><td>Boot line shows <code class="inline">"ina3221":false</code></td><td>Check the I2C wiring: SDA on D4, SCL on D5, INA3221 address 0x40 (A0 pad tied to GND).</td></tr>
-          <tr><td>Boot line shows <code class="inline">"lora":false</code></td><td>Check the SPI wiring: CS on D3, DIO0 on D1, RST on D2, SCK on D8, MISO on D9, MOSI on D10.</td></tr>
+          <tr><td>Boot line shows <code class="inline">"lora":false</code></td><td>Check the SPI wiring: CS on D3, DIO0 on D1, RST on D2, SCK on D8, <b>MISO on D0</b> (GPIO2 &mdash; not D9), MOSI on D10.</td></tr>
           <tr><td><code class="inline">python</code> not recognized</td><td>Reopen PowerShell after installing Python; if it still fails, rerun the installer and tick "Add to PATH".</td></tr>
           <tr><td><code class="inline">pip install</code> fails with a permissions error</td><td>Add <code class="inline">--user</code>: <code class="inline">pip install --user platformio pyserial</code></td></tr>
         </tbody>
