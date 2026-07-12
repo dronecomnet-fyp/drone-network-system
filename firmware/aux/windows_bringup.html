@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>XIAO ESP32-C3 Bring-Up — Windows Runbook</title>
+<style>
+@font-face {
+  font-family: "CascadiaFallback";
+  src: local("Cascadia Code"), local("Consolas");
+}
+
+:root {
+  --ink: #1b2028;
+  --paper: #f6f4ef;
+  --paper-raised: #eeebe3;
+  --line: #d8d3c6;
+  --wire: #5b6b7a;
+  --accent: #d9711c;
+  --accent-strong: #b85c14;
+  --pass: #1f8f5b;
+  --pass-bg: #e4f4ec;
+  --stop: #c23a3a;
+  --stop-bg: #fbe9e7;
+  --term-bg: #14181e;
+  --term-fg: #e6e2d6;
+  --term-dim: #8a93a3;
+  --code-fg: #2a2f38;
+
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+
+:root[data-theme="dark"] {
+  --ink: #e9e6dc;
+  --paper: #12161c;
+  --paper-raised: #191f27;
+  --line: #2b323d;
+  --wire: #8a97a8;
+  --accent: #ff8a3d;
+  --accent-strong: #ffab6f;
+  --pass: #3ecb8c;
+  --pass-bg: #12261d;
+  --stop: #ff6b6b;
+  --stop-bg: #2a1616;
+  --term-bg: #0c0f13;
+  --term-fg: #e6e2d6;
+  --term-dim: #7c8798;
+  --code-fg: #e9e6dc;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc;
+    --paper: #12161c;
+    --paper-raised: #191f27;
+    --line: #2b323d;
+    --wire: #8a97a8;
+    --accent: #ff8a3d;
+    --accent-strong: #ffab6f;
+    --pass: #3ecb8c;
+    --pass-bg: #12261d;
+    --stop: #ff6b6b;
+    --stop-bg: #2a1616;
+    --term-bg: #0c0f13;
+    --term-fg: #e6e2d6;
+    --term-dim: #7c8798;
+    --code-fg: #e9e6dc;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+  padding: 0 0 6rem;
+}
+
+::selection { background: var(--accent); color: #14181e; }
+
+a { color: var(--accent-strong); }
+
+.wrap {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* ---------- Masthead ---------- */
+
+.masthead {
+  border-bottom: 1px solid var(--line);
+  padding: 2.6rem 0 1.8rem;
+  margin-bottom: 2.2rem;
+}
+
+.kicker {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--wire);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.9rem;
+}
+
+.kicker .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+h1.title {
+  font-family: var(--mono);
+  font-size: 1.9rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  margin: 0 0 0.6rem;
+}
+
+.dek {
+  max-width: 42ch;
+  color: var(--wire);
+  font-size: 1.02rem;
+  margin: 0;
+}
+
+.meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.4rem;
+  margin-top: 1.4rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--wire);
+}
+
+.meta-row b { color: var(--ink); font-weight: 600; }
+
+/* ---------- Stage index ---------- */
+
+.index {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1.1rem 1.3rem;
+  margin-bottom: 2.6rem;
+}
+
+.index-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--wire);
+  margin: 0 0 0.7rem;
+}
+
+.index ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.25rem 1rem;
+}
+
+.index li a {
+  display: flex;
+  gap: 0.55rem;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--ink);
+  font-size: 0.88rem;
+  padding: 0.2rem 0;
+}
+
+.index li a:hover { color: var(--accent-strong); }
+
+.index .n {
+  font-family: var(--mono);
+  color: var(--wire);
+  font-size: 0.78rem;
+  min-width: 1.4em;
+}
+
+/* ---------- Stage ---------- */
+
+.stage {
+  border-left: 3px solid var(--line);
+  padding: 0 0 0 1.3rem;
+  margin-bottom: 2.9rem;
+  scroll-margin-top: 1.5rem;
+}
+
+.stage.gate { border-left-color: var(--stop); }
+.stage.check { border-left-color: var(--pass); }
+
+.stage-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.stage-num {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--wire);
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.12rem 0.6rem;
+  flex-shrink: 0;
+}
+
+h2.stage-title {
+  font-family: var(--mono);
+  font-size: 1.18rem;
+  font-weight: 600;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+
+.stage ul, .stage ol.steps {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+  max-width: 60ch;
+}
+.stage li { margin-bottom: 0.4rem; }
+.stage li:last-child { margin-bottom: 0; }
+
+/* ---------- Terminal blocks ---------- */
+
+.term {
+  background: var(--term-bg);
+  border-radius: 8px;
+  margin: 0 0 1rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000);
+}
+
+.term-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.8rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.term-bar .cap {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--term-dim);
+  margin-left: 0.3rem;
+}
+
+.term-bar .led {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #545b66;
+}
+.term-bar .led.r { background: #e5645c; }
+.term-bar .led.y { background: #e5b84f; }
+.term-bar .led.g { background: #57c273; }
+
+.term pre {
+  margin: 0;
+  padding: 0.85rem 1rem 1rem;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: var(--term-fg);
+}
+
+.term .prompt { color: var(--term-dim); }
+.term .comment { color: var(--term-dim); font-style: italic; }
+
+code.inline {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+  color: var(--code-fg);
+}
+
+/* ---------- Readout (expected output) ---------- */
+
+.readout {
+  background: var(--pass-bg);
+  border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line));
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem 1rem;
+  margin: 0 0 1rem;
+}
+
+.readout .label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pass);
+  margin-bottom: 0.55rem;
+}
+
+.readout .label svg { width: 13px; height: 13px; }
+
+.readout pre, .readout code {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--code-fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+.readout .hint {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  color: var(--wire);
+  margin-top: 0.55rem;
+  white-space: normal;
+}
+
+/* ---------- Gate (stop and check in) ---------- */
+
+.gatebox {
+  background: var(--stop-bg);
+  border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line));
+  border-radius: 8px;
+  padding: 0.95rem 1.1rem 1.05rem;
+  margin: 0 0 0.4rem;
+}
+
+.gatebox .label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--stop);
+  margin-bottom: 0.5rem;
+}
+
+.gatebox p { margin: 0; max-width: 58ch; font-size: 0.95rem; }
+
+/* ---------- Note / caution ---------- */
+
+.note {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  font-size: 0.88rem;
+  color: var(--wire);
+  margin: 0 0 1rem;
+  max-width: 60ch;
+}
+.note b { color: var(--ink); }
+
+/* ---------- Field table ---------- */
+
+.fieldtable-wrap { overflow-x: auto; margin-bottom: 1rem; }
+table.fieldtable {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.85rem;
+  min-width: 30rem;
+}
+table.fieldtable th, table.fieldtable td {
+  text-align: left;
+  padding: 0.45rem 0.8rem;
+  border-bottom: 1px solid var(--line);
+}
+table.fieldtable th {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--wire);
+  font-weight: 600;
+}
+table.fieldtable code { font-family: var(--mono); font-size: 0.85em; }
+table.fieldtable td.num { font-variant-numeric: tabular-nums; }
+
+/* ---------- Footer ---------- */
+
+footer {
+  max-width: 46rem;
+  margin: 3rem auto 0;
+  padding: 1.6rem 1.5rem 0;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--wire);
+}
+
+@media (max-width: 640px) {
+  h1.title { font-size: 1.55rem; }
+  .index ol { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; File 03 &middot; Bench Bring-Up</div>
+    <h1 class="title">XIAO ESP32-C3 Aux Module<br>Windows Flash &amp; Verify Runbook</h1>
+    <p class="dek">One soldered module: INA3221, RFM95 LoRa, GPS. Flash it, then verify GPS, battery telemetry, and BLE, one gate at a time, before touching anything else.</p>
+    <div class="meta-row">
+      <span><b>Board</b> Seeed XIAO ESP32-C3</span>
+      <span><b>Cable</b> USB-A &rarr; USB-C</span>
+      <span><b>Target OS</b> Windows 10/11</span>
+      <span><b>Firmware</b> platform espressif32@6.9.0</span>
+    </div>
+  </header>
+
+  <nav class="index">
+    <p class="index-title">Stages</p>
+    <ol>
+      <li><a href="#s0"><span class="n">0</span>Get the firmware files</a></li>
+      <li><a href="#s1"><span class="n">1</span>Install Python</a></li>
+      <li><a href="#s2"><span class="n">2</span>Install PlatformIO + pyserial</a></li>
+      <li><a href="#s3"><span class="n">3</span>Connect the board, find its port</a></li>
+      <li><a href="#s4"><span class="n">4</span>Build and flash</a></li>
+      <li><a href="#s5"><span class="n">5</span>Gate &mdash; confirm it booted</a></li>
+      <li><a href="#s6"><span class="n">6</span>Provision the node ID</a></li>
+      <li><a href="#s7"><span class="n">7</span>Gate &mdash; confirm the ack</a></li>
+      <li><a href="#s8"><span class="n">8</span>Verify GPS</a></li>
+      <li><a href="#s9"><span class="n">9</span>Verify battery (INA3221)</a></li>
+      <li><a href="#s10"><span class="n">10</span>Verify BLE advertising</a></li>
+      <li><a href="#s11"><span class="n">11</span>LoRa &mdash; what's provable solo</a></li>
+      <li><a href="#s12"><span class="n">12</span>Troubleshooting</a></li>
+    </ol>
+  </nav>
+
+  <!-- 0 -->
+  <section class="stage" id="s0">
+    <div class="stage-head"><span class="stage-num">00</span><h2 class="stage-title">Get the firmware files onto the Windows laptop</h2></div>
+    <p>You only strictly need two files from <code class="inline">firmware/aux/</code>: <code class="inline">platformio.ini</code> and <code class="inline">src/main.cpp</code>. Copy the whole <code class="inline">firmware/aux</code> folder across &mdash; it's a few KB.</p>
+    <p>Any transfer method works: a USB drive, a shared cloud folder, or emailing the two files to yourself. Keep the same folder structure (<code class="inline">firmware/aux/src/main.cpp</code>, not flattened) &mdash; PlatformIO expects <code class="inline">src/</code> as a subfolder next to <code class="inline">platformio.ini</code>.</p>
+    <div class="note"><b>Where to put it:</b> anywhere without spaces or unusual characters in the path is safest &mdash; e.g. <code class="inline">C:\rescue-mesh\firmware\aux</code>.</div>
+  </section>
+
+  <!-- 1 -->
+  <section class="stage" id="s1">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">Install Python</h2></div>
+    <p>PlatformIO and the serial test tool both run on Python.</p>
+    <ol class="steps">
+      <li>Download Python 3.11 or later from <a href="https://www.python.org/downloads/windows/" target="_blank" rel="noopener">python.org/downloads/windows</a>.</li>
+      <li>Run the installer. On the first screen, <b>tick "Add python.exe to PATH"</b> before clicking Install. This is the step people miss.</li>
+    </ol>
+    <p>Verify in PowerShell:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell</span></div>
+      <pre><span class="prompt">PS&gt;</span> python --version
+<span class="comment"># expect: Python 3.11.x (or newer)</span></pre>
+    </div>
+    <p>If PowerShell says it doesn't recognize <code class="inline">python</code>, close and reopen PowerShell first (PATH changes need a fresh window); if it still fails, re-run the installer and check the PATH box.</p>
+  </section>
+
+  <!-- 2 -->
+  <section class="stage" id="s2">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">Install PlatformIO Core and pyserial</h2></div>
+    <p>PlatformIO builds and flashes the firmware; pyserial runs the test tool that talks to the board afterward.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell</span></div>
+      <pre><span class="prompt">PS&gt;</span> pip install platformio pyserial</pre>
+    </div>
+    <p>Verify:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell</span></div>
+      <pre><span class="prompt">PS&gt;</span> pio --version
+<span class="comment"># expect: PlatformIO Core, version 6.x</span></pre>
+    </div>
+    <p>First run of <code class="inline">pio</code> after install downloads some tooling in the background &mdash; that's normal and only happens once.</p>
+  </section>
+
+  <!-- 3 -->
+  <section class="stage" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Connect the board and find its port</h2></div>
+    <p>Plug the XIAO into the laptop with the USB-A&rarr;USB-C cable. The XIAO ESP32-C3 uses native USB, so Windows 10/11 should enumerate it with no separate driver install.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell &middot; from firmware\aux</span></div>
+      <pre><span class="prompt">PS&gt;</span> pio device list</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Look for</div>
+      <pre>COM5
+------
+Hardware ID: USB VID:PID=303A:1001 ...
+Description: USB Serial Device (COM5)</pre>
+      <p class="hint">The COM number will differ on your machine (COM3, COM7, whatever's free). Write it down &mdash; you'll use it if auto-detect ever fails below.</p>
+    </div>
+    <p>Nothing listed? See <a href="#s12">Troubleshooting</a> before going further &mdash; don't proceed to flashing until a COM port shows up.</p>
+  </section>
+
+  <!-- 4 -->
+  <section class="stage" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Build and flash</h2></div>
+    <p>From inside the <code class="inline">firmware\aux</code> folder:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell</span></div>
+      <pre><span class="prompt">PS&gt;</span> cd C:\rescue-mesh\firmware\aux
+<span class="prompt">PS&gt;</span> pio run
+<span class="comment"># first build downloads the ESP32 toolchain: several minutes, one time only</span>
+<span class="prompt">PS&gt;</span> pio run -t upload</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected tail of the upload</div>
+      <pre>Writing at 0x00010000... (100 %)
+Wrote 720000 bytes...
+Hard resetting via RTS pin...
+================ [SUCCESS] Took NN.NN seconds ================</pre>
+    </div>
+    <p>If <code class="inline">pio run -t upload</code> can't find the port or times out, specify it explicitly using the COM number from Stage 3:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell</span></div>
+      <pre><span class="prompt">PS&gt;</span> pio run -t upload --upload-port COM5</pre>
+    </div>
+    <p>Still failing? Jump to <a href="#s12">Troubleshooting &rarr; boot mode</a> &mdash; some first-time boards need the BOOT button held during plug-in.</p>
+  </section>
+
+  <!-- 5: GATE -->
+  <section class="stage gate" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Gate &mdash; confirm it booted before continuing</h2></div>
+    <p>Open a live serial view:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell</span></div>
+      <pre><span class="prompt">PS&gt;</span> pio device monitor</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected first line</div>
+      <pre>{"type":"boot","node_id":"UNSET","lora":true,"ina3221":true}</pre>
+      <p class="hint"><code class="inline">lora</code> and <code class="inline">ina3221</code> report whether SPI/I2C found each chip at boot. Both should read <code class="inline">true</code> on your soldered module. Press <code class="inline">Ctrl+C</code> to leave the monitor when done.</p>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Report back exactly what the boot line says &mdash; especially if <code class="inline">lora</code> or <code class="inline">ina3221</code> reads <code class="inline">false</code>, or nothing prints at all. Don't move to Stage 6 until this line looks right; a wrong value here points at a wiring or solder-joint issue that's easiest to fix now.</p>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section class="stage" id="s6">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Provision this board's identity</h2></div>
+    <p>One firmware image serves every module; each board is told which node it is over serial, once, and it remembers across reflashes. This board becomes <code class="inline">DRONE_A</code>.</p>
+    <p>Close <code class="inline">pio device monitor</code> first (only one program can hold the port). Then, from the repo's <code class="inline">tools\</code> folder:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell &middot; from tools\</span></div>
+      <pre><span class="prompt">PS&gt;</span> python aux_sim.py --port COM5</pre>
+    </div>
+    <p>The tool starts pinging the board automatically and prints everything it says. At the prompt, type:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">aux_sim.py</span></div>
+      <pre>n DRONE_A</pre>
+    </div>
+  </section>
+
+  <!-- 7: GATE -->
+  <section class="stage gate" id="s7">
+    <div class="stage-head"><span class="stage-num">07</span><h2 class="stage-title">Gate &mdash; confirm the identity took</h2></div>
+    <div class="readout">
+      <div class="label">Expected</div>
+      <pre>&lt;- {"type":"set_node_id_ack","node_id":"DRONE_A"}</pre>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Confirm the ack shows <code class="inline">DRONE_A</code> exactly. Leave <code class="inline">aux_sim.py</code> running &mdash; the next two stages read its output directly.</p>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section class="stage" id="s8">
+    <div class="stage-head"><span class="stage-num">08</span><h2 class="stage-title">Verify GPS</h2></div>
+    <p>Move the module near a window or outdoors &mdash; the GPS antenna needs sky. Watch <code class="inline">aux_sim.py</code>: a <code class="inline">gps</code> line arrives every 5 seconds.</p>
+    <div class="readout">
+      <div class="label">Before a fix</div>
+      <pre>{"type":"gps","fix":0,"lat":null,"lon":null,"sats":0}</pre>
+    </div>
+    <div class="readout">
+      <div class="label">After a fix (can take a few minutes cold)</div>
+      <pre>{"type":"gps","fix":1,"lat":6.9271,"lon":79.8612,"sats":7,"hdop":1.1}</pre>
+      <p class="hint"><code class="inline">sats</code> climbing from 0 and <code class="inline">fix</code> flipping to <code class="inline">1</code> is the pass condition. <code class="inline">lat</code>/<code class="inline">lon</code> should roughly match where you're standing.</p>
+    </div>
+  </section>
+
+  <!-- 9 -->
+  <section class="stage" id="s9">
+    <div class="stage-head"><span class="stage-num">09</span><h2 class="stage-title">Verify battery telemetry (INA3221)</h2></div>
+    <p>The same <code class="inline">battery</code> line arrives every 5 seconds. Channel 1 is Battery A, channel 2 is Battery B &mdash; whichever channel currently has a supply wired to it should show a plausible reading; the other reads <code class="inline">null</code> if unpowered.</p>
+    <div class="readout">
+      <div class="label">Expected shape</div>
+      <pre>{"type":"battery","bat_a_v":7.42,"bat_a_ma":180,"bat_b_v":null,"bat_b_ma":null}</pre>
+      <p class="hint">A voltage in a sane range for whatever you've wired to that channel is the pass condition. All four fields <code class="inline">null</code> on every line, even with a supply connected, points at an I2C wiring issue &mdash; check that against <a href="#s12">Troubleshooting</a>.</p>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section class="stage" id="s10">
+    <div class="stage-head"><span class="stage-num">10</span><h2 class="stage-title">Verify BLE advertising</h2></div>
+    <p>Install <b>nRF Connect</b> (Nordic Semiconductor) on a phone from its app store, open it, and start a scan.</p>
+    <div class="readout">
+      <div class="label">Expected in the scan list</div>
+      <pre>Name: RESCUE-A
+Service UUID: 2b57461c-1c04-49c4-944a-13643c1618da
+Service Data: 41 7c 52 45 53 43 55 45 5f 41   ("A|RESCUE_A")</pre>
+      <p class="hint">Advertising interval should sit around 500&ndash;1000 ms. If it isn't visible, confirm you're still in NORMAL mode &mdash; <code class="inline">aux_sim.py</code> must still be pinging (advertising stops automatically in FALLBACK mode).</p>
+    </div>
+  </section>
+
+  <!-- 11 -->
+  <section class="stage" id="s11">
+    <div class="stage-head"><span class="stage-num">11</span><h2 class="stage-title">LoRa &mdash; what's provable with one module</h2></div>
+    <p>The full LoRa test needs a second flashed module to receive: one board transmits, the other prints <code class="inline">lora_rx</code>. With a single module right now, that receive-side confirmation isn't possible yet.</p>
+    <p>What you <em>can</em> confirm today: the boot line's <code class="inline">"lora":true</code> from Stage 5 already means <code class="inline">LoRa.begin()</code> succeeded &mdash; the SPI wiring to the RFM95 is correct and the radio answered. You can also send a transmit command and confirm it doesn't error:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">aux_sim.py</span></div>
+      <pre>l hello-bench</pre>
+    </div>
+    <p>Nothing prints back for a lone transmit &mdash; no news is good news here. The real pass/fail (module 2 printing <code class="inline">lora_rx</code> with an RSSI/SNR reading) waits for the second module.</p>
+  </section>
+
+  <!-- 12 -->
+  <section class="stage" id="s12">
+    <div class="stage-head"><span class="stage-num">12</span><h2 class="stage-title">Troubleshooting</h2></div>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <thead><tr><th>Symptom</th><th>Try this</th></tr></thead>
+        <tbody>
+          <tr><td>No COM port appears at all</td><td>Unplug, hold the small <b>BOOT</b> button on the XIAO, plug back in while still holding, release after ~2 seconds. This forces bootloader mode.</td></tr>
+          <tr><td><code class="inline">pio run -t upload</code> hangs or times out</td><td>Repeat the BOOT-button trick above, then retry immediately. Also try a different USB port directly on the laptop rather than through a hub.</td></tr>
+          <tr><td>Upload succeeds but nothing prints in the monitor</td><td>Confirm the monitor is pointed at the same COM port; close any other program (Arduino IDE, another terminal) that might be holding the port open.</td></tr>
+          <tr><td>Boot line shows <code class="inline">"ina3221":false</code></td><td>Check the I2C wiring: SDA on D4, SCL on D5, INA3221 address 0x40 (A0 pad tied to GND).</td></tr>
+          <tr><td>Boot line shows <code class="inline">"lora":false</code></td><td>Check the SPI wiring: CS on D3, DIO0 on D1, RST on D2, SCK on D8, MISO on D9, MOSI on D10.</td></tr>
+          <tr><td><code class="inline">python</code> not recognized</td><td>Reopen PowerShell after installing Python; if it still fails, rerun the installer and tick "Add to PATH".</td></tr>
+          <tr><td><code class="inline">pip install</code> fails with a permissions error</td><td>Add <code class="inline">--user</code>: <code class="inline">pip install --user platformio pyserial</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note"><b>Pin map reference:</b> the full table lives in <code class="inline">firmware/aux/src/main.cpp</code> and <code class="inline">firmware/aux/README.md</code> if you need to re-check a solder joint against the source of truth.</div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="wrap" style="padding:0;">firmware/aux &middot; file 03 &middot; rescue mesh phase 2</div>
+</footer>
+
+</body>
+</html>
