@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ground Control Center on Windows — Connect to DRONE_A</title>
+<style>
+@font-face {
+  font-family: "CascadiaFallback";
+  src: local("Cascadia Code"), local("Consolas");
+}
+
+:root {
+  --ink: #1b2028;
+  --paper: #f6f4ef;
+  --paper-raised: #eeebe3;
+  --line: #d8d3c6;
+  --wire: #5b6b7a;
+  --accent: #d9711c;
+  --accent-strong: #b85c14;
+  --pass: #1f8f5b;
+  --pass-bg: #e4f4ec;
+  --stop: #c23a3a;
+  --stop-bg: #fbe9e7;
+  --term-bg: #14181e;
+  --term-fg: #e6e2d6;
+  --term-dim: #8a93a3;
+  --code-fg: #2a2f38;
+
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+
+:root[data-theme="dark"] {
+  --ink: #e9e6dc;
+  --paper: #12161c;
+  --paper-raised: #191f27;
+  --line: #2b323d;
+  --wire: #8a97a8;
+  --accent: #ff8a3d;
+  --accent-strong: #ffab6f;
+  --pass: #3ecb8c;
+  --pass-bg: #12261d;
+  --stop: #ff6b6b;
+  --stop-bg: #2a1616;
+  --term-bg: #0c0f13;
+  --term-fg: #e6e2d6;
+  --term-dim: #7c8798;
+  --code-fg: #e9e6dc;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc;
+    --paper: #12161c;
+    --paper-raised: #191f27;
+    --line: #2b323d;
+    --wire: #8a97a8;
+    --accent: #ff8a3d;
+    --accent-strong: #ffab6f;
+    --pass: #3ecb8c;
+    --pass-bg: #12261d;
+    --stop: #ff6b6b;
+    --stop-bg: #2a1616;
+    --term-bg: #0c0f13;
+    --term-fg: #e6e2d6;
+    --term-dim: #7c8798;
+    --code-fg: #e9e6dc;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+body { font-family: var(--sans); font-size: 16px; line-height: 1.6; padding: 0 0 6rem; }
+::selection { background: var(--accent); color: #14181e; }
+a { color: var(--accent-strong); }
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; }
+
+.masthead { border-bottom: 1px solid var(--line); padding: 2.6rem 0 1.8rem; margin-bottom: 2.2rem; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--wire); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+h1.title { font-family: var(--mono); font-size: 1.9rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6rem; }
+.dek { max-width: 46ch; color: var(--wire); font-size: 1.02rem; margin: 0; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1.4rem; font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+.meta-row b { color: var(--ink); font-weight: 600; }
+
+.index { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin-bottom: 2.6rem; }
+.index-title { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--wire); margin: 0 0 0.7rem; }
+.index ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.25rem 1rem; }
+.index li a { display: flex; gap: 0.55rem; align-items: baseline; text-decoration: none; color: var(--ink); font-size: 0.88rem; padding: 0.2rem 0; }
+.index li a:hover { color: var(--accent-strong); }
+.index .n { font-family: var(--mono); color: var(--wire); font-size: 0.78rem; min-width: 1.4em; }
+
+.stage { border-left: 3px solid var(--line); padding: 0 0 0 1.3rem; margin-bottom: 2.9rem; scroll-margin-top: 1.5rem; }
+.stage.gate { border-left-color: var(--stop); }
+.stage-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 0.85rem; }
+.stage-num { font-family: var(--mono); font-size: 0.85rem; color: var(--wire); background: var(--paper-raised); border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.6rem; flex-shrink: 0; }
+h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+.stage ul, .stage ol.steps { margin: 0 0 1rem; padding-left: 1.25rem; max-width: 60ch; }
+.stage li { margin-bottom: 0.4rem; }
+.stage li:last-child { margin-bottom: 0; }
+
+.term { background: var(--term-bg); border-radius: 8px; margin: 0 0 1rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000); }
+.term-bar { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.term-bar .cap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--term-dim); margin-left: 0.3rem; }
+.term-bar .where { margin-left: auto; font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.08rem 0.5rem; border-radius: 999px; }
+.term-bar .where.win { color: #ffcfa3; background: rgba(217,113,28,0.18); }
+.term-bar .where.pi { color: #a7e8c6; background: rgba(31,143,91,0.2); }
+.term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
+.term-bar .led.r { background: #e5645c; }
+.term-bar .led.y { background: #e5b84f; }
+.term-bar .led.g { background: #57c273; }
+.term pre { margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg); }
+.term .prompt { color: var(--term-dim); }
+.term .comment { color: var(--term-dim); font-style: italic; }
+
+code.inline { font-family: var(--mono); font-size: 0.88em; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 4px; padding: 0.05rem 0.35rem; color: var(--code-fg); }
+
+.readout { background: var(--pass-bg); border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line)); border-radius: 8px; padding: 0.9rem 1.1rem 1rem; margin: 0 0 1rem; }
+.readout .label { display: flex; align-items: center; gap: 0.4rem; font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pass); margin-bottom: 0.55rem; }
+.readout pre, .readout code { font-family: var(--mono); font-size: 0.85rem; color: var(--code-fg); white-space: pre-wrap; word-break: break-word; margin: 0; }
+.readout .hint { font-family: var(--sans); font-size: 0.85rem; color: var(--wire); margin-top: 0.55rem; white-space: normal; }
+
+.gatebox { background: var(--stop-bg); border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line)); border-radius: 8px; padding: 0.95rem 1.1rem 1.05rem; margin: 0 0 0.4rem; }
+.gatebox .label { display: flex; align-items: center; gap: 0.45rem; font-family: var(--mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.gatebox p { margin: 0; max-width: 58ch; font-size: 0.95rem; }
+
+.ui { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px; padding: 0.9rem 1.1rem; margin: 0 0 1rem; }
+.ui .label { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 0.5rem; }
+.ui dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 0.9rem; font-size: 0.9rem; }
+.ui dt { font-family: var(--mono); font-size: 0.82rem; color: var(--wire); }
+.ui dd { margin: 0; }
+
+.note { border: 1px dashed var(--line); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.88rem; color: var(--wire); margin: 0 0 1rem; max-width: 60ch; }
+.note b { color: var(--ink); }
+.note.warn { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+.fieldtable-wrap { overflow-x: auto; margin-bottom: 1rem; }
+table.fieldtable { border-collapse: collapse; width: 100%; font-size: 0.85rem; min-width: 30rem; }
+table.fieldtable th, table.fieldtable td { text-align: left; padding: 0.45rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.fieldtable th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wire); font-weight: 600; }
+table.fieldtable code { font-family: var(--mono); font-size: 0.85em; }
+
+footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+
+@media (max-width: 640px) {
+  h1.title { font-size: 1.55rem; }
+  .index ol { grid-template-columns: 1fr; }
+  .ui dl { grid-template-columns: 1fr; gap: 0.1rem 0; }
+  .ui dt { margin-top: 0.5rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; File 04 &middot; Ground Control Center</div>
+    <h1 class="title">Ground Control Center on Windows<br>Connect to Node DRONE_A</h1>
+    <p class="dek">Build the operator desktop app on the Windows laptop, point it at your live node, and run the two headline operator actions: watch real node health, and issue a personnel PIN.</p>
+    <div class="meta-row">
+      <span><b>App</b> gcc_app (Flutter, Windows target)</span>
+      <span><b>Talks to</b> DRONE_A at https://10.42.0.1:8443</span>
+      <span><b>Needs</b> Flutter SDK + Visual Studio C++</span>
+    </div>
+  </header>
+
+  <div class="note warn" style="max-width:none;">
+    <b>Heads up on effort.</b> This is the heaviest install so far: the Flutter SDK plus Visual Studio's C++ tools are a multi-GB download. Stage&nbsp;0 has a 5-minute check you can do with just a phone and the Pi &mdash; do that first to confirm the node handles real traffic before you commit to the toolchain. There is also a lighter alternative (the rescue phone app) noted at the end if you would rather not build the desktop app yet.
+  </div>
+
+  <nav class="index">
+    <p class="index-title">Stages</p>
+    <ol>
+      <li><a href="#s0"><span class="n">0</span>5-minute sanity check (no install)</a></li>
+      <li><a href="#s1"><span class="n">1</span>Copy the trust files off the Pi</a></li>
+      <li><a href="#s2"><span class="n">2</span>Install Flutter + Visual Studio</a></li>
+      <li><a href="#s3"><span class="n">3</span>Gate &mdash; flutter doctor</a></li>
+      <li><a href="#s4"><span class="n">4</span>Clone and build the GCC</a></li>
+      <li><a href="#s5"><span class="n">5</span>Join RESCUE_A and configure</a></li>
+      <li><a href="#s6"><span class="n">6</span>Gate &mdash; live node health</a></li>
+      <li><a href="#s7"><span class="n">7</span>Issue a personnel PIN</a></li>
+      <li><a href="#s8"><span class="n">8</span>Announcement + map (bonus)</a></li>
+      <li><a href="#s9"><span class="n">9</span>Troubleshooting</a></li>
+    </ol>
+  </nav>
+
+  <!-- 0 -->
+  <section class="stage" id="s0">
+    <div class="stage-head"><span class="stage-num">00</span><h2 class="stage-title">5-minute sanity check &mdash; no install needed</h2></div>
+    <p>Prove the node handles a real victim message before you build anything. You need a phone and your SSH session to the Pi.</p>
+    <ol class="steps">
+      <li>On the phone, join the open WiFi network <code class="inline">RESCUE_A</code>. The captive portal ("Send Emergency Message") should pop; if not, open <code class="inline">http://10.42.0.1/</code> in the browser.</li>
+      <li>Type a message and send it.</li>
+      <li>On the Pi (over SSH), read it back with the break-glass HQ key:</li>
+    </ol>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">Pi shell</span><span class="where pi">Pi &middot; SSH</span></div>
+      <pre><span class="prompt">$</span> HQ=$(grep HQ_API_KEY ~/rescue-mesh/deploy/secrets/fleet_secrets.env | cut -d= -f2)
+<span class="prompt">$</span> curl -sk -H "X-API-Key: $HQ" https://10.42.0.1:8443/messages | python3 -m json.tool</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected</div>
+      <pre>[
+  {
+    "msg_id": "...",
+    "content": "your test message",
+    "status": "NEW",
+    "node_id": "DRONE_A",
+    "time_source": "gps",
+    ...
+  }
+]</pre>
+      <p class="hint">Seeing your message here means the victim plane, the database, and the authenticated API all work on real hardware. Now the GCC gives you a proper UI over the same data.</p>
+    </div>
+  </section>
+
+  <!-- 1 -->
+  <section class="stage" id="s1">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">Copy the trust files off the Pi</h2></div>
+    <p>The GCC needs two things from the Pi's <code class="inline">deploy/secrets/</code>: the fleet CA certificate (so it can verify the node and refuse imposters), and the break-glass HQ key (your first HQ login, before any PIN exists).</p>
+    <p>From Windows PowerShell, while the laptop is still on your normal network (the Pi reachable over Ethernet):</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell</span><span class="where win">Windows</span></div>
+      <pre><span class="prompt">PS&gt;</span> scp drone@drone-a.local:~/rescue-mesh/deploy/secrets/fleet_ca.crt $HOME\Downloads\fleet_ca.crt
+<span class="prompt">PS&gt;</span> ssh drone@drone-a.local "grep HQ_API_KEY ~/rescue-mesh/deploy/secrets/fleet_secrets.env"</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected</div>
+      <pre>fleet_ca.crt                       100%  ...
+HQ_API_KEY=hk_1a2b3c4d5e6f...</pre>
+      <p class="hint">Save <code class="inline">fleet_ca.crt</code> where you can find it (Downloads is fine). Copy the <code class="inline">hk_...</code> value somewhere private &mdash; it is an admin credential, treat it like a password.</p>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="stage" id="s2">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">Install Flutter and Visual Studio</h2></div>
+    <p>Two installs, both one-time:</p>
+    <ol class="steps">
+      <li><b>Flutter SDK:</b> follow <a href="https://docs.flutter.dev/get-started/install/windows/desktop" target="_blank" rel="noopener">the official Windows desktop guide</a>. In short: download the Flutter SDK zip, extract it (e.g. to <code class="inline">C:\flutter</code>), and add <code class="inline">C:\flutter\bin</code> to your PATH.</li>
+      <li><b>Visual Studio 2022 Community</b> (free): in the installer, tick the <b>"Desktop development with C++"</b> workload. This is the large download, and it is what compiles the Windows app shell. The lighter "Build Tools" edition also works if you prefer.</li>
+    </ol>
+    <div class="note">Reopen PowerShell after editing PATH so <code class="inline">flutter</code> is found in a fresh window.</div>
+  </section>
+
+  <!-- 3: GATE -->
+  <section class="stage gate" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Gate &mdash; flutter doctor</h2></div>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell</span><span class="where win">Windows</span></div>
+      <pre><span class="prompt">PS&gt;</span> flutter doctor</pre>
+    </div>
+    <div class="readout">
+      <div class="label">The two lines that matter</div>
+      <pre>[✓] Flutter (Channel stable, 3.x ...)
+[✓] Windows Version (...)
+[✓] Visual Studio - develop Windows apps (Visual Studio Community 2022 ...)</pre>
+      <p class="hint">The Android / Chrome lines can stay red &mdash; you are only building for Windows here. If the Visual Studio line is red, the C++ workload did not install; re-open the VS installer and add "Desktop development with C++".</p>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Confirm the Flutter and Visual Studio lines both show a check. If Visual Studio is red, that is the one to fix before building &mdash; tell me what it says and I will point you at the exact component.</p>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="stage" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Clone and build the GCC</h2></div>
+    <p>Clone the repo on Windows (it is the same private repo you cloned on the Pi), then build and launch the desktop app.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell</span><span class="where win">Windows</span></div>
+      <pre><span class="prompt">PS&gt;</span> git clone https://github.com/dronecomnet-fyp/drone-network-system.git
+<span class="prompt">PS&gt;</span> cd drone-network-system\gcc_app
+<span class="prompt">PS&gt;</span> flutter pub get
+<span class="prompt">PS&gt;</span> flutter run -d windows</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected</div>
+      <pre>Launching lib\main.dart on Windows in debug mode...
+Building Windows application...
+<span class="comment">(a desktop window opens: "Rescue Mesh GCC", a left nav rail with
+ Map / Live Feed / Nodes / Personnel / Announcements / Drone / Settings)</span></pre>
+      <p class="hint">The first build is the slow one (it compiles the native shell). Leave <code class="inline">flutter run</code> running &mdash; the app window is live; closing the terminal closes the app.</p>
+    </div>
+    <div class="note warn"><b>If the build fails:</b> I built and tested this app's logic, but the Windows native build has not been run on hardware yet &mdash; a plugin might need a small tweak. Paste the error and I will fix it in the repo and push; then <code class="inline">git pull</code> and rebuild.</div>
+  </section>
+
+  <!-- 5 -->
+  <section class="stage" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Join RESCUE_A and configure the app</h2></div>
+    <p>Now switch the laptop's WiFi to the node. In Windows WiFi settings, join <code class="inline">RESCUE_A</code> (open network, no password). The laptop loses internet while on it &mdash; that is expected at a deployment.</p>
+    <div class="note">If your laptop has Ethernet plugged in for internet, you can stay on both: Ethernet for internet, WiFi on RESCUE_A for the node. Otherwise just join RESCUE_A; you do not need internet for the app to work.</div>
+    <p>In the GCC, open the <b>Settings</b> tab (bottom of the nav rail) and set:</p>
+    <div class="ui">
+      <div class="label">Settings tab</div>
+      <dl>
+        <dt>Node base URL</dt><dd>leave as <code class="inline">https://10.42.0.1:8443</code></dd>
+        <dt>Load CA</dt><dd>click it, pick the <code class="inline">fleet_ca.crt</code> you copied to Downloads</dd>
+        <dt>HQ API key</dt><dd>paste the <code class="inline">hk_...</code> value (this is your break-glass HQ login)</dd>
+        <dt>Save all</dt><dd>click it</dd>
+      </dl>
+    </div>
+    <p>Leave the "Accept ANY certificate (INSECURE)" switch OFF &mdash; with the fleet CA loaded, real verification is exactly what you want.</p>
+  </section>
+
+  <!-- 6: GATE -->
+  <section class="stage gate" id="s6">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Gate &mdash; live node health</h2></div>
+    <p>Open the <b>Nodes</b> tab. The GCC polls the node every 5 seconds, so within a few seconds you should see DRONE_A come alive.</p>
+    <div class="ui">
+      <div class="label">Nodes tab &mdash; expect a DRONE_A card showing</div>
+      <dl>
+        <dt>Connected</dt><dd>green "connected" chip; the nav-rail badge at bottom-left turns green</dd>
+        <dt>GPS</dt><dd>lat/lon and sat count (the same fix you saw in /health)</dd>
+        <dt>Battery A / B</dt><dd>voltages from the aux module's INA3221</dd>
+        <dt>Clock</dt><dd><code class="inline">gps</code> once the module has a fix</dd>
+        <dt>Messages</dt><dd>counts, including the test message from Stage 0</dd>
+      </dl>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Confirm the Nodes tab shows DRONE_A as connected with real GPS and battery numbers matching what <code class="inline">/health</code> reported on the Pi. If the badge stays red or you see a TLS error, that is almost always the CA or the WiFi &mdash; check the troubleshooting table and tell me what the app shows.</p>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section class="stage" id="s7">
+    <div class="stage-head"><span class="stage-num">07</span><h2 class="stage-title">Issue a personnel PIN</h2></div>
+    <p>This is the headline operator action and what unlocks the phone apps. Open the <b>Personnel</b> tab (available because the HQ break-glass key is set).</p>
+    <ol class="steps">
+      <li>Click <b>Issue credentials</b>.</li>
+      <li>Enter a Name (e.g. your own), leave Role as Rescue team, pick an expiry (or none), and Create.</li>
+      <li>A dialog shows a <b>large 6-digit PIN</b> and a personnel ID like <code class="inline">R-014</code>.</li>
+    </ol>
+    <div class="readout">
+      <div class="label">What just happened</div>
+      <pre>Personnel ID: R-014
+PIN: 4 8 2 9 1 7   (shown once)</pre>
+      <p class="hint">The PIN is shown only this once and is never stored in readable form. Write it down &mdash; you will use it to log into the rescue phone app in the next runbook. The record now lives on DRONE_A and would sync to other nodes automatically once you have more than one.</p>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here &mdash; this is the finish line for the GCC</div>
+      <p>Confirm you got a personnel ID and a one-time PIN. That proves the whole authenticated plane: the GCC issued a credential, the node hashed and signed it, and it is ready for a rescuer to log in with. Keep the ID + PIN for the rescue-app runbook.</p>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section class="stage" id="s8">
+    <div class="stage-head"><span class="stage-num">08</span><h2 class="stage-title">Announcement and map (bonus)</h2></div>
+    <p>Two quick extras to see more of the cockpit:</p>
+    <ul>
+      <li><b>Announcements tab &rarr; Compose:</b> publish a short HQ broadcast. It is stored on the node now and will appear in the rescue phone app once that is set up.</li>
+      <li><b>Map tab:</b> it opens with a "no offline map loaded" banner &mdash; that is expected. The offline map needs a region file you prepare before a mission (see <code class="inline">docs/OFFLINE_MAPS.md</code> in the repo). Your test message's GPS pin will still render on the blank grid if it had a location attached. Loading a real map is optional and can wait.</li>
+    </ul>
+  </section>
+
+  <!-- 9 -->
+  <section class="stage" id="s9">
+    <div class="stage-head"><span class="stage-num">09</span><h2 class="stage-title">Troubleshooting</h2></div>
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <thead><tr><th>Symptom</th><th>Try this</th></tr></thead>
+        <tbody>
+          <tr><td>Connection badge stays red / Nodes empty</td><td>Confirm the laptop's WiFi is actually on <code class="inline">RESCUE_A</code>, not your home network. Then confirm the base URL is <code class="inline">https://10.42.0.1:8443</code>.</td></tr>
+          <tr><td>App shows a TLS / certificate error</td><td>The fleet CA is not loaded or is the wrong file. Re-do Settings &rarr; Load CA with the <code class="inline">fleet_ca.crt</code> from the Pi. Do NOT flip the insecure switch to work around it.</td></tr>
+          <tr><td>Personnel tab says "needs an HQ login"</td><td>The HQ API key field is empty or wrong. Paste the <code class="inline">hk_...</code> value from Stage 1 into Settings &rarr; HQ API key and Save all.</td></tr>
+          <tr><td><code class="inline">flutter run</code> fails to compile</td><td>Paste me the error. Most likely a plugin needs a Windows tweak; it is a repo fix + <code class="inline">git pull</code>, not something you debug by hand.</td></tr>
+          <tr><td><code class="inline">RESCUE_A</code> not in the WiFi list</td><td>It is 5 GHz; a few older laptop adapters only see 2.4 GHz. If so, use the rescue phone app (lighter alternative below) from a 5 GHz phone instead.</td></tr>
+          <tr><td>git clone asks for a password</td><td>The repo is private. Use a GitHub personal access token as the password, or tell me and I can make the repo public.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><b>Lighter alternative:</b> if the desktop toolchain is too much right now, the rescue phone app reaches the same node and the same PIN login from an Android phone &mdash; that is the next runbook, and it needs no Visual Studio. Issue the PIN here (or via the Stage 0 curl with the HQ key) and you are ready for it.</div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="wrap" style="padding:0;">gcc_app &middot; file 04 &middot; rescue mesh phase 2 &middot; operator cockpit</div>
+</footer>
+
+</body>
+</html>
