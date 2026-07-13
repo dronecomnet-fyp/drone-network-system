@@ -142,6 +142,15 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
     Nothing to install on the Windows laptop. You will need the <b>personnel ID + PIN</b> you issued from the GCC, and the <b>fleet CA</b> text.
   </div>
 
+  <div class="note" style="max-width:none;">
+    <b>If you downloaded the APKs before 14 July, download them again.</b> The first
+    build of the rescue app shipped without Android's network permission (Flutter only
+    adds it to debug builds), so it could not open a connection at all and reported
+    "Cannot reach the drone". Both apps now also bind themselves to the drone's Wi-Fi,
+    which means <b>you can leave mobile data switched on</b>: Android normally refuses to
+    route over a Wi-Fi that has no internet, and the drone's AP never will have any.
+  </div>
+
   <nav class="index">
     <p class="index-title">Stages</p>
     <ol>
@@ -304,7 +313,8 @@ NEW  |  via DRONE_A  |  GPS 6.92710, 79.86120</pre>
       <table class="fieldtable">
         <thead><tr><th>Symptom</th><th>Try this</th></tr></thead>
         <tbody>
-          <tr><td>Rescue app: "TLS rejected" or cannot connect</td><td>The pasted CA is wrong or truncated. Re-copy the whole block including the BEGIN and END lines. Confirm the phone is on RESCUE_A.</td></tr>
+          <tr><td>Either app: "Cannot reach the drone ... (Connection failed)"</td><td>Make sure you have the <b>current</b> APKs (re-download from the release; builds before 14 Jul had no network permission and could never connect). The apps now bind themselves to the drone's Wi-Fi, so mobile data can stay on. If it persists, confirm in the phone's browser that <code class="inline">http://10.42.0.1/</code> loads the portal.</td></tr>
+          <tr><td>Rescue app: "TLS rejected" (a certificate error, not a connection one)</td><td>The pasted CA is wrong or truncated. Re-copy the whole block including the BEGIN and END lines.</td></tr>
           <tr><td>Rescue app: login fails</td><td>Check the personnel ID format (e.g. <code class="inline">R-014</code>) and the PIN. Five wrong PINs trigger a rate limit; wait a few minutes.</td></tr>
           <tr><td>No drone-found notification</td><td>The module advertises over BLE only in NORMAL mode. If it stopped being pinged it dropped to FALLBACK and BLE is off by design. Restart <code class="inline">rescue-mesh-auxbridge</code> on the Pi and re-arm the watch.</td></tr>
           <tr><td>Notification never arrives while locked</td><td>Some Android skins aggressively kill background apps. Grant the app "unrestricted" battery usage in Android settings, then re-arm.</td></tr>
