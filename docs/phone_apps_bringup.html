@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Phone Apps — Rescue + Emergency against DRONE_A</title>
+<style>
+@font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
+
+:root {
+  --ink: #1b2028; --paper: #f6f4ef; --paper-raised: #eeebe3; --line: #d8d3c6;
+  --wire: #5b6b7a; --accent: #d9711c; --accent-strong: #b85c14;
+  --pass: #1f8f5b; --pass-bg: #e4f4ec; --stop: #c23a3a; --stop-bg: #fbe9e7;
+  --term-bg: #14181e; --term-fg: #e6e2d6; --term-dim: #8a93a3; --code-fg: #2a2f38;
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+  --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+  --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+  --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+  --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+    --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+    --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+    --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+body { font-family: var(--sans); font-size: 16px; line-height: 1.6; padding: 0 0 6rem; }
+::selection { background: var(--accent); color: #14181e; }
+a { color: var(--accent-strong); }
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; }
+
+.masthead { border-bottom: 1px solid var(--line); padding: 2.6rem 0 1.8rem; margin-bottom: 2.2rem; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--wire); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+h1.title { font-family: var(--mono); font-size: 1.9rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6rem; }
+.dek { max-width: 46ch; color: var(--wire); font-size: 1.02rem; margin: 0; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1.4rem; font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+.meta-row b { color: var(--ink); font-weight: 600; }
+
+/* the loop diagram */
+.loop { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1.5rem; padding: 0.9rem 1rem; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; font-family: var(--mono); font-size: 0.76rem; }
+.loop .n { padding: 0.2rem 0.55rem; border-radius: 5px; background: var(--paper); border: 1px solid var(--line); white-space: nowrap; }
+.loop .n.hi { border-color: var(--accent); color: var(--accent-strong); }
+.loop .ar { color: var(--wire); }
+
+.index { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin-bottom: 2.6rem; }
+.index-title { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--wire); margin: 0 0 0.7rem; }
+.index ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.25rem 1rem; }
+.index li a { display: flex; gap: 0.55rem; align-items: baseline; text-decoration: none; color: var(--ink); font-size: 0.88rem; padding: 0.2rem 0; }
+.index li a:hover { color: var(--accent-strong); }
+.index .n { font-family: var(--mono); color: var(--wire); font-size: 0.78rem; min-width: 1.4em; }
+
+.part { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-strong); border-top: 1px solid var(--line); padding-top: 1.4rem; margin: 0 0 1.6rem; }
+
+.stage { border-left: 3px solid var(--line); padding: 0 0 0 1.3rem; margin-bottom: 2.9rem; scroll-margin-top: 1.5rem; }
+.stage.gate { border-left-color: var(--stop); }
+.stage-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 0.85rem; }
+.stage-num { font-family: var(--mono); font-size: 0.85rem; color: var(--wire); background: var(--paper-raised); border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.6rem; flex-shrink: 0; }
+h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+.stage ul, .stage ol.steps { margin: 0 0 1rem; padding-left: 1.25rem; max-width: 60ch; }
+.stage li { margin-bottom: 0.4rem; }
+.stage li:last-child { margin-bottom: 0; }
+
+.term { background: var(--term-bg); border-radius: 8px; margin: 0 0 1rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000); }
+.term-bar { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.term-bar .cap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--term-dim); margin-left: 0.3rem; }
+.term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
+.term-bar .led.r { background: #e5645c; } .term-bar .led.y { background: #e5b84f; } .term-bar .led.g { background: #57c273; }
+.term pre { margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg); }
+.term .prompt { color: var(--term-dim); }
+.term .comment { color: var(--term-dim); font-style: italic; }
+
+code.inline { font-family: var(--mono); font-size: 0.88em; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 4px; padding: 0.05rem 0.35rem; color: var(--code-fg); }
+
+.readout { background: var(--pass-bg); border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line)); border-radius: 8px; padding: 0.9rem 1.1rem 1rem; margin: 0 0 1rem; }
+.readout .label { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pass); margin-bottom: 0.55rem; }
+.readout pre, .readout code { font-family: var(--mono); font-size: 0.85rem; color: var(--code-fg); white-space: pre-wrap; word-break: break-word; margin: 0; }
+.readout .hint { font-family: var(--sans); font-size: 0.85rem; color: var(--wire); margin-top: 0.55rem; white-space: normal; }
+
+.gatebox { background: var(--stop-bg); border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line)); border-radius: 8px; padding: 0.95rem 1.1rem 1.05rem; margin: 0 0 0.4rem; }
+.gatebox .label { font-family: var(--mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.gatebox p { margin: 0; max-width: 58ch; font-size: 0.95rem; }
+
+.ui { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px; padding: 0.9rem 1.1rem; margin: 0 0 1rem; }
+.ui .label { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 0.5rem; }
+.ui dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 0.9rem; font-size: 0.9rem; }
+.ui dt { font-family: var(--mono); font-size: 0.82rem; color: var(--wire); }
+.ui dd { margin: 0; }
+
+.note { border: 1px dashed var(--line); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.88rem; color: var(--wire); margin: 0 0 1rem; max-width: 60ch; }
+.note b { color: var(--ink); }
+.note.warn { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+.fieldtable-wrap { overflow-x: auto; margin-bottom: 1rem; }
+table.fieldtable { border-collapse: collapse; width: 100%; font-size: 0.85rem; min-width: 30rem; }
+table.fieldtable th, table.fieldtable td { text-align: left; padding: 0.45rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.fieldtable th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wire); font-weight: 600; }
+
+footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+
+@media (max-width: 640px) {
+  h1.title { font-size: 1.55rem; }
+  .index ol { grid-template-columns: 1fr; }
+  .ui dl { grid-template-columns: 1fr; gap: 0.1rem 0; }
+  .ui dt { margin-top: 0.5rem; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; Files 05 + 06 &middot; Phone Apps</div>
+    <h1 class="title">Rescue &amp; Emergency Apps<br>Closing the Loop on DRONE_A</h1>
+    <p class="dek">Install both Android apps, then run the full system end to end: a citizen's phone detects your aux module over Bluetooth, sends an SOS, and a rescuer claims it with their PIN identity. No drone and no second module needed.</p>
+    <div class="meta-row">
+      <span><b>Needs</b> 1 Android phone (2 is better)</span>
+      <span><b>Node</b> DRONE_A, already live</span>
+      <span><b>New installs</b> none on Windows</span>
+    </div>
+    <div class="loop">
+      <span class="n hi">aux module BLE</span><span class="ar">&rarr;</span>
+      <span class="n">emergency app notified</span><span class="ar">&rarr;</span>
+      <span class="n">joins RESCUE_A</span><span class="ar">&rarr;</span>
+      <span class="n hi">SOS</span><span class="ar">&rarr;</span>
+      <span class="n">rescue app claims it</span>
+    </div>
+  </header>
+
+  <div class="note warn" style="max-width:none;">
+    <b>The APKs are already built for you.</b> Download them straight to the phone from the
+    <a href="https://github.com/dronecomnet-fyp/drone-network-system/releases/tag/phone-apps-v1" target="_blank" rel="noopener">phone-apps-v1 release</a>.
+    Nothing to install on the Windows laptop. You will need the <b>personnel ID + PIN</b> you issued from the GCC, and the <b>fleet CA</b> text.
+  </div>
+
+  <nav class="index">
+    <p class="index-title">Stages</p>
+    <ol>
+      <li><a href="#s0"><span class="n">0</span>Get the CA text to the phone</a></li>
+      <li><a href="#s1"><span class="n">1</span>Install both APKs</a></li>
+      <li><a href="#s2"><span class="n">2</span>Rescue app: log in with the PIN</a></li>
+      <li><a href="#s3"><span class="n">3</span>Gate &mdash; claim with identity</a></li>
+      <li><a href="#s4"><span class="n">4</span>Emergency app: permissions</a></li>
+      <li><a href="#s5"><span class="n">5</span>Arm the Bluetooth watch</a></li>
+      <li><a href="#s6"><span class="n">6</span>Gate &mdash; the drone-found alert</a></li>
+      <li><a href="#s7"><span class="n">7</span>Join, upload, send SOS</a></li>
+      <li><a href="#s8"><span class="n">8</span>Gate &mdash; close the loop</a></li>
+      <li><a href="#s9"><span class="n">9</span>Troubleshooting</a></li>
+    </ol>
+  </nav>
+
+  <!-- 0 -->
+  <section class="stage" id="s0">
+    <div class="stage-head"><span class="stage-num">00</span><h2 class="stage-title">Get the fleet CA text onto the phone</h2></div>
+    <p>The rescue app verifies the node against the fleet CA and refuses imposters, so it needs the certificate <em>text</em>. Do this <b>while you still have internet</b>, because RESCUE_A has none.</p>
+    <p>Print the certificate on the Pi and copy it:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">Pi shell (SSH)</span></div>
+      <pre><span class="prompt">$</span> cat ~/rescue-mesh/deploy/secrets/fleet_ca.crt</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Copy the whole block, including both marker lines</div>
+      <pre>-----BEGIN CERTIFICATE-----
+MIIB...
+...
+-----END CERTIFICATE-----</pre>
+      <p class="hint">Get that text to the phone however is easiest: email it to yourself, or paste it into a notes app that syncs. You will paste it into the rescue app in Stage 2.</p>
+    </div>
+    <p>Also have ready the <b>personnel ID and PIN</b> you issued in the GCC (e.g. <code class="inline">R-014</code> + a 6-digit PIN).</p>
+  </section>
+
+  <!-- 1 -->
+  <section class="stage" id="s1">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">Install both apps</h2></div>
+    <p>On the phone's browser, open the release page and download both APKs:</p>
+    <div class="readout">
+      <div class="label">Release</div>
+      <pre>github.com/dronecomnet-fyp/drone-network-system
+                    /releases/tag/phone-apps-v1</pre>
+      <p class="hint">Download <code class="inline">rescue-app-v2.apk</code> and <code class="inline">emergency-app-v0.1.apk</code>.</p>
+    </div>
+    <p>Android will ask permission to install from your browser the first time: allow <b>"Install unknown apps"</b> for that browser, then tap each downloaded APK to install.</p>
+    <div class="note"><b>Two phones is better than one.</b> If you have a second Android phone, put the rescue app on one and the emergency app on the other. That way you can watch the SOS arrive on the rescuer's phone in real time. With one phone, just switch between the two apps.</div>
+  </section>
+
+  <p class="part">Part A &mdash; Rescue app (file 05)</p>
+
+  <!-- 2 -->
+  <section class="stage" id="s2">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">Rescue app: log in with the PIN</h2></div>
+    <p>Join the phone to the <code class="inline">RESCUE_A</code> WiFi (open, no password), then open the rescue app. It starts on the login screen.</p>
+    <p>Before logging in, tap <b>"Connection settings / break-glass admin key"</b> at the bottom of the login screen and set:</p>
+    <div class="ui">
+      <div class="label">Settings</div>
+      <dl>
+        <dt>Backend URL</dt><dd>leave as <code class="inline">https://10.42.0.1:8443</code></dd>
+        <dt>Fleet CA certificate (PEM)</dt><dd>paste the whole certificate text from Stage 0</dd>
+        <dt>Admin API key</dt><dd>leave EMPTY (you are logging in with a PIN, not the break-glass key)</dd>
+        <dt>Save Settings</dt><dd>tap it, then go back</dd>
+      </dl>
+    </div>
+    <p>Now log in with the <b>personnel ID</b> and <b>PIN</b> from the GCC.</p>
+    <div class="note">Leave "Accept ANY certificate" OFF. With the CA pasted, the app is doing real verification, which is the point: an imposter WiFi pretending to be RESCUE_A would be rejected.</div>
+  </section>
+
+  <!-- 3: GATE -->
+  <section class="stage gate" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Gate &mdash; claim a request with your identity</h2></div>
+    <p>Once logged in you land on <b>Victim Requests</b>. The test message you sent through the captive portal should be listed.</p>
+    <ol class="steps">
+      <li>Tap <b>CLAIM REQUEST</b> on it and confirm.</li>
+      <li>The card should flip to a green <b>"CLAIMED by R-014"</b> badge (your ID, not an anonymous badge).</li>
+      <li>Check the <b>Announcements</b> tab: the broadcast you published from the GCC should be there.</li>
+    </ol>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Confirm three things: you logged in with the PIN (no API key typed anywhere), the claim shows <b>your personnel ID</b>, and the GCC's announcement appears. That proves the full authenticated plane from the operator's desk to a rescuer's phone. Bonus: open the GCC's Live Feed and watch the same message now show as claimed by you.</p>
+    </div>
+  </section>
+
+  <p class="part">Part B &mdash; Emergency app (file 06)</p>
+
+  <!-- 4 -->
+  <section class="stage" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Emergency app: work through the permissions</h2></div>
+    <p>Open the emergency app. It walks you through four permissions one at a time, each with a plain reason. Grant all four:</p>
+    <ul>
+      <li><b>Notifications</b> &mdash; how you get told a drone is near.</li>
+      <li><b>Location</b> &mdash; the local log stored on the phone.</li>
+      <li><b>Background location ("Allow all the time")</b> &mdash; so logging continues with the app closed. Android may make you pick this in a separate settings screen.</li>
+      <li><b>Nearby devices</b> &mdash; the Bluetooth scan for the drone.</li>
+    </ul>
+    <p>Then open <b>Settings &rarr; Log a point now</b> once, and check <b>Your data</b>: you should see one stored point, marked "on phone only".</p>
+    <div class="note">That "on phone only" label is the privacy story in one line: nothing has left the device yet, and nothing will until you reach a drone or press SOS.</div>
+  </section>
+
+  <!-- 5 -->
+  <section class="stage" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Arm the Bluetooth watch</h2></div>
+    <p>First, disconnect the phone from RESCUE_A WiFi (forget it or turn WiFi off) so you can prove discovery works from scratch, the way a real citizen would experience it.</p>
+    <p>Make sure the aux module is powered and in <b>NORMAL</b> mode (plugged into the Pi and being pinged &mdash; that is its normal running state; it advertises over BLE only in normal mode).</p>
+    <p>On the emergency app's home screen, flip <b>Watch armed</b> on. A persistent "Emergency watch active" notification appears &mdash; that is the foreground service Android requires for continuous scanning.</p>
+    <p>Now <b>lock the phone</b> and walk it near the aux module.</p>
+  </section>
+
+  <!-- 6: GATE -->
+  <section class="stage gate" id="s6">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Gate &mdash; the drone-found alert</h2></div>
+    <div class="readout">
+      <div class="label">Expected on the locked phone</div>
+      <pre>Rescue drone nearby
+Tap to connect and send your location. Network: RESCUE_A</pre>
+      <p class="hint">Tapping it opens the <b>Drone found</b> screen showing the node and the SSID <code class="inline">RESCUE_A</code> &mdash; both read straight out of the module's Bluetooth advertisement, not hardcoded.</p>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Confirm the notification arrives on a locked phone and names <b>RESCUE_A</b>. This is the honest limit of what any mobile OS allows: an app cannot open itself from a background scan, so detection produces a high-priority alert and the user taps it. If no notification appears, check the module is in normal mode (not fallback) &mdash; see troubleshooting.</p>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section class="stage" id="s7">
+    <div class="stage-head"><span class="stage-num">07</span><h2 class="stage-title">Join, upload, and send the SOS</h2></div>
+    <p>From the Drone found screen:</p>
+    <ol class="steps">
+      <li>Tap <b>Open Wi-Fi settings</b>. The SSID is copied for you; join <code class="inline">RESCUE_A</code>.</li>
+      <li>Come back to the app and tap <b>I have joined the Wi-Fi</b>.</li>
+      <li>The <b>Connected</b> screen opens and immediately uploads your stored location points: "Sent 1 saved location point(s) to the rescue team."</li>
+      <li>Type a short SOS message (e.g. "two adults, one injured, on the roof") and tap <b>SEND SOS NOW</b>.</li>
+    </ol>
+    <div class="note">Check <b>Your data</b> again afterwards: the point that said "on phone only" now says "sent to rescuers". The app is honest with the user about exactly what left the device and when.</div>
+  </section>
+
+  <!-- 8: GATE -->
+  <section class="stage gate" id="s8">
+    <div class="stage-head"><span class="stage-num">08</span><h2 class="stage-title">Gate &mdash; close the loop</h2></div>
+    <p>Now switch to the rescue app (or the second phone, still logged in as your rescuer).</p>
+    <div class="readout">
+      <div class="label">Expected in Victim Requests</div>
+      <pre>[SOS] two adults, one injured, on the roof
+NEW  |  via DRONE_A  |  GPS 6.92710, 79.86120</pre>
+      <p class="hint">The SOS arrived as a normal rescue request, with the citizen's GPS attached. Claim it &mdash; it should flip to "CLAIMED by R-014".</p>
+    </div>
+    <p>In the GCC on Windows, the same SOS appears in <b>Live Feed</b>, and the uploaded location points appear on the <b>Map</b> as checkin dots.</p>
+    <div class="gatebox">
+      <div class="label">Stop here &mdash; this is the whole system</div>
+      <p>You have just run the complete chain on real hardware: a Bluetooth beacon from your soldered module reached a citizen's locked phone, the citizen joined the drone's network and sent an SOS with their location history, and a rescuer authenticated with a PIN issued from HQ claimed it under their own identity, all with no internet anywhere. That is the demo. Tell me it worked and I will help you capture it for the report.</p>
+    </div>
+  </section>
+
+  <!-- 9 -->
+  <section class="stage" id="s9">
+    <div class="stage-head"><span class="stage-num">09</span><h2 class="stage-title">Troubleshooting</h2></div>
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <thead><tr><th>Symptom</th><th>Try this</th></tr></thead>
+        <tbody>
+          <tr><td>Rescue app: "TLS rejected" or cannot connect</td><td>The pasted CA is wrong or truncated. Re-copy the whole block including the BEGIN and END lines. Confirm the phone is on RESCUE_A.</td></tr>
+          <tr><td>Rescue app: login fails</td><td>Check the personnel ID format (e.g. <code class="inline">R-014</code>) and the PIN. Five wrong PINs trigger a rate limit; wait a few minutes.</td></tr>
+          <tr><td>No drone-found notification</td><td>The module advertises over BLE only in NORMAL mode. If it stopped being pinged it dropped to FALLBACK and BLE is off by design. Restart <code class="inline">rescue-mesh-auxbridge</code> on the Pi and re-arm the watch.</td></tr>
+          <tr><td>Notification never arrives while locked</td><td>Some Android skins aggressively kill background apps. Grant the app "unrestricted" battery usage in Android settings, then re-arm.</td></tr>
+          <tr><td>SOS button stays grey</td><td>The app thinks it is not on a drone. Confirm the phone is really joined to RESCUE_A, then tap "I have joined the Wi-Fi" again. (The bug that used to cause this is fixed in this build.)</td></tr>
+          <tr><td>Android warns the app is unsafe</td><td>Expected for sideloaded test builds signed with a debug key. Choose install anyway.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="wrap" style="padding:0;">files 05 + 06 &middot; rescue mesh phase 2 &middot; phone apps</div>
+</footer>
+</body>
+</html>
