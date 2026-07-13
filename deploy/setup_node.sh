@@ -219,6 +219,12 @@ FC_SERIAL=$FC_SERIAL
 E2E_ENABLED=false
 E2E_ENCRYPTION_REQUIRED=false
 EOF
+# Owned by the SERVICE USER, not root: the daemons run as $SERVICE_USER and
+# read this file directly via python-dotenv, so a root-only file would make
+# every service crash on start. Mode 600 keeps the secrets readable only by
+# the service user (and root); systemd's EnvironmentFile still works because
+# PID 1 runs as root.
+chown "$SERVICE_USER:$SERVICE_USER" /etc/rescue-mesh/node.env
 chmod 600 /etc/rescue-mesh/node.env
 
 # --- Step 4 (file 01): wlan0 user AP via NetworkManager shared mode -----------

@@ -14,13 +14,29 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+
+def _safe_load(path) -> bool:
+    """Load an env file, tolerating an unreadable one. Under systemd the
+    unit's EnvironmentFile has already populated os.environ, so if the file
+    exists but this (non-root) service user cannot open it, that is not
+    fatal: the values are already in the environment. deploy/setup_node.sh
+    also chowns node.env to the service user so this path is not normally
+    hit; the guard is defense in depth so a permission quirk never
+    crash-loops a daemon (bench finding 2026-07-13)."""
+    try:
+        if path and Path(path).exists():
+            load_dotenv(path)
+            return True
+    except OSError:
+        return False
+    return False
+
+
 _explicit = os.getenv("NODE_ENV_FILE", "")
-if _explicit and Path(_explicit).exists():
-    load_dotenv(_explicit)
-elif Path("/etc/rescue-mesh/node.env").exists():
-    load_dotenv("/etc/rescue-mesh/node.env")
-else:
-    load_dotenv(Path(__file__).parent / ".env")
+if _explicit:
+    _safe_load(_explicit)
+elif not _safe_load("/etc/rescue-mesh/node.env"):
+    _safe_load(Path(__file__).parent / ".env")
 
 
 def _bool(name: str, default: str = "false") -> bool:
