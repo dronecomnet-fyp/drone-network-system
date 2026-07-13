@@ -467,6 +467,21 @@ def post_checkin(checkin: CheckinInput, request: Request):
         raise HTTPException(status_code=500, detail="Internal error while saving the checkin.")
 
 
+@app.get("/probe")
+def probe():
+    """Connectivity probe for the emergency app (file 06): lets a phone
+    confirm it is actually on a rescue drone AP before enabling SOS.
+
+    The emergency app previously probed /health, which does not exist on
+    this plane, so the catch-all returned the portal HTML and the app
+    concluded it was NOT on a drone (bench finding 2026-07-13). This is a
+    deliberate, minimal JSON endpoint: it exposes only what the phone
+    already learned from the BLE advertisement (node id and SSID), and no
+    victim data, keeping the open-plane no-read-back rule (file 09 plane 1).
+    """
+    return {"status": "ok", "node_id": config.NODE_ID, "ssid": config.USER_AP_SSID}
+
+
 # ---------------------------------------------------------------------------
 # OS captive portal probes (Phase 1 behavior kept: unexpected content on the
 # probe URL triggers the "sign in to network" popup, which now lands victims

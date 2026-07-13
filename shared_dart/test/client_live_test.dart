@@ -16,6 +16,8 @@ import 'package:test/test.dart';
 const apiPort = 18543;
 const httpPort = 18091;
 const tlsPort = 18544;
+/// Nothing listens here: stands in for "phone is not on a drone AP".
+const offlinePort = 18099;
 const hqKey = 'it_hq_key';
 const rescueKey = 'it_rescue_key';
 
@@ -49,6 +51,22 @@ Future<void> _waitUp(String url, {String? caPem}) async {
   }
   client.close();
   fail('backend at $url never came up');
+}
+
+/// The victim plane has no /health, so _waitUp cannot be used on it. Poll
+/// the drone probe instead (previously the suite never waited for the
+/// portal at all and simply won the startup race by luck).
+Future<void> _waitPortal(String url) async {
+  final client = RescueMeshClient(baseUrl: url);
+  for (var i = 0; i < 60; i++) {
+    if (await client.probeDrone() != null) {
+      client.close();
+      return;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+  }
+  client.close();
+  fail('victim portal at $url never came up');
 }
 
 String _env(Map<String, String> extra) {
@@ -89,6 +107,7 @@ void main() {
     await _startBackend('api.py', envPlain.path);
     await _startBackend('http_app.py', envPlain.path);
     await _waitUp('http://127.0.0.1:$apiPort');
+    await _waitPortal('http://127.0.0.1:$httpPort');
   });
 
   tearDownAll(() async {
@@ -192,6 +211,29 @@ void main() {
       expect(e.statusCode, 401);
     }
     c.close();
+  });
+
+  test('victim-plane drone probe drives the emergency app SOS gate', () async {
+    // Regression (bench finding 2026-07-13): the emergency app used to probe
+    // /health here, which the victim plane does not serve, so it got portal
+    // HTML back, failed to parse, and concluded it was NOT on a drone. That
+    // left the SOS button permanently disabled.
+    final onDrone = RescueMeshClient(baseUrl: 'http://127.0.0.1:$httpPort');
+    expect(await onDrone.probeDrone(), 'DRONE_IT');
+    onDrone.close();
+
+    // /health must NOT be JSON on the victim plane: that is precisely the
+    // trap the app fell into.
+    final health = await HttpClient()
+        .getUrl(Uri.parse('http://127.0.0.1:$httpPort/health'));
+    final healthResp = await health.close();
+    final body = await healthResp.transform(utf8.decoder).join();
+    expect(() => jsonDecode(body), throwsA(isA<FormatException>()));
+
+    // Not on a drone at all: a normal answer (null), never a crash.
+    final offDrone = RescueMeshClient(baseUrl: 'http://127.0.0.1:$offlinePort');
+    expect(await offDrone.probeDrone(), isNull);
+    offDrone.close();
   });
 
   test('emergency-app checkin upload with SOS (file 06 / file 02 2.5)',

@@ -243,6 +243,24 @@ class RescueMeshClient {
     await _post('/personnel/$personnelId/revoke', {});
   }
 
+  // --- victim plane probe -------------------------------------------------------
+
+  /// Confirm this device is actually on a rescue drone AP (file 06). Build
+  /// the client against the PUBLIC victim plane (http, port 80). Returns the
+  /// node id (e.g. "DRONE_A") when a node answers, else null. Never throws:
+  /// "not on a drone" is a normal answer, not an error.
+  Future<String?> probeDrone() async {
+    try {
+      final data = await _get('/probe');
+      if (data is Map<String, dynamic>) {
+        return data['node_id'] as String?;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // --- checkins --------------------------------------------------------------
 
   /// Upload stored location points and an optional SOS from the emergency

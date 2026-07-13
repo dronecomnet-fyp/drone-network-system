@@ -22,22 +22,16 @@ class UploadService {
 
   UploadService(this.storage);
 
-  /// Probe the drone by fetching /health on the victim gateway. Returns
-  /// the node_id when reachable, else null. (The health endpoint is public
-  /// and served on 8443, but from the AP a plain probe of the portal is
-  /// enough to know we are connected; we try health over http first.)
+  /// True when the phone is on a rescue drone AP. Uses the victim plane's
+  /// JSON probe (/probe on port 80). NOTE: do NOT probe /health here: that
+  /// only exists on the authenticated plane (8443), so on port 80 the
+  /// catch-all returns the portal HTML, JSON parsing fails, and the app
+  /// wrongly concludes it is not connected (which disabled SOS entirely).
   Future<bool> isOnDrone() async {
     final client = shared.RescueMeshClient(baseUrl: kDroneBaseUrl);
     try {
-      // The victim plane is HTTP; a successful GET of the portal root
-      // means we are on a drone AP.
-      await client.getHealth();
-      return true;
-    } on shared.ApiException {
-      // A structured API error still means the node answered.
-      return true;
-    } catch (_) {
-      return false;
+      final nodeId = await client.probeDrone();
+      return nodeId != null && nodeId.isNotEmpty;
     } finally {
       client.close();
     }
