@@ -115,10 +115,15 @@ class APIService {
       );
     }
     if (error is SocketException) {
+      // Include the OS error: it is what distinguishes the real causes
+      // (permission denied vs no route vs refused) and losing it made a
+      // missing-permission bug look like a Wi-Fi problem for a whole
+      // debugging session.
+      final os = error.osError;
       return ApiException(
         type: ApiErrorType.networkError,
-        message: 'Cannot reach the drone. Join a RESCUE_x WiFi first. '
-            '(${error.message})',
+        message: 'Cannot reach the drone. Check you are on a RESCUE_x WiFi. '
+            '(${error.message}${os == null ? '' : ': ${os.message}'})',
       );
     }
     return ApiException(

@@ -1,4 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- INTERNET must be declared HERE, not only in the debug manifest.
+         Flutter's template injects it into src/debug only, so a RELEASE
+         build without this line cannot open a socket at all: every request
+         fails with "Connection failed (Permission denied)" even while the
+         phone sits on RESCUE_A (bench finding 2026-07-14). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Needed to bind this app's traffic to the drone's Wi-Fi, which has
+         no internet and so is never Android's default network. -->
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 

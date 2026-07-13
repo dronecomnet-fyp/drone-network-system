@@ -3,6 +3,11 @@
          one at a time in onboarding. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- Needed to bind this app's traffic to the drone's Wi-Fi, which has no
+         internet and so is never Android's default network. Without this a
+         citizen with mobile data on would send an SOS out over cellular,
+         where 10.42.0.1 has no route, and it would fail. -->
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <!-- Location: while-in-use, plus background for twice-daily logging. -->

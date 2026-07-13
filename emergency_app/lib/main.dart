@@ -13,6 +13,7 @@ import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'services/ble_watch_service.dart';
 import 'services/location_logger.dart';
+import 'services/network_binder.dart';
 import 'services/notification_service.dart';
 import 'state/app_controller.dart';
 
@@ -20,6 +21,13 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Route this app over Wi-Fi even though the drone AP has no internet;
+  // otherwise Android sends everything out over mobile data, where
+  // 10.42.0.1 has no route, and the SOS would silently fail (bench finding
+  // 2026-07-14). A citizen cannot be expected to know to disable mobile
+  // data before asking for help.
+  await NetworkBinder.bindToWifi();
 
   // Best-effort service init; each guards its own platform availability so
   // the app still renders in tests / on desktop.

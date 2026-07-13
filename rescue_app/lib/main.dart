@@ -8,8 +8,15 @@ import 'screens/hq_uplink_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/victim_requests_screen.dart';
+import 'services/network_binder.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Route this app over Wi-Fi even though the drone AP has no internet;
+  // otherwise Android sends everything out over mobile data, where
+  // 10.42.0.1 has no route (bench finding 2026-07-14). The binding also
+  // takes effect if the user joins RESCUE_x after the app is already open.
+  NetworkBinder.bindToWifi();
   runApp(const RescueApp());
 }
 
