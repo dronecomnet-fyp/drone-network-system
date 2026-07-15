@@ -2,6 +2,8 @@
 /// storage, the BLE watch, background logging, and uploads (file 06).
 library;
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../constants.dart';
@@ -25,6 +27,12 @@ class AppController extends ChangeNotifier {
   DroneSighting? lastSighting;
   bool onDrone = false;
 
+  /// Which node we are connected to right now (e.g. "DRONE_A"), or null.
+  String? connectedNodeId;
+
+  Timer? _connTimer;
+  bool _probing = false;
+
   AppController({StorageService? storage, BleWatchService? watch})
       : storage = storage ?? StorageService(),
         watch = watch ?? BleWatchService() {
@@ -40,6 +48,23 @@ class AppController extends ChangeNotifier {
     armed = watch.isArmed;
     points = await storage.points();
     notifyListeners();
+    // Watch connectivity continuously so the SOS button lights up within
+    // seconds of joining a drone AP by ANY route, not only through the BLE
+    // notification flow (bench finding 2026-07-14: joining Wi-Fi manually
+    // left SOS permanently greyed out because onDrone was checked once).
+    startConnectivityWatch();
+  }
+
+  void startConnectivityWatch() {
+    _connTimer?.cancel();
+    _connTimer = Timer.periodic(
+        const Duration(seconds: 4), (_) => checkOnDrone());
+    checkOnDrone();
+  }
+
+  void stopConnectivityWatch() {
+    _connTimer?.cancel();
+    _connTimer = null;
   }
 
   Future<void> refreshPoints() async {
@@ -108,10 +133,20 @@ class AppController extends ChangeNotifier {
   Future<String> displayName() => storage.displayName();
 
   /// Check whether we are currently on a drone AP (drives the SOS button
-  /// and the connected flow).
+  /// and the connected flow). Guarded so overlapping ticks cannot pile up
+  /// when the probe is slow (e.g. not connected, waiting to time out).
   Future<bool> checkOnDrone() async {
-    onDrone = await uploader.isOnDrone();
-    notifyListeners();
+    if (_probing) return onDrone;
+    _probing = true;
+    try {
+      final node = await uploader.connectedNodeId();
+      final changed = node != connectedNodeId;
+      connectedNodeId = node;
+      onDrone = node != null;
+      if (changed) notifyListeners();
+    } finally {
+      _probing = false;
+    }
     return onDrone;
   }
 
@@ -123,4 +158,10 @@ class AppController extends ChangeNotifier {
   int get pendingUploadCount => points.where((p) => !p.uploaded).length;
 
   int get maxPoints => kMaxStoredPoints;
+
+  @override
+  void dispose() {
+    stopConnectivityWatch();
+    super.dispose();
+  }
 }

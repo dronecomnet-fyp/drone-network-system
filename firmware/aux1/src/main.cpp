@@ -165,21 +165,36 @@ static bool inaReadChannel(uint8_t ch, float& busV, float& currentMa) {
 // ---------------------------------------------------------------------------
 
 static void bleStart() {
-  // Service data payload "nodeLetter|ssid" (e.g. "A|RESCUE_A" = 10 bytes)
-  // fits the legacy 31-byte ADV budget next to flags + 16-byte UUID; the
-  // human-readable name goes in the scan response (file 03).
+  // The 128-bit service UUID MUST go in the ADVERTISEMENT packet, as a
+  // "complete list of service UUIDs" (AD type 0x07). Bench finding
+  // 2026-07-14: it was previously only present INSIDE the service-data AD
+  // structure (type 0x21), and a phone's scan filter
+  // (Android ScanFilter.setServiceUuid) matches 0x07, never 0x21. So the
+  // filter never fired and the emergency app never saw the module.
+  //
+  // The filter is not optional: Android refuses UNFILTERED background scans
+  // while the screen is off, and a locked phone is exactly the case we need.
+  //
+  // Legacy advertising gives 31 payload bytes per packet, so we split:
+  //   ADV       flags                       1 + 1 + 1        =  3
+  //             complete 128-bit UUID list  1 + 1 + 16       = 18
+  //                                                     total = 21  (<= 31)
+  //   SCAN RSP  service data (128-bit)      1 + 1 + 16 + 10  = 28  (<= 31)
+  // The 10 payload bytes are "nodeLetter|ssid" (e.g. "A|RESCUE_A").
+  // A local name no longer fits alongside the service data (28 + 10 = 38),
+  // so it is dropped: file 03 anticipated exactly this tradeoff. Scanners
+  // identify the module by the service UUID, which is what matters.
   String nodeLetter = nodeId.length() ? String(nodeId[nodeId.length() - 1]) : "?";
   String payload = nodeLetter + "|" + apSsid;
   if (payload.length() > 10) payload = payload.substring(0, 10);
 
-  String localName = "RESCUE-" + nodeLetter;
-
   NimBLEAdvertisementData advData;
   advData.setFlags(BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP);
-  advData.setServiceData(NimBLEUUID(BLE_SERVICE_UUID),
-                         std::string(payload.c_str(), payload.length()));
+  advData.setCompleteServices(NimBLEUUID(BLE_SERVICE_UUID));
+
   NimBLEAdvertisementData scanData;
-  scanData.setName(localName.c_str());
+  scanData.setServiceData(NimBLEUUID(BLE_SERVICE_UUID),
+                          std::string(payload.c_str(), payload.length()));
 
   bleAdv = NimBLEDevice::getAdvertising();
   bleAdv->stop();

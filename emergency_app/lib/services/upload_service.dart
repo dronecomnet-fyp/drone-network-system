@@ -22,20 +22,26 @@ class UploadService {
 
   UploadService(this.storage);
 
-  /// True when the phone is on a rescue drone AP. Uses the victim plane's
-  /// JSON probe (/probe on port 80). NOTE: do NOT probe /health here: that
-  /// only exists on the authenticated plane (8443), so on port 80 the
-  /// catch-all returns the portal HTML, JSON parsing fails, and the app
-  /// wrongly concludes it is not connected (which disabled SOS entirely).
-  Future<bool> isOnDrone() async {
-    final client = shared.RescueMeshClient(baseUrl: kDroneBaseUrl);
+  /// The node we are connected to (e.g. "DRONE_A"), or null if the phone is
+  /// not on a rescue drone AP. Uses the victim plane's JSON probe (/probe on
+  /// port 80). NOTE: do NOT probe /health here: that only exists on the
+  /// authenticated plane (8443), so on port 80 the catch-all returns the
+  /// portal HTML, JSON parsing fails, and the app wrongly concludes it is
+  /// not connected (which disabled SOS entirely).
+  Future<String?> connectedNodeId() async {
+    // Short timeout: this runs on a 4 s connectivity poll, and when NOT on a
+    // drone the probe should fail fast rather than hang for the default 8 s.
+    final client = shared.RescueMeshClient(
+        baseUrl: kDroneBaseUrl, timeout: const Duration(seconds: 3));
     try {
       final nodeId = await client.probeDrone();
-      return nodeId != null && nodeId.isNotEmpty;
+      return (nodeId != null && nodeId.isNotEmpty) ? nodeId : null;
     } finally {
       client.close();
     }
   }
+
+  Future<bool> isOnDrone() async => (await connectedNodeId()) != null;
 
   /// Upload all not-yet-uploaded points, optionally with an SOS. Marks the
   /// uploaded points locally on success (file 06). [sosText] is ignored

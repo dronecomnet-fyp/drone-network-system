@@ -6,9 +6,15 @@ enum ApiErrorType {
   /// task 5.1: distinguish expired vs revoked when the backend says so).
   sessionExpired,
 
-  /// 403: credentials revoked or insufficient role; logging in again with
-  /// the same PIN will NOT help until HQ re-issues.
+  /// 401 with a revoked credential: HQ has revoked this person. Logging in
+  /// again with the same PIN will NOT help until HQ re-issues.
   revoked,
+
+  /// 403: you ARE properly logged in, but this action is not for your role.
+  /// Deliberately NOT a credential failure: treating it as one logged a
+  /// rescuer out of the whole app for opening an HQ-only screen (bench
+  /// finding 2026-07-14).
+  notPermitted,
 
   rateLimited,
   serviceUnavailable,

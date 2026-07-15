@@ -3,6 +3,7 @@
 /// with the reason shown), and a link to "Your data".
 library;
 
+import 'package:app_settings/app_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -205,12 +206,29 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 8),
                 Text(
                   c.onDrone
-                      ? 'Connected to a rescue drone. Tap SOS to send.'
-                      : 'SOS is available once you join a rescue drone Wi-Fi '
-                          '(a notification will guide you when one is near).',
+                      ? 'Connected to ${c.connectedNodeId ?? "a rescue drone"}. '
+                          'Tap SOS to send.'
+                      : 'SOS turns on automatically once you join a rescue '
+                          'drone Wi-Fi. A notification will guide you when one '
+                          'is near, or connect manually below.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
+                if (!c.onDrone) ...[
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    icon: const Icon(Icons.wifi, size: 18),
+                    label: const Text('Connect to a drone manually'),
+                    onPressed: () => AppSettings.openAppSettings(
+                        type: AppSettingsType.wifi),
+                  ),
+                  Text(
+                    'Join the open "RESCUE_x" network, then come back. This '
+                    'screen updates on its own within a few seconds.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
               ],
             ),
           ],

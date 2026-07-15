@@ -101,7 +101,13 @@ def get_auth(
             audit_logger.warning(
                 f"TOKEN_FAIL | personnel={payload['personnel_id']} | reason=revoked_or_unknown"
             )
-            raise HTTPException(status_code=403, detail="Credentials revoked")
+            # 401, not 403: the CREDENTIAL is no longer valid, so the client
+            # must re-authenticate. 403 is reserved for "you are properly
+            # authenticated but this action is not for your role", which must
+            # NOT log anyone out. Conflating the two logged a rescuer out of
+            # the whole app just for opening an HQ-only screen (bench finding
+            # 2026-07-14).
+            raise HTTPException(status_code=401, detail="Credentials revoked")
         role = Role.HQ if payload.get("role") == "HQ" else Role.RESCUE_TEAM
         return Auth(role, personnel_id=payload["personnel_id"], via="token")
 
@@ -424,7 +430,13 @@ def post_gs_message(
 
 
 @app.get("/gs-messages")
-def get_gs_messages(auth: Auth = Depends(require_roles({Role.HQ, Role.SYNC_NODE}))):
+def get_gs_messages(
+    # RESCUE_TEAM must be able to READ the field reports it files: the
+    # rescue app's HQ Uplink screen shows the log right under the compose
+    # box. Restricting this to HQ made a rescuer's own log 403 (bench
+    # finding 2026-07-14).
+    auth: Auth = Depends(require_roles({Role.RESCUE_TEAM, Role.HQ, Role.SYNC_NODE})),
+):
     try:
         return JSONResponse(content=models.get_gs_messages())
     except Exception:

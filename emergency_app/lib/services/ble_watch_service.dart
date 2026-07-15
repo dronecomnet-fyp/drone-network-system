@@ -109,10 +109,19 @@ class BleWatchService {
     }
 
     _scanSub = FlutterBluePlus.onScanResults.listen(_handleResults);
+    // Filtering by service UUID is REQUIRED, not just an optimisation:
+    // Android refuses unfiltered background scans while the screen is off,
+    // and a locked phone is exactly our case. The module advertises this
+    // UUID in its ADV packet so the filter can match it (see firmware).
+    //
+    // balanced, not lowPower: lowPower duty-cycles at roughly 10% and can
+    // take tens of seconds to catch a 0.5-1 s advertiser. The foreground
+    // service is already keeping us alive, so pay the small extra power
+    // cost to alert someone in trouble promptly.
     await FlutterBluePlus.startScan(
       withServices: [_guid],
       continuousUpdates: true,
-      androidScanMode: AndroidScanMode.lowPower,
+      androidScanMode: AndroidScanMode.balanced,
     );
     _armed = true;
     return null;

@@ -61,17 +61,25 @@ class APIService {
             message: 'Invalid request: ${error.detail}',
           );
         case 401:
+          // The credential itself is no longer valid: expired, or revoked
+          // by HQ. Either way the user must authenticate again.
+          final revoked = error.detail.toLowerCase().contains('revoked');
           return ApiException(
-            type: ApiErrorType.sessionExpired,
+            type: revoked ? ApiErrorType.revoked : ApiErrorType.sessionExpired,
             statusCode: 401,
-            message: 'Session expired or invalid. Log in again with your PIN.',
+            message: revoked
+                ? 'Your credentials were revoked by HQ. Ask HQ to issue new '
+                    'ones; the same PIN will not work.'
+                : 'Session expired. Log in again with your PIN.',
           );
         case 403:
+          // Properly logged in, just not allowed to do THIS. Must never
+          // clear the session (that is what bounced rescuers to the login
+          // screen for opening an HQ-only screen).
           return ApiException(
-            type: ApiErrorType.revoked,
+            type: ApiErrorType.notPermitted,
             statusCode: 403,
-            message: 'Credentials rejected: ${error.detail}. If revoked, '
-                'HQ must issue new credentials.',
+            message: 'Not available for your role: ${error.detail}',
           );
         case 429:
           return const ApiException(

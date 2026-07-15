@@ -91,17 +91,23 @@ void main() {
       const expired = ApiException(
           type: ApiErrorType.sessionExpired, message: 'x', statusCode: 401);
       const revoked = ApiException(
-          type: ApiErrorType.revoked, message: 'x', statusCode: 403);
+          type: ApiErrorType.revoked, message: 'x', statusCode: 401);
       const network =
           ApiException(type: ApiErrorType.networkError, message: 'x');
       const pinning =
           ApiException(type: ApiErrorType.pinningFailed, message: 'x');
+      // 403: logged in fine, just not allowed to do this one thing. Must
+      // NOT log the user out (opening HQ Uplink as a rescuer bounced them
+      // to login before this fix).
+      const notPermitted = ApiException(
+          type: ApiErrorType.notPermitted, message: 'x', statusCode: 403);
       expect(expired.isCredentialFailure, isTrue);
       expect(revoked.isCredentialFailure, isTrue);
       expect(network.isCredentialFailure, isFalse);
       // pinning failure is NOT a credential problem: logging in again on a
       // fake network must not be suggested
       expect(pinning.isCredentialFailure, isFalse);
+      expect(notPermitted.isCredentialFailure, isFalse);
     });
   });
 }

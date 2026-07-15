@@ -159,9 +159,11 @@ def test_personnel_lifecycle_and_tokens():
     assert r2.json().get("already_claimed") is True
     assert r2.json()["claimed_by"] == pid
 
-    # revoke: token dies at next use even before expiry
+    # revoke: token dies at next use even before expiry. 401, not 403: the
+    # CREDENTIAL is dead, so the client must re-authenticate. 403 means
+    # "logged in fine, wrong role" and must never log anyone out.
     assert authed.post(f"/personnel/{pid}/revoke", headers=HQ).status_code == 200
-    assert authed.get("/messages", headers=TOK).status_code == 403
+    assert authed.get("/messages", headers=TOK).status_code == 401
     # new login also fails
     assert authed.post("/auth/login",
                        json={"personnel_id": pid, "pin": pin}).status_code == 401
@@ -186,10 +188,11 @@ def test_token_forgery_and_expiry_rejected():
     r = authed.get("/messages", headers={"X-Session-Token": expired["token"]})
     assert r.status_code == 401
 
-    # valid signature but personnel record does not exist
+    # Valid signature but personnel record does not exist: the credential
+    # names nobody, so it is dead (401), not merely forbidden.
     ghost = crypto_keys.mint_token("R-000-ghost", "RESCUE_TEAM")
     r = authed.get("/messages", headers={"X-Session-Token": ghost["token"]})
-    assert r.status_code == 403
+    assert r.status_code == 401
 
 
 def test_login_rate_limit():
@@ -249,6 +252,34 @@ def test_health_reads_aux_state():
     assert "message_counts" in h and "peers" in h
     # reset to absent for other tests
     aux_state.write_state(dict(aux_state.DEFAULT_STATE))
+
+
+def test_rescuer_can_read_the_field_reports_they_file():
+    """Regression (bench finding 2026-07-14): the rescue app's HQ Uplink
+    screen lists gs_messages under its compose box, but this endpoint was
+    HQ-only. A rescuer opening that tab got a 403, which the app treated as
+    'credentials revoked' and logged them out of the whole app."""
+    # Earlier tests exhausted the per-IP login limiter (all tests share one
+    # client IP); this test is not about rate limiting.
+    api._login_ip_limiter._events.clear()
+    rec, pin = models.create_personnel("Field Reporter")
+    token = authed.post(
+        "/auth/login",
+        json={"personnel_id": rec["personnel_id"], "pin": pin},
+    ).json()["token"]
+    tok = {"X-Session-Token": token}
+
+    # A rescuer can file a report AND read the log back.
+    assert authed.post("/gs-uplink", json={"content": "culvert washed out"},
+                       headers=tok).status_code == 200
+    listing = authed.get("/gs-messages", headers=tok)
+    assert listing.status_code == 200
+    assert any("culvert washed out" in g["content"] for g in listing.json())
+
+    # A role denial stays a 403 and is NOT a dead credential: the very same
+    # token must still work on the endpoints the rescuer IS allowed to use.
+    assert authed.get("/personnel", headers=tok).status_code == 403
+    assert authed.get("/messages", headers=tok).status_code == 200
 
 
 # ---------------------------------------------------------------------------
