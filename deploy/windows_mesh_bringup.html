@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Second Node DRONE_B + DTN Mesh Sync</title>
+<style>
+@font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
+:root {
+  --ink: #1b2028; --paper: #f6f4ef; --paper-raised: #eeebe3; --line: #d8d3c6;
+  --wire: #5b6b7a; --accent: #d9711c; --accent-strong: #b85c14;
+  --pass: #1f8f5b; --pass-bg: #e4f4ec; --stop: #c23a3a; --stop-bg: #fbe9e7;
+  --term-bg: #14181e; --term-fg: #e6e2d6; --term-dim: #8a93a3; --code-fg: #2a2f38;
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+  --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+  --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+  --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+  --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+    --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+    --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+    --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+body { font-family: var(--sans); font-size: 16px; line-height: 1.6; padding: 0 0 6rem; }
+::selection { background: var(--accent); color: #14181e; }
+a { color: var(--accent-strong); }
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; }
+.masthead { border-bottom: 1px solid var(--line); padding: 2.6rem 0 1.8rem; margin-bottom: 2.2rem; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--wire); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+h1.title { font-family: var(--mono); font-size: 1.9rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6rem; }
+.dek { max-width: 46ch; color: var(--wire); font-size: 1.02rem; margin: 0; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1.4rem; font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+.meta-row b { color: var(--ink); font-weight: 600; }
+.loop { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1.5rem; padding: 0.9rem 1rem; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; font-family: var(--mono); font-size: 0.76rem; }
+.loop .n { padding: 0.2rem 0.55rem; border-radius: 5px; background: var(--paper); border: 1px solid var(--line); white-space: nowrap; }
+.loop .n.hi { border-color: var(--accent); color: var(--accent-strong); }
+.loop .ar { color: var(--wire); }
+.index { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin-bottom: 2.6rem; }
+.index-title { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--wire); margin: 0 0 0.7rem; }
+.index ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.25rem 1rem; }
+.index li a { display: flex; gap: 0.55rem; align-items: baseline; text-decoration: none; color: var(--ink); font-size: 0.88rem; padding: 0.2rem 0; }
+.index li a:hover { color: var(--accent-strong); }
+.index .n { font-family: var(--mono); color: var(--wire); font-size: 0.78rem; min-width: 1.4em; }
+.stage { border-left: 3px solid var(--line); padding: 0 0 0 1.3rem; margin-bottom: 2.9rem; scroll-margin-top: 1.5rem; }
+.stage.gate { border-left-color: var(--stop); }
+.stage.crit { border-left-color: var(--accent); }
+.stage-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 0.85rem; }
+.stage-num { font-family: var(--mono); font-size: 0.85rem; color: var(--wire); background: var(--paper-raised); border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.6rem; flex-shrink: 0; }
+h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+.stage ul, .stage ol.steps { margin: 0 0 1rem; padding-left: 1.25rem; max-width: 60ch; }
+.stage li { margin-bottom: 0.4rem; }
+.stage li:last-child { margin-bottom: 0; }
+.term { background: var(--term-bg); border-radius: 8px; margin: 0 0 1rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000); }
+.term-bar { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.term-bar .cap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--term-dim); margin-left: 0.3rem; }
+.term-bar .where { margin-left: auto; font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.08rem 0.5rem; border-radius: 999px; }
+.term-bar .where.a { color: #a7e8c6; background: rgba(31,143,91,0.2); }
+.term-bar .where.b { color: #ffcfa3; background: rgba(217,113,28,0.2); }
+.term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
+.term-bar .led.r { background: #e5645c; } .term-bar .led.y { background: #e5b84f; } .term-bar .led.g { background: #57c273; }
+.term pre { margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg); }
+.term .prompt { color: var(--term-dim); }
+.term .comment { color: var(--term-dim); font-style: italic; }
+code.inline { font-family: var(--mono); font-size: 0.88em; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 4px; padding: 0.05rem 0.35rem; color: var(--code-fg); }
+.readout { background: var(--pass-bg); border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line)); border-radius: 8px; padding: 0.9rem 1.1rem 1rem; margin: 0 0 1rem; }
+.readout .label { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pass); margin-bottom: 0.55rem; }
+.readout pre, .readout code { font-family: var(--mono); font-size: 0.85rem; color: var(--code-fg); white-space: pre-wrap; word-break: break-word; margin: 0; }
+.readout .hint { font-family: var(--sans); font-size: 0.85rem; color: var(--wire); margin-top: 0.55rem; white-space: normal; }
+.gatebox { background: var(--stop-bg); border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line)); border-radius: 8px; padding: 0.95rem 1.1rem 1.05rem; margin: 0 0 0.4rem; }
+.gatebox .label { font-family: var(--mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.gatebox p { margin: 0; max-width: 58ch; font-size: 0.95rem; }
+.critbox { background: color-mix(in srgb, var(--accent) 12%, var(--paper)); border: 2px solid var(--accent); border-radius: 10px; padding: 1rem 1.2rem; margin: 0 0 1rem; }
+.critbox .label { font-family: var(--mono); font-weight: 700; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem; }
+.critbox p { margin: 0 0 0.6rem; }
+.critbox p:last-child { margin: 0; }
+.note { border: 1px dashed var(--line); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.88rem; color: var(--wire); margin: 0 0 1rem; max-width: 60ch; }
+.note b { color: var(--ink); }
+.fieldtable-wrap { overflow-x: auto; margin-bottom: 1rem; }
+table.fieldtable { border-collapse: collapse; width: 100%; font-size: 0.85rem; min-width: 30rem; }
+table.fieldtable th, table.fieldtable td { text-align: left; padding: 0.45rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.fieldtable th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wire); font-weight: 600; }
+footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+@media (max-width: 640px) { h1.title { font-size: 1.55rem; } .index ol { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; File 01 + 02 &middot; DTN Mesh</div>
+    <h1 class="title">Second Node DRONE_B<br>and the Two-Node Mesh</h1>
+    <p class="dek">Build a second Pi as DRONE_B, join it to DRONE_A on the 2.4 GHz backbone, and prove the headline feature: a message sent at one drone reaches a rescuer at the other, with no internet and no central server.</p>
+    <div class="meta-row">
+      <span><b>New node</b> DRONE_B (RESCUE_B, 10.99.0.2)</span>
+      <span><b>Needs</b> Pi + AR9271 + aux module</span>
+      <span><b>Drive from</b> Windows (SSH over Ethernet)</span>
+    </div>
+    <div class="loop">
+      <span class="n">victim at DRONE_A</span><span class="ar">&rarr;</span>
+      <span class="n hi">2.4 GHz mesh sync</span><span class="ar">&rarr;</span>
+      <span class="n">rescuer at DRONE_B claims it</span><span class="ar">&rarr;</span>
+      <span class="n">claim syncs back to A</span>
+    </div>
+  </header>
+
+  <div class="critbox">
+    <div class="label">Read this first &mdash; the one mistake that breaks everything</div>
+    <p>Every node in the fleet shares <b>one</b> set of trust files: the same master secret (which derives the signing keys) and the same certificate authority. DRONE_B must <b>copy DRONE_A's <code class="inline">deploy/secrets/</code> folder</b>.</p>
+    <p><b>Do NOT run <code class="inline">make_fleet_ca.sh</code> on DRONE_B.</b> If you do, B gets its own keys, and the two nodes will silently reject each other's beacons and records as forged. Everything will look configured, yet nothing will ever sync, with no obvious error. Stage 3 does the copy; that is the crux of this whole runbook.</p>
+  </div>
+
+  <nav class="index">
+    <p class="index-title">Stages</p>
+    <ol>
+      <li><a href="#s1"><span class="n">1</span>Flash the DRONE_B card</a></li>
+      <li><a href="#s2"><span class="n">2</span>Boot + SSH in</a></li>
+      <li><a href="#s3"><span class="n">3</span>Code + copy A's secrets</a></li>
+      <li><a href="#s4"><span class="n">4</span>Gate &mdash; stack + AR9271</a></li>
+      <li><a href="#s5"><span class="n">5</span>Run setup as node b</a></li>
+      <li><a href="#s6"><span class="n">6</span>Reboot</a></li>
+      <li><a href="#s7"><span class="n">7</span>Gate &mdash; DRONE_B alive</a></li>
+      <li><a href="#s8"><span class="n">8</span>Gate &mdash; the mesh link</a></li>
+      <li><a href="#s9"><span class="n">9</span>Gate &mdash; prove sync</a></li>
+      <li><a href="#s10"><span class="n">10</span>The full demo loop</a></li>
+      <li><a href="#s11"><span class="n">11</span>Troubleshooting</a></li>
+    </ol>
+  </nav>
+
+  <!-- 1 -->
+  <section class="stage" id="s1">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">Flash the DRONE_B SD card</h2></div>
+    <p>Exactly like DRONE_A, with one change: the hostname. In Raspberry Pi Imager, Raspberry Pi OS Lite (64-bit), Edit Settings:</p>
+    <ul>
+      <li>Hostname: <code class="inline">drone-b</code></li>
+      <li>Enable SSH, username <code class="inline">drone</code> + a password, timezone Asia/Colombo</li>
+      <li>Do NOT configure Wi-Fi</li>
+    </ul>
+    <p>Put the card in the second Pi, and plug in its AR9271 USB adapter and aux module.</p>
+  </section>
+
+  <!-- 2 -->
+  <section class="stage" id="s2">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">Boot and SSH in over Ethernet</h2></div>
+    <p>Connect DRONE_B by Ethernet (same reason as before: setup takes over its Wi-Fi). Power on, wait a minute, then from Windows:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell</span></div>
+      <pre><span class="prompt">PS&gt;</span> ssh drone@drone-b.local</pre>
+    </div>
+    <p>Leave DRONE_A powered and on the same network too &mdash; Stage 3 copies files from it.</p>
+  </section>
+
+  <!-- 3: CRITICAL -->
+  <section class="stage crit" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Get the code, then copy A's secrets</h2></div>
+    <p>On DRONE_B, clone the repo:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-b shell</span><span class="where b">DRONE_B</span></div>
+      <pre><span class="prompt">$</span> git clone https://github.com/dronecomnet-fyp/drone-network-system.git ~/rescue-mesh</pre>
+    </div>
+    <p>Now copy the trust files <b>from DRONE_A</b> (this is the step that makes the mesh work):</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-b shell</span><span class="where b">DRONE_B</span></div>
+      <pre><span class="prompt">$</span> scp -r drone@drone-a.local:~/rescue-mesh/deploy/secrets ~/rescue-mesh/deploy/</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Verify B now has A's secrets, and did NOT generate its own</div>
+      <pre><span class="prompt">$</span> ls ~/rescue-mesh/deploy/secrets
+fleet_ca.crt  fleet_ca.key  fleet_secrets.env
+<span class="prompt">$</span> # the master secret here MUST equal DRONE_A's:
+<span class="prompt">$</span> grep NODE_MASTER_SECRET ~/rescue-mesh/deploy/secrets/fleet_secrets.env</pre>
+      <p class="hint">If that folder is empty or missing, the copy failed &mdash; fix it before going on. If you accidentally already ran <code class="inline">make_fleet_ca.sh</code> on B, delete the folder and re-copy from A: <code class="inline">rm -rf ~/rescue-mesh/deploy/secrets</code> then repeat the scp.</p>
+    </div>
+  </section>
+
+  <!-- 4: GATE -->
+  <section class="stage gate" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Gate &mdash; network stack and AR9271</h2></div>
+    <p>Same checks as DRONE_A. On DRONE_B:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-b shell</span><span class="where b">DRONE_B</span></div>
+      <pre><span class="prompt">$</span> systemctl is-active NetworkManager   <span class="comment"># active</span>
+<span class="prompt">$</span> iw list | grep -A8 "Supported interface modes"   <span class="comment"># must list IBSS</span></pre>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Confirm <code class="inline">IBSS</code> appears, same as on A. No point running setup until the second adapter can do ad-hoc mode.</p>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section class="stage" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Run setup as node b</h2></div>
+    <p>The <code class="inline">b</code> argument selects DRONE_B's config: SSID <code class="inline">RESCUE_B</code>, mesh address <code class="inline">10.99.0.2</code>. It reads the secrets you copied and issues B its own node certificate from the shared fleet CA.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-b shell</span><span class="where b">DRONE_B</span></div>
+      <pre><span class="prompt">$</span> cd ~/rescue-mesh/deploy
+<span class="prompt">$</span> chmod +x setup_node.sh make_fleet_ca.sh files/dtn-net-up.sh
+<span class="prompt">$</span> sudo ./setup_node.sh b</pre>
+    </div>
+    <p>It ends with <code class="inline">=== Setup complete for DRONE_B ===</code>. Note there is no <code class="inline">make_fleet_ca.sh</code> line here: you already have the fleet's secrets from A.</p>
+  </section>
+
+  <!-- 6 -->
+  <section class="stage" id="s6">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Reboot</h2></div>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-b shell</span><span class="where b">DRONE_B</span></div>
+      <pre><span class="prompt">$</span> sudo reboot</pre>
+    </div>
+    <p>Wait a minute, reconnect: <code class="inline">ssh drone@drone-b.local</code>.</p>
+  </section>
+
+  <!-- 7: GATE -->
+  <section class="stage gate" id="s7">
+    <div class="stage-head"><span class="stage-num">07</span><h2 class="stage-title">Gate &mdash; DRONE_B is alive on its own</h2></div>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-b shell</span><span class="where b">DRONE_B</span></div>
+      <pre><span class="prompt">$</span> systemctl is-active rescue-mesh-api rescue-portal dtn-net rescue-mesh-sync
+<span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health   <span class="comment"># node_id should be DRONE_B</span></pre>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Confirm the services are active and <code class="inline">/health</code> reports <code class="inline">"node_id":"DRONE_B"</code>. B is now a complete node in its own right; next we link the two.</p>
+    </div>
+  </section>
+
+  <!-- 8: GATE -->
+  <section class="stage gate" id="s8">
+    <div class="stage-head"><span class="stage-num">08</span><h2 class="stage-title">Gate &mdash; the 2.4 GHz mesh link</h2></div>
+    <p>Put both Pis within a couple of metres of each other and leave both powered. The IBSS cell forms on its own (each node's <code class="inline">dtn-net</code> service). From DRONE_A, reach across the mesh to DRONE_B:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-a shell</span><span class="where a">DRONE_A</span></div>
+      <pre><span class="prompt">$</span> iw dev wlan1 info          <span class="comment"># type IBSS, ssid RESCUE_DTN</span>
+<span class="prompt">$</span> ping -c 3 10.99.0.2        <span class="comment"># DRONE_B's mesh address</span></pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected</div>
+      <pre>64 bytes from 10.99.0.2: icmp_seq=1 ttl=64 time=3.1 ms
+64 bytes from 10.99.0.2: icmp_seq=2 ttl=64 time=2.8 ms</pre>
+      <p class="hint">Ping working means the two AR9271 adapters have joined the same ad-hoc cell and can carry traffic. This is the physical layer the sync rides on.</p>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Confirm the ping succeeds both ways (also try <code class="inline">ping 10.99.0.1</code> from DRONE_B). If it fails, both radios are not on the cell yet &mdash; see troubleshooting; do not expect sync until the ping works.</p>
+    </div>
+  </section>
+
+  <!-- 9: GATE -->
+  <section class="stage gate" id="s9">
+    <div class="stage-head"><span class="stage-num">09</span><h2 class="stage-title">Gate &mdash; prove they are syncing</h2></div>
+    <p>The sync daemons announce themselves over the mesh every 10 s and pull changes every 30 s. First, confirm each sees the other as a peer:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-a shell</span><span class="where a">DRONE_A</span></div>
+      <pre><span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health | python3 -m json.tool | grep -A6 peers</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected: DRONE_B listed as a peer</div>
+      <pre>"peers": [
+    { "node_id": "DRONE_B", "ip": "10.99.0.2", "last_seen": "..." }
+]</pre>
+    </div>
+    <p>Now the real test. Create a record on B and watch it arrive on A. Use B's break-glass key to file a quick field report:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-b shell</span><span class="where b">DRONE_B</span></div>
+      <pre><span class="prompt">$</span> HQ=$(grep HQ_API_KEY ~/rescue-mesh/deploy/secrets/fleet_secrets.env | cut -d= -f2)
+<span class="prompt">$</span> curl -sk -H "X-API-Key: $HQ" -H "Content-Type: application/json" \
+       -d '{"content":"mesh sync test from B"}' https://10.42.0.1:8443/gs-uplink</pre>
+    </div>
+    <p>Wait about 40 seconds, then on DRONE_A:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-a shell</span><span class="where a">DRONE_A</span></div>
+      <pre><span class="prompt">$</span> HQ=$(grep HQ_API_KEY ~/rescue-mesh/deploy/secrets/fleet_secrets.env | cut -d= -f2)
+<span class="prompt">$</span> curl -sk -H "X-API-Key: $HQ" https://10.42.0.1:8443/gs-messages | grep "from B"</pre>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here &mdash; this is the thesis in one command</div>
+      <p>If "mesh sync test from B" appears on DRONE_A, the delay-tolerant sync works: a record created on one node replicated itself across the ad-hoc radio to the other, verified its signature, and stored it. Peek at <code class="inline">tail ~/rescue-mesh/backend/audit.log</code> on either node to see the <code class="inline">SYNC_OK</code> lines. If nothing arrives, that is almost always the secrets mistake from the top &mdash; check troubleshooting.</p>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section class="stage" id="s10">
+    <div class="stage-head"><span class="stage-num">10</span><h2 class="stage-title">The full demo loop (optional, very satisfying)</h2></div>
+    <p>With sync proven, run the story end to end across the two drones:</p>
+    <ol class="steps">
+      <li>A phone joins <code class="inline">RESCUE_A</code> and sends a victim message through the captive portal.</li>
+      <li>A rescuer's phone joins <code class="inline">RESCUE_B</code> and logs into the rescue app with a PIN (the personnel record was issued on A and synced to B &mdash; the login works with no re-issuing).</li>
+      <li>The victim message, submitted at A, appears in the rescuer's list at B. They claim it.</li>
+      <li>Back at A, the claim shows the rescuer's ID: the claim synced B &rarr; A.</li>
+    </ol>
+    <p>That is a victim helped at one drone by a rescuer standing at another, over a self-forming radio mesh with no internet anywhere. It is the strongest single thing to show an examiner.</p>
+    <div class="note">You can also point the GCC at each node in turn (join RESCUE_A, then RESCUE_B) and watch the same messages, personnel, and announcements on both &mdash; proof the whole dataset converges.</div>
+  </section>
+
+  <!-- 11 -->
+  <section class="stage" id="s11">
+    <div class="stage-head"><span class="stage-num">11</span><h2 class="stage-title">Troubleshooting</h2></div>
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <thead><tr><th>Symptom</th><th>Try this</th></tr></thead>
+        <tbody>
+          <tr><td>Ping 10.99.0.2 fails</td><td>On each node <code class="inline">iw dev wlan1 info</code> must show type IBSS, ssid RESCUE_DTN, the same fixed BSSID and frequency. If one is not joined, <code class="inline">sudo systemctl restart dtn-net</code> and re-check. Keep the Pis close for the first test.</td></tr>
+          <tr><td>Ping works, but no peer appears and nothing syncs</td><td>Almost certainly the secrets mistake: B has different keys from A. On A, <code class="inline">tail -f ~/rescue-mesh/backend/audit.log</code> and look for <code class="inline">BEACON_REJECT</code> or <code class="inline">SYNC_REJECT</code>. If present, re-copy <code class="inline">deploy/secrets</code> from A to B (Stage 3) and re-run <code class="inline">sudo ./setup_node.sh b</code>, then reboot.</td></tr>
+          <tr><td>Peer appears but records rejected (SYNC_REJECT)</td><td>Same root cause as above (mismatched signing key), or a mismatched fleet CA so TLS between nodes fails. Re-copying the whole secrets folder fixes both.</td></tr>
+          <tr><td>DRONE_B /health says node_id DRONE_A</td><td>You ran setup with the wrong letter. Re-run <code class="inline">sudo ./setup_node.sh b</code> and reboot.</td></tr>
+          <tr><td>Sync is slow to appear</td><td>Normal: beacons every 10 s, pulls every 30 s, so allow up to ~40 s. It is delay-tolerant by design, not instant.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><b>Reference:</b> <code class="inline">deploy/VERIFY.md</code> (per-node checks) and <code class="inline">tools/local_two_node_test.sh</code>, which runs this exact sync end to end on one machine and passes, if you want to see the expected behaviour without hardware.</div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="wrap" style="padding:0;">deploy &middot; files 01 + 02 &middot; rescue mesh phase 2 &middot; DRONE_A + DRONE_B</div>
+</footer>
+</body>
+</html>
