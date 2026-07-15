@@ -143,12 +143,17 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
   </div>
 
   <div class="note" style="max-width:none;">
-    <b>If you downloaded the APKs before 14 July, download them again.</b> The first
-    build of the rescue app shipped without Android's network permission (Flutter only
-    adds it to debug builds), so it could not open a connection at all and reported
-    "Cannot reach the drone". Both apps now also bind themselves to the drone's Wi-Fi,
-    which means <b>you can leave mobile data switched on</b>: Android normally refuses to
-    route over a Wi-Fi that has no internet, and the drone's AP never will have any.
+    <b>Get the latest of everything before you start.</b> The 15 July build fixes three
+    field-reported bugs: the HQ Uplink tab logging a rescuer out, the emergency app never
+    seeing the module over Bluetooth, and the SOS button staying greyed out after joining
+    Wi-Fi manually.
+    <ul style="margin:0.5rem 0 0; padding-left:1.2rem;">
+      <li><b>Re-download both APKs</b> from the release (they replace your installed copies).</li>
+      <li><b>Re-flash the aux module</b> with the current firmware &mdash; the Bluetooth fix
+        is in the firmware, so an un-reflashed module still will not be discovered. Use the
+        aux runbook's <code class="inline">pio run -t upload</code> step.</li>
+    </ul>
+    Both apps bind themselves to the drone's Wi-Fi, so <b>you can leave mobile data on</b>.
   </div>
 
   <nav class="index">
@@ -282,7 +287,7 @@ Tap to connect and send your location. Network: RESCUE_A</pre>
     <p>From the Drone found screen:</p>
     <ol class="steps">
       <li>Tap <b>Open Wi-Fi settings</b>. The SSID is copied for you; join <code class="inline">RESCUE_A</code>.</li>
-      <li>Come back to the app and tap <b>I have joined the Wi-Fi</b>.</li>
+      <li>Come back to the app. Within a few seconds the home screen updates on its own and the SOS button turns red &mdash; tap it. (You do not have to come through the notification: joining <code class="inline">RESCUE_A</code> any time, via the "Connect to a drone manually" button on Home or the phone's Wi-Fi settings, lights up SOS the same way.)</li>
       <li>The <b>Connected</b> screen opens and immediately uploads your stored location points: "Sent 1 saved location point(s) to the rescue team."</li>
       <li>Type a short SOS message (e.g. "two adults, one injured, on the roof") and tap <b>SEND SOS NOW</b>.</li>
     </ol>
@@ -316,9 +321,11 @@ NEW  |  via DRONE_A  |  GPS 6.92710, 79.86120</pre>
           <tr><td>Either app: "Cannot reach the drone ... (Connection failed)"</td><td>Make sure you have the <b>current</b> APKs (re-download from the release; builds before 14 Jul had no network permission and could never connect). The apps now bind themselves to the drone's Wi-Fi, so mobile data can stay on. If it persists, confirm in the phone's browser that <code class="inline">http://10.42.0.1/</code> loads the portal.</td></tr>
           <tr><td>Rescue app: "TLS rejected" (a certificate error, not a connection one)</td><td>The pasted CA is wrong or truncated. Re-copy the whole block including the BEGIN and END lines.</td></tr>
           <tr><td>Rescue app: login fails</td><td>Check the personnel ID format (e.g. <code class="inline">R-014</code>) and the PIN. Five wrong PINs trigger a rate limit; wait a few minutes.</td></tr>
-          <tr><td>No drone-found notification</td><td>The module advertises over BLE only in NORMAL mode. If it stopped being pinged it dropped to FALLBACK and BLE is off by design. Restart <code class="inline">rescue-mesh-auxbridge</code> on the Pi and re-arm the watch.</td></tr>
+          <tr><td>No drone-found notification</td><td>First check the module is running the <b>15 July or later firmware</b> (earlier builds advertised the UUID where phone scan filters cannot see it, so detection never worked). Then confirm it is in NORMAL mode: it only advertises when being pinged, and drops to FALLBACK (BLE off) if the Pi stops. Also make sure the phone's Bluetooth is on before arming.</td></tr>
+          <tr><td>"Watch armed" toggles but nothing else happens</td><td>That is expected: arming does NOT turn the phone's Bluetooth on or off. It starts a background scan and shows the persistent "watch active" notification. Detection then produces a separate high-priority alert when a module is in range.</td></tr>
           <tr><td>Notification never arrives while locked</td><td>Some Android skins aggressively kill background apps. Grant the app "unrestricted" battery usage in Android settings, then re-arm.</td></tr>
-          <tr><td>SOS button stays grey</td><td>The app thinks it is not on a drone. Confirm the phone is really joined to RESCUE_A, then tap "I have joined the Wi-Fi" again. (The bug that used to cause this is fixed in this build.)</td></tr>
+          <tr><td>SOS button stays grey after joining Wi-Fi</td><td>Give it a few seconds &mdash; the app re-checks connectivity every 4 seconds and lights up on its own. If it stays grey, confirm the phone is really on RESCUE_A (open <code class="inline">http://10.42.0.1/</code> in the browser). The one-flow trap that used to require the notification path is fixed in this build.</td></tr>
+          <tr><td>Rescue app kicks me to the login screen from HQ Uplink</td><td>Fixed in the 15 July build; make sure you re-downloaded the rescue APK.</td></tr>
           <tr><td>Android warns the app is unsafe</td><td>Expected for sideloaded test builds signed with a debug key. Choose install anyway.</td></tr>
         </tbody>
       </table>
