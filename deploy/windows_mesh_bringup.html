@@ -123,6 +123,7 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
   <nav class="index">
     <p class="index-title">Stages</p>
     <ol>
+      <li><a href="#s0"><span class="n">0</span>Prepare aux module B</a></li>
       <li><a href="#s1"><span class="n">1</span>Flash the DRONE_B card</a></li>
       <li><a href="#s2"><span class="n">2</span>Boot + SSH in</a></li>
       <li><a href="#s3"><span class="n">3</span>Code + copy A's secrets</a></li>
@@ -137,6 +138,30 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
     </ol>
   </nav>
 
+  <!-- 0 -->
+  <section class="stage" id="s0">
+    <div class="stage-head"><span class="stage-num">00</span><h2 class="stage-title">Prepare aux module B (flash + provision)</h2></div>
+    <p>The second soldered XIAO becomes <b>DRONE_B's</b> aux module. Do this on the Windows laptop with the same steps as the first module (the aux runbook), with two specifics:</p>
+    <ol class="steps">
+      <li><b>Flash the CURRENT firmware</b> (git pull first). Firmware from before 15&nbsp;July advertised Bluetooth where phone scan filters cannot see it, so the emergency app would never detect this module. If module A has not been re-flashed since then either, re-flash it too while you are set up.</li>
+      <li><b>Provision it as DRONE_B</b>, not DRONE_A. In <code class="inline">aux_sim.py</code>:</li>
+    </ol>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell &middot; firmware\aux1 then tools\</span></div>
+      <pre><span class="prompt">PS&gt;</span> git pull
+<span class="prompt">PS&gt;</span> pio run -t upload
+<span class="prompt">PS&gt;</span> cd ..\..\tools
+<span class="prompt">PS&gt;</span> python aux_sim.py --port COM5
+n DRONE_B</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected</div>
+      <pre>&lt;- {"type":"set_node_id_ack","node_id":"DRONE_B"}</pre>
+      <p class="hint">The identity is stored in the module's flash and survives power cycles and reflashes. It is what the module beacons as in fallback mode (<code class="inline">FB|DRONE_B|...</code>) and advertises over Bluetooth (<code class="inline">B|RESCUE_B</code>), so getting the letter right matters. Quick sanity check with nRF Connect on a phone: the service data should now read <code class="inline">B|RESCUE_B</code>.</p>
+    </div>
+    <div class="note"><b>Already flashed it earlier "like module A"?</b> Then just confirm two things: it was flashed with the post-15-July firmware (re-flash if unsure &mdash; it is one command), and its ack says <code class="inline">DRONE_B</code>, not DRONE_A. Two modules claiming the same identity would poison the fallback beacons.</div>
+  </section>
+
   <!-- 1 -->
   <section class="stage" id="s1">
     <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">Flash the DRONE_B SD card</h2></div>
@@ -146,7 +171,7 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
       <li>Enable SSH, username <code class="inline">drone</code> + a password, timezone Asia/Colombo</li>
       <li>Do NOT configure Wi-Fi</li>
     </ul>
-    <p>Put the card in the second Pi, and plug in its AR9271 USB adapter and aux module.</p>
+    <p>Put the card in the second Pi, and plug in its AR9271 USB adapter and the aux module you just provisioned as DRONE_B in Stage 0 (near a window, for GPS).</p>
   </section>
 
   <!-- 2 -->
@@ -227,11 +252,20 @@ fleet_ca.crt  fleet_ca.key  fleet_secrets.env
     <div class="term">
       <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-b shell</span><span class="where b">DRONE_B</span></div>
       <pre><span class="prompt">$</span> systemctl is-active rescue-mesh-api rescue-portal dtn-net rescue-mesh-sync
-<span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health   <span class="comment"># node_id should be DRONE_B</span></pre>
+<span class="prompt">$</span> ls /dev/ttyACM*                          <span class="comment"># the aux module enumerated</span>
+<span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health | python3 -m json.tool</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected /health highlights</div>
+      <pre>"node_id": "DRONE_B",
+"aux": "present",
+"gps": {... "sats" climbing, "fix": 1 near a window ...},
+"clock_source": "gps"   (after a fix; "relative" before)</pre>
+      <p class="hint">If <code class="inline">aux</code> says absent, check the module is on <code class="inline">/dev/ttyACM0</code> and restart the bridge: <code class="inline">sudo systemctl restart rescue-mesh-auxbridge</code>. <code class="inline">journalctl -u rescue-mesh-auxbridge -n 10</code> should show AUX_CONNECT and, after a fix, CLOCK_SYNC.</p>
     </div>
     <div class="gatebox">
       <div class="label">Stop here</div>
-      <p>Confirm the services are active and <code class="inline">/health</code> reports <code class="inline">"node_id":"DRONE_B"</code>. B is now a complete node in its own right; next we link the two.</p>
+      <p>Confirm the services are active, <code class="inline">/health</code> reports <code class="inline">"node_id":"DRONE_B"</code>, and <code class="inline">aux</code> is <b>present</b> with GPS data flowing. B is now a complete node in its own right, aux included; next we link the two.</p>
     </div>
   </section>
 
@@ -314,6 +348,7 @@ fleet_ca.crt  fleet_ca.key  fleet_secrets.env
           <tr><td>Ping works, but no peer appears and nothing syncs</td><td>Almost certainly the secrets mistake: B has different keys from A. On A, <code class="inline">tail -f ~/rescue-mesh/backend/audit.log</code> and look for <code class="inline">BEACON_REJECT</code> or <code class="inline">SYNC_REJECT</code>. If present, re-copy <code class="inline">deploy/secrets</code> from A to B (Stage 3) and re-run <code class="inline">sudo ./setup_node.sh b</code>, then reboot.</td></tr>
           <tr><td>Peer appears but records rejected (SYNC_REJECT)</td><td>Same root cause as above (mismatched signing key), or a mismatched fleet CA so TLS between nodes fails. Re-copying the whole secrets folder fixes both.</td></tr>
           <tr><td>DRONE_B /health says node_id DRONE_A</td><td>You ran setup with the wrong letter. Re-run <code class="inline">sudo ./setup_node.sh b</code> and reboot.</td></tr>
+          <tr><td>Module B identifies as DRONE_A (nRF Connect shows A|RESCUE_A, or fallback beacons say FB|DRONE_A)</td><td>The module was provisioned with the wrong identity. Connect it to the laptop, run <code class="inline">aux_sim.py</code>, send <code class="inline">n DRONE_B</code>, confirm the ack (Stage 0). Note: while plugged into Pi B, the bridge also pushes B's identity on connect, which can mask this until fallback mode.</td></tr>
           <tr><td>Sync is slow to appear</td><td>Normal: beacons every 10 s, pulls every 30 s, so allow up to ~40 s. It is delay-tolerant by design, not instant.</td></tr>
         </tbody>
       </table>
