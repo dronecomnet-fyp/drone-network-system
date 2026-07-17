@@ -1,0 +1,4 @@
+# MAVLink gateway deps (installed into the node venv by setup_node.sh on
+# DRONE_S only). Pinned 2026-07-18; re-verify on the Pi's Python 3.11.
+pyserial==3.5
+pymavlink==2.4.49

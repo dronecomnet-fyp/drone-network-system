@@ -115,10 +115,11 @@ class _DisconnectedHelp extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 12),
               const Text(
-                'Join the system drone\'s Wi-Fi (the ESP32 DroneBridge access '
-                'point) on this laptop, confirm the MAVLink target in '
-                'Settings, then tap Connect above. Props OFF for all ground '
-                'testing.',
+                'Connect to the system drone\'s Pi MAVLink gateway. Either '
+                'join RESCUE_S for the direct path (10.42.0.1), or join a '
+                'volunteer AP (RESCUE_A/B) for the live relay across the mesh '
+                '(10.99.0.3). Set the target in Settings, then tap Connect. '
+                'Props OFF for all ground testing.',
               ),
               const SizedBox(height: 12),
               Text('Target: $target',
@@ -130,10 +131,9 @@ class _DisconnectedHelp extends StatelessWidget {
               ],
               const SizedBox(height: 16),
               const Text(
-                'The relay-via-volunteer-drone path is not available this '
-                'phase: the system drone\'s Pi has a single radio and no '
-                'mesh adapter, so it cannot join the 2.4 GHz backbone. See '
-                'docs/DRONE_LINK.md for the full reasoning.',
+                'The relay path is live-only (never store-and-forward): '
+                'commands travel over a live link or not at all. See '
+                'docs/DRONE_LINK.md for the architecture.',
                 style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ],

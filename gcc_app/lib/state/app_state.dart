@@ -36,11 +36,11 @@ class AppState extends ChangeNotifier {
   bool allowInsecure = false;
   String mbtilesPath = '';
 
-  /// MAVLink target for the drone control tab. Primary path this phase is
-  /// the ESP32 DroneBridge AP (default 192.168.2.1:14550); the mesh-relay
-  /// path is documented as unavailable in docs/DRONE_LINK.md (single-radio
-  /// system-drone Pi).
-  String mavlinkTarget = 'udp:192.168.2.1:14550';
+  /// MAVLink target for the drone control tab. DRONE_S runs a Pi MAVLink
+  /// gateway (the ESP32 is removed), reachable two ways, both live:
+  ///   DIRECT: laptop on RESCUE_S -> 10.42.0.1:14550
+  ///   RELAY:  laptop on RESCUE_A/B -> mesh -> 10.99.0.3:14550
+  String mavlinkTarget = 'udp:10.42.0.1:14550';
   double coverageRadiusM = 300;
 
   AuthSession? session;

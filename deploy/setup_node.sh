@@ -145,6 +145,13 @@ sudo -u "$SERVICE_USER" "$BACKEND_DIR/.venv/bin/pip" install -q --upgrade pip
 sudo -u "$SERVICE_USER" "$BACKEND_DIR/.venv/bin/pip" install -q \
     -r "$BACKEND_DIR/requirements.txt"
 
+# System drone only: the MAVLink gateway needs pymavlink + pyserial.
+if [[ "$DRONE_CONTROL" == "true" ]]; then
+    echo "[Step 6] MAVLink gateway requirements (DRONE_S)"
+    sudo -u "$SERVICE_USER" "$BACKEND_DIR/.venv/bin/pip" install -q \
+        -r "$REPO_DIR/mavlink_gateway/requirements.txt"
+fi
+
 # --- Step 7 (file 01) + file 09: per-node configuration and trust material ----
 
 echo "[Step 7] Writing /etc/rescue-mesh/node.env"
@@ -215,6 +222,8 @@ AUX_STATE_FILE=/run/rescue-mesh/aux_state.json
 
 DRONE_CONTROL=$DRONE_CONTROL
 FC_SERIAL=$FC_SERIAL
+FC_BAUD=${FC_BAUD:-57600}
+MAVLINK_UDP_PORT=${MAVLINK_UDP_PORT:-14550}
 
 E2E_ENABLED=false
 E2E_ENCRYPTION_REQUIRED=false
@@ -258,6 +267,11 @@ for unit in rescue-mesh-runtime dtn-net rescue-mesh-api rescue-portal \
             rescue-mesh-sync rescue-mesh-auxbridge rescue-mesh-firewall; do
     cp "$SCRIPT_DIR/systemd/$unit.service" "/etc/systemd/system/$unit.service"
 done
+# System drone only: the MAVLink gateway service (file 08).
+if [[ "$DRONE_CONTROL" == "true" ]]; then
+    cp "$SCRIPT_DIR/systemd/rescue-mesh-mavgw.service" \
+       /etc/systemd/system/rescue-mesh-mavgw.service
+fi
 
 echo "[Step 8] Narrow sudoers entry for GPS clock set (file 02 task 2.2)"
 install -m 440 "$SCRIPT_DIR/files/rescue-mesh-sudoers" /etc/sudoers.d/rescue-mesh
@@ -279,10 +293,30 @@ BOOT_CONFIG=/boot/firmware/config.txt
 grep -q '^dtoverlay=disable-bt' "$BOOT_CONFIG" || echo 'dtoverlay=disable-bt' >> "$BOOT_CONFIG"
 systemctl disable --now hciuart >/dev/null 2>&1 || true
 
+# System drone: give the gateway access to the FC serial link (file 08).
+if [[ "$DRONE_CONTROL" == "true" ]]; then
+    echo "[Step 8] Serial access for the MAVLink gateway (DRONE_S)"
+    usermod -aG dialout "$SERVICE_USER"
+    # GPIO UART path (/dev/serial0): free the primary UART from the login
+    # console and enable it. Harmless if the FC is on a USB-TTL instead.
+    if [[ "$FC_SERIAL" == *serial0* || "$FC_SERIAL" == *ttyAMA* || "$FC_SERIAL" == *ttyS0* ]]; then
+        grep -q '^enable_uart=1' "$BOOT_CONFIG" || echo 'enable_uart=1' >> "$BOOT_CONFIG"
+        systemctl disable --now serial-getty@ttyS0.service >/dev/null 2>&1 || true
+        systemctl disable --now serial-getty@ttyAMA0.service >/dev/null 2>&1 || true
+        # Remove the serial console from the kernel cmdline if present.
+        CMDLINE=/boot/firmware/cmdline.txt
+        [[ -f "$CMDLINE" ]] || CMDLINE=/boot/cmdline.txt
+        [[ -f "$CMDLINE" ]] && sed -i 's/console=serial0,[0-9]* //' "$CMDLINE"
+    fi
+fi
+
 echo "[Step 8] Enabling services"
 systemctl daemon-reload
 systemctl enable rescue-mesh-runtime dtn-net rescue-mesh-api rescue-portal \
     rescue-mesh-sync rescue-mesh-auxbridge rescue-mesh-firewall >/dev/null
+if [[ "$DRONE_CONTROL" == "true" ]]; then
+    systemctl enable rescue-mesh-mavgw >/dev/null
+fi
 
 # RETIRED Phase 1 units must not exist (file 01 step 8, rule 5 disclosure):
 for old in rescue-mesh-switcher rescue-mesh-ble; do

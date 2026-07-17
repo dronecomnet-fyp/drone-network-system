@@ -1,0 +1,20 @@
+# rescue-mesh-mavgw.service: MAVLink gateway for the system drone (file 08).
+# Installed and enabled ONLY on DRONE_S (DRONE_CONTROL=true). Bridges the
+# CC3D flight controller serial link to UDP 14550 and taps FC GPS/battery/
+# time into the node health state.
+[Unit]
+Description=Rescue mesh MAVLink gateway (system drone)
+After=network.target rescue-mesh-runtime.service
+Wants=rescue-mesh-runtime.service
+
+[Service]
+User=drone
+Group=drone
+WorkingDirectory=/home/drone/rescue-mesh/mavlink_gateway
+EnvironmentFile=/etc/rescue-mesh/node.env
+ExecStart=/home/drone/rescue-mesh/backend/.venv/bin/python mav_gateway.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

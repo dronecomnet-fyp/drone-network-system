@@ -106,3 +106,33 @@ Phase 1 security docs) is flagged here, never silently drifted.
     MAVLink telemetry and a command palette (arm/disarm, always-on force
     DISARM kill, per-motor test, mode set) with every control gated on a
     heartbeat fresher than 2 s. gcc_app now depends on dart_mavlink.
+
+## 2026-07-18 System drone becomes a full node (reverses items 12-14, rule 5)
+
+16. A second AR9271 was added to the system drone's Pi, so DRONE_S now has
+    two radios and IS a full DTN mesh node after all: onboard 5 GHz
+    RESCUE_S AP (10.42.0.1) + AR9271 2.4 GHz IBSS peer (10.99.0.3), same
+    node software as A/B. This REVERSES item 12: the mesh-relayed control
+    path is now available (GCC on RESCUE_A/B -> volunteer forwards -> mesh
+    -> 10.99.0.3:14550), and it is live MAVLink, not DTN store-and-forward.
+
+17. The ESP32 DroneBridge is REMOVED. The Pi wires directly to the CC3D
+    over serial (3.3 V GPIO UART /dev/serial0, or a USB-TTL /dev/ttyUSB0),
+    no reflash of the FC or anything else. New folder mavlink_gateway/ with
+    mav_gateway.py: a self-contained pyserial+pymavlink transparent
+    serial<->UDP bridge on 0.0.0.0:14550. Chosen over mavlink-router
+    (not in Bookworm apt) and MAVProxy (heavier); rationale in
+    mavlink_gateway/README.md. Tested end to end by tools/mavgw_pty_test.py
+    (9 checks, no hardware).
+
+18. DRONE_S self-locates from the flight controller (it has no aux module).
+    The gateway taps the FC MAVLink read-only: GPS_RAW_INT -> /health GPS,
+    SYS_STATUS -> flight-battery voltage, SYSTEM_TIME -> sets the Pi clock
+    from GPS time (same narrow sudoers date mechanism as aux_bridge). So
+    the drone's own GPS gives DRONE_S position + time with no INA3221, no
+    LoRa, no separate GPS module.
+
+19. Item 14 partially addressed: MAVLink 2 signing still not implemented,
+    but the relay path is now firewalled (nftables-drone-s.nft restricts
+    UDP 14550 to 10.42.0.0/24 and the volunteer mesh addresses), which is
+    file 09 plane 4 LAYER 1. Signing (layer 2) remains future work.

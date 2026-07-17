@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>System Drone Node DRONE_S — Mesh + MAVLink Gateway</title>
+<style>
+@font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
+:root {
+  --ink: #1b2028; --paper: #f6f4ef; --paper-raised: #eeebe3; --line: #d8d3c6;
+  --wire: #5b6b7a; --accent: #d9711c; --accent-strong: #b85c14;
+  --pass: #1f8f5b; --pass-bg: #e4f4ec; --stop: #c23a3a; --stop-bg: #fbe9e7;
+  --term-bg: #14181e; --term-fg: #e6e2d6; --term-dim: #8a93a3; --code-fg: #2a2f38;
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+  --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+  --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+  --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+  --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+    --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+    --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+    --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+body { font-family: var(--sans); font-size: 16px; line-height: 1.6; padding: 0 0 6rem; }
+::selection { background: var(--accent); color: #14181e; }
+a { color: var(--accent-strong); }
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; }
+.masthead { border-bottom: 1px solid var(--line); padding: 2.6rem 0 1.8rem; margin-bottom: 2.2rem; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--wire); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+h1.title { font-family: var(--mono); font-size: 1.9rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6rem; }
+.dek { max-width: 46ch; color: var(--wire); font-size: 1.02rem; margin: 0; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1.4rem; font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+.meta-row b { color: var(--ink); font-weight: 600; }
+.index { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin-bottom: 2.6rem; }
+.index-title { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--wire); margin: 0 0 0.7rem; }
+.index ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.25rem 1rem; }
+.index li a { display: flex; gap: 0.55rem; align-items: baseline; text-decoration: none; color: var(--ink); font-size: 0.88rem; padding: 0.2rem 0; }
+.index li a:hover { color: var(--accent-strong); }
+.index .n { font-family: var(--mono); color: var(--wire); font-size: 0.78rem; min-width: 1.4em; }
+.stage { border-left: 3px solid var(--line); padding: 0 0 0 1.3rem; margin-bottom: 2.9rem; scroll-margin-top: 1.5rem; }
+.stage.gate { border-left-color: var(--stop); }
+.stage.crit { border-left-color: var(--accent); }
+.stage-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 0.85rem; }
+.stage-num { font-family: var(--mono); font-size: 0.85rem; color: var(--wire); background: var(--paper-raised); border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.6rem; flex-shrink: 0; }
+h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+.stage ul, .stage ol.steps { margin: 0 0 1rem; padding-left: 1.25rem; max-width: 60ch; }
+.stage li { margin-bottom: 0.4rem; }
+.term { background: var(--term-bg); border-radius: 8px; margin: 0 0 1rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000); }
+.term-bar { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.term-bar .cap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--term-dim); margin-left: 0.3rem; }
+.term-bar .where { margin-left: auto; font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.08rem 0.5rem; border-radius: 999px; }
+.term-bar .where.s { color: #a7e8c6; background: rgba(31,143,91,0.2); }
+.term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
+.term-bar .led.r { background: #e5645c; } .term-bar .led.y { background: #e5b84f; } .term-bar .led.g { background: #57c273; }
+.term pre { margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg); }
+.term .prompt { color: var(--term-dim); } .term .comment { color: var(--term-dim); font-style: italic; }
+code.inline { font-family: var(--mono); font-size: 0.88em; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 4px; padding: 0.05rem 0.35rem; color: var(--code-fg); }
+.readout { background: var(--pass-bg); border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line)); border-radius: 8px; padding: 0.9rem 1.1rem 1rem; margin: 0 0 1rem; }
+.readout .label { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pass); margin-bottom: 0.55rem; }
+.readout pre, .readout code { font-family: var(--mono); font-size: 0.85rem; color: var(--code-fg); white-space: pre-wrap; word-break: break-word; margin: 0; }
+.readout .hint { font-family: var(--sans); font-size: 0.85rem; color: var(--wire); margin-top: 0.55rem; white-space: normal; }
+.gatebox { background: var(--stop-bg); border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line)); border-radius: 8px; padding: 0.95rem 1.1rem 1.05rem; margin: 0 0 0.4rem; }
+.gatebox .label { font-family: var(--mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.gatebox p { margin: 0 0 0.5rem; max-width: 58ch; font-size: 0.95rem; } .gatebox p:last-child { margin: 0; }
+.critbox { background: color-mix(in srgb, var(--accent) 12%, var(--paper)); border: 2px solid var(--accent); border-radius: 10px; padding: 1rem 1.2rem; margin: 0 0 1rem; }
+.critbox .label { font-family: var(--mono); font-weight: 700; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 0.5rem; }
+.critbox p { margin: 0 0 0.6rem; } .critbox p:last-child { margin: 0; }
+.safety { background: color-mix(in srgb, var(--stop) 14%, var(--paper)); border: 2px solid var(--stop); border-radius: 10px; padding: 1rem 1.2rem; margin: 0 0 1rem; }
+.safety .label { font-family: var(--mono); font-weight: 700; font-size: 0.82rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.safety ul { margin: 0.3rem 0 0; padding-left: 1.2rem; } .safety li { margin-bottom: 0.35rem; }
+.note { border: 1px dashed var(--line); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.88rem; color: var(--wire); margin: 0 0 1rem; max-width: 60ch; }
+.note b { color: var(--ink); }
+.fieldtable-wrap { overflow-x: auto; margin-bottom: 1rem; }
+table.fieldtable { border-collapse: collapse; width: 100%; font-size: 0.85rem; min-width: 30rem; }
+table.fieldtable th, table.fieldtable td { text-align: left; padding: 0.45rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.fieldtable th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wire); font-weight: 600; }
+footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+@media (max-width: 640px) { h1.title { font-size: 1.55rem; } .index ol { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; Files 01 + 02 + 08 &middot; System Drone</div>
+    <h1 class="title">System Drone Node DRONE_S<br>Mesh Peer + MAVLink Gateway</h1>
+    <p class="dek">Bring up the third Pi as a full mesh node on the drone, wired to the flight controller. It syncs with A and B, serves the drone's own GPS into the network, and lets the GCC spin the motors, direct or relayed through a volunteer drone. Props off.</p>
+    <div class="meta-row">
+      <span><b>Node</b> DRONE_S (RESCUE_S, 10.99.0.3)</span>
+      <span><b>Needs</b> Pi + 2nd AR9271 + serial wire to the FC</span>
+      <span><b>No</b> ESP32, no aux module</span>
+    </div>
+  </header>
+
+  <div class="critbox">
+    <div class="label">Two rules carried over from earlier runbooks</div>
+    <p><b>Copy DRONE_A's <code class="inline">deploy/secrets/</code> to DRONE_S; do NOT run <code class="inline">make_fleet_ca.sh</code>.</b> Same as DRONE_B: a different key set means the nodes silently reject each other and never sync.</p>
+    <p><b>Props OFF for everything here.</b> The last stages spin motors from the GCC. Remove all four props and secure the frame before you connect the flight battery.</p>
+  </div>
+
+  <nav class="index">
+    <p class="index-title">Stages</p>
+    <ol>
+      <li><a href="#s0"><span class="n">0</span>Hardware: adapter, ESP32, FC wire</a></li>
+      <li><a href="#s1"><span class="n">1</span>Flash + boot drone-s</a></li>
+      <li><a href="#s2"><span class="n">2</span>Code + copy A's secrets</a></li>
+      <li><a href="#s3"><span class="n">3</span>Gate &mdash; radios + FC serial</a></li>
+      <li><a href="#s4"><span class="n">4</span>Run setup as node s</a></li>
+      <li><a href="#s5"><span class="n">5</span>Reboot</a></li>
+      <li><a href="#s6"><span class="n">6</span>Gate &mdash; node + FC GPS in health</a></li>
+      <li><a href="#s7"><span class="n">7</span>Gate &mdash; mesh sync with A/B</a></li>
+      <li><a href="#s8"><span class="n">8</span>Gate &mdash; direct drone control</a></li>
+      <li><a href="#s9"><span class="n">9</span>Gate &mdash; relay via volunteer</a></li>
+      <li><a href="#s10"><span class="n">10</span>Troubleshooting</a></li>
+    </ol>
+  </nav>
+
+  <!-- 0 -->
+  <section class="stage crit" id="s0">
+    <div class="stage-head"><span class="stage-num">00</span><h2 class="stage-title">Hardware: adapter in, ESP32 out, FC wired to the Pi</h2></div>
+    <ol class="steps">
+      <li>Plug the <b>second AR9271</b> USB adapter into the drone's Pi. This is the 2.4 GHz mesh radio; the Pi's onboard WiFi becomes RESCUE_S.</li>
+      <li><b>Remove the ESP32.</b> It was only the FC's WiFi-serial bridge; the Pi replaces it. Nothing else on the drone changes and no firmware is reflashed.</li>
+      <li><b>Wire the Pi to the CC3D telemetry UART.</b> Both are 3.3 V, so connect directly, no level shifter:
+        <ul>
+          <li>CC3D telem <b>TX</b> &rarr; Pi <b>pin 10</b> (GPIO15, RX)</li>
+          <li>CC3D telem <b>RX</b> &rarr; Pi <b>pin 8</b> (GPIO14, TX)</li>
+          <li>CC3D <b>GND</b> &rarr; any Pi <b>GND</b> pin</li>
+        </ul>
+        This gives <code class="inline">/dev/serial0</code>. A USB-TTL adapter (<code class="inline">/dev/ttyUSB0</code>) is the alternative; set <code class="inline">FC_SERIAL</code> to match in the config.
+      </li>
+      <li>Props OFF. Note the FC telemetry baud (CC3D telem is commonly 57600); you will set <code class="inline">FC_BAUD</code> to it.</li>
+    </ol>
+    <div class="note">If the ESP32 was using the FC's only telemetry UART, the Pi now uses that same port (you moved the wires from ESP32 to Pi). The FC is already emitting MAVLink there, so no FC change is needed.</div>
+  </section>
+
+  <!-- 1 -->
+  <section class="stage" id="s1">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">Flash and boot drone-s</h2></div>
+    <p>Same as the other nodes, hostname <code class="inline">drone-s</code>: Raspberry Pi OS Lite (64-bit), enable SSH, user <code class="inline">drone</code>, timezone Asia/Colombo, no Wi-Fi. Connect Ethernet (setup takes over the onboard Wi-Fi), power on, and SSH in:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell</span></div>
+      <pre><span class="prompt">PS&gt;</span> ssh drone@drone-s.local</pre>
+    </div>
+    <p>Keep DRONE_A powered on the same network for the secrets copy in the next stage.</p>
+  </section>
+
+  <!-- 2 -->
+  <section class="stage" id="s2">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">Clone the repo, copy A's secrets</h2></div>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-s shell</span><span class="where s">DRONE_S</span></div>
+      <pre><span class="prompt">$</span> git clone https://github.com/dronecomnet-fyp/drone-network-system.git ~/rescue-mesh
+<span class="prompt">$</span> scp -r drone@drone-a.local:~/rescue-mesh/deploy/secrets ~/rescue-mesh/deploy/
+<span class="prompt">$</span> ls ~/rescue-mesh/deploy/secrets   <span class="comment"># fleet_ca.crt fleet_ca.key fleet_secrets.env</span></pre>
+    </div>
+    <div class="note">Do NOT run <code class="inline">make_fleet_ca.sh</code> here. DRONE_S must share A/B's keys to join the mesh.</div>
+  </section>
+
+  <!-- 3: GATE -->
+  <section class="stage gate" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Gate &mdash; both radios and the FC serial</h2></div>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-s shell</span><span class="where s">DRONE_S</span></div>
+      <pre><span class="prompt">$</span> lsusb | grep -i atheros          <span class="comment"># the 2nd AR9271 is present</span>
+<span class="prompt">$</span> iw list | grep -A8 "Supported interface modes"   <span class="comment"># must list IBSS</span>
+<span class="prompt">$</span> ls -l /dev/serial0               <span class="comment"># the FC UART (GPIO path)</span></pre>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Confirm the AR9271 shows in <code class="inline">lsusb</code>, <code class="inline">IBSS</code> is in the interface modes, and the FC serial device exists (<code class="inline">/dev/serial0</code> for GPIO, or <code class="inline">/dev/ttyUSB0</code> for USB-TTL). If the serial console still owns <code class="inline">/dev/serial0</code>, the setup script frees it in the next stage.</p>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="stage" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Run setup as node s</h2></div>
+    <p>If your FC serial or baud differ from the defaults (<code class="inline">/dev/serial0</code>, 57600), edit <code class="inline">deploy/nodes/drone_s.conf</code> first. Then:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-s shell</span><span class="where s">DRONE_S</span></div>
+      <pre><span class="prompt">$</span> cd ~/rescue-mesh/deploy
+<span class="prompt">$</span> chmod +x setup_node.sh make_fleet_ca.sh files/dtn-net-up.sh
+<span class="prompt">$</span> sudo ./setup_node.sh s</pre>
+    </div>
+    <p>Beyond the normal node setup, the <code class="inline">s</code> role also installs the MAVLink gateway (<code class="inline">pymavlink</code>, the <code class="inline">rescue-mesh-mavgw</code> service), frees the UART from the login console, and adds the drone user to <code class="inline">dialout</code>. It ends with <code class="inline">=== Setup complete for DRONE_S ===</code>.</p>
+  </section>
+
+  <!-- 5 -->
+  <section class="stage" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Reboot</h2></div>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-s shell</span><span class="where s">DRONE_S</span></div>
+      <pre><span class="prompt">$</span> sudo reboot</pre>
+    </div>
+    <p>The UART and interface-pinning changes need the restart. Wait a minute, then reconnect and connect the drone's flight battery so the FC powers up and starts sending MAVLink.</p>
+  </section>
+
+  <!-- 6: GATE -->
+  <section class="stage gate" id="s6">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Gate &mdash; DRONE_S alive, with the drone's GPS in health</h2></div>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-s shell</span><span class="where s">DRONE_S</span></div>
+      <pre><span class="prompt">$</span> systemctl is-active rescue-mesh-api dtn-net rescue-mesh-sync rescue-mesh-mavgw
+<span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health | python3 -m json.tool</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected /health (drone outdoors / near a window)</div>
+      <pre>"node_id": "DRONE_S",
+"gps": { "lat": 6.92..., "lon": 79.86..., "fix": 1, "sats": 8 },
+"battery": { "a_v": 11.4, ... },   (flight battery, from the FC)
+"clock_source": "gps"</pre>
+      <p class="hint">The GPS and battery here come from the flight controller through the gateway, not an aux module. If <code class="inline">rescue-mesh-mavgw</code> is not active, check the FC wire and <code class="inline">journalctl -u rescue-mesh-mavgw -n 20</code> (look for MAVGW_FC_CONNECT).</p>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Confirm all four services active, <code class="inline">node_id</code> is DRONE_S, and the GPS/battery are populated from the FC once it has a fix. That proves the node AND the gateway telemetry tap.</p>
+    </div>
+  </section>
+
+  <!-- 7: GATE -->
+  <section class="stage gate" id="s7">
+    <div class="stage-head"><span class="stage-num">07</span><h2 class="stage-title">Gate &mdash; mesh sync with A and B</h2></div>
+    <p>Power A (and B) nearby. From DRONE_S, reach across the mesh and confirm sync, exactly like the two-node test:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-s shell</span><span class="where s">DRONE_S</span></div>
+      <pre><span class="prompt">$</span> ping -c 3 10.99.0.1          <span class="comment"># DRONE_A over the mesh</span>
+<span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health | python3 -m json.tool | grep -A4 peers</pre>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Confirm the ping works and DRONE_A/B appear as peers. Send a victim message on RESCUE_A and confirm it reaches DRONE_S within ~40 s (curl <code class="inline">/messages</code> with the HQ key). DRONE_S is now a first-class mesh node.</p>
+    </div>
+  </section>
+
+  <!-- 8: GATE -->
+  <section class="stage gate" id="s8">
+    <div class="stage-head"><span class="stage-num">08</span><h2 class="stage-title">Gate &mdash; control the drone directly from the GCC</h2></div>
+    <div class="safety">
+      <div class="label">Props off, secured</div>
+      <ul><li>All four props removed, frame clamped, area clear, flight battery connected, kill switch (red DISARM) understood.</li></ul>
+    </div>
+    <ol class="steps">
+      <li>On the laptop, join <b>RESCUE_S</b> (the drone's own 5 GHz AP).</li>
+      <li>In the GCC Settings, set the MAVLink target with the <b>DIRECT (RESCUE_S)</b> chip (<code class="inline">udp:10.42.0.1:14550</code>).</li>
+      <li>Drone tab &rarr; Connect. Confirm the heartbeat card goes green and telemetry matches Stage 6.</li>
+      <li>Tap <b>Motor 1</b>, confirm the dialog: motor 1 spins briefly, props off.</li>
+    </ol>
+    <div class="gatebox">
+      <div class="label">Stop here &mdash; motors from the GCC, over the mesh node</div>
+      <p>A motor spun on a GCC command, through the drone's own Pi gateway. If anything is off, hit DISARM or pull the battery. Follow the full-detail drone-control runbook for the command palette and arming notes.</p>
+    </div>
+  </section>
+
+  <!-- 9: GATE -->
+  <section class="stage gate" id="s9">
+    <div class="stage-head"><span class="stage-num">09</span><h2 class="stage-title">Gate &mdash; control relayed through a volunteer drone</h2></div>
+    <p>This is the headline: the GCC controls the system drone <b>without joining its network</b>, routed live across the mesh through a volunteer drone.</p>
+    <ol class="steps">
+      <li>Keep DRONE_S and a volunteer (DRONE_A) powered and in mesh range.</li>
+      <li>On the laptop, join <b>RESCUE_A</b> (the volunteer's AP), NOT RESCUE_S.</li>
+      <li>In GCC Settings, set the target with the <b>RELAY (via mesh)</b> chip (<code class="inline">udp:10.99.0.3:14550</code>).</li>
+      <li>Drone tab &rarr; Connect. The heartbeat should come up, routed laptop &rarr; volunteer Pi &rarr; mesh &rarr; DRONE_S gateway &rarr; FC.</li>
+      <li>Props off: run a motor test again to confirm commands make it across.</li>
+    </ol>
+    <div class="gatebox">
+      <div class="label">Stop here &mdash; this is the whole file-08 story</div>
+      <p>Commanding the system drone through a volunteer drone's module, live (not DTN), is the capstone. Note the small extra latency of the two hops; that is expected and fine for telemetry and guided commands. If the heartbeat greys out (&gt;2 s), the GCC disables commands automatically, which is the safety gate working.</p>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section class="stage" id="s10">
+    <div class="stage-head"><span class="stage-num">10</span><h2 class="stage-title">Troubleshooting</h2></div>
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <thead><tr><th>Symptom</th><th>Try this</th></tr></thead>
+        <tbody>
+          <tr><td>rescue-mesh-mavgw not active</td><td><code class="inline">journalctl -u rescue-mesh-mavgw -n 30</code>. No MAVGW_FC_CONNECT means the serial device is wrong or busy: check the FC wire, <code class="inline">FC_SERIAL</code>/<code class="inline">FC_BAUD</code>, and that the console was freed from <code class="inline">/dev/serial0</code> (a reboot after setup is required).</td></tr>
+          <tr><td>/health has no GPS from the FC</td><td>The FC needs a GPS fix (take the drone outdoors). Confirm the FC is powered by the flight battery, not just the Pi. Tilt test: attitude changes prove MAVLink is flowing.</td></tr>
+          <tr><td>Direct connect works, relay does not</td><td>On the volunteer, confirm the forward rule: <code class="inline">nft list table inet rescue_mesh</code> shows traffic to 10.99.0.3:14550 accepted. Confirm the laptop is on RESCUE_A and can <code class="inline">ping 10.99.0.3</code>.</td></tr>
+          <tr><td>No mesh peers / no sync</td><td>Same as the two-node runbook: almost always the secrets mistake. Look for BEACON_REJECT / SYNC_REJECT in <code class="inline">audit.log</code>; re-copy <code class="inline">deploy/secrets</code> from A and re-run setup.</td></tr>
+          <tr><td>Motor test accepted but no spin</td><td>Link is fine; suspect that motor/ESC or a low flight battery. Compare with another motor.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><b>Companion runbooks:</b> the two-node mesh runbook (sync detail) and the drone-control runbook (full command palette, arming, safety) cover the parts this one summarises.</div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="wrap" style="padding:0;">deploy &middot; files 01 + 02 + 08 &middot; rescue mesh phase 2 &middot; DRONE_S</div>
+</footer>
+</body>
+</html>

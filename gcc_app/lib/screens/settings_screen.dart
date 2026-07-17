@@ -196,22 +196,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   spacing: 8,
                   children: [
                     ActionChip(
-                      label: const Text('DroneBridge direct'),
-                      onPressed: () => app.updateSettings(
-                          newMavlinkTarget: 'udp:192.168.2.1:14550'),
-                    ),
-                    ActionChip(
-                      label: const Text('Pi relay 10.42.0.1'),
+                      label: const Text('DIRECT (RESCUE_S)'),
                       onPressed: () => app.updateSettings(
                           newMavlinkTarget: 'udp:10.42.0.1:14550'),
+                    ),
+                    ActionChip(
+                      label: const Text('RELAY (via mesh)'),
+                      onPressed: () => app.updateSettings(
+                          newMavlinkTarget: 'udp:10.99.0.3:14550'),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Primary path this phase: join the ESP32 DroneBridge Wi-Fi '
-                  'and use its address (default 192.168.2.1:14550). Tap a '
-                  'chip to fill, or type a host:port and press Enter.',
+                  'DIRECT: join RESCUE_S and use 10.42.0.1:14550. RELAY: join '
+                  'a volunteer AP (RESCUE_A/B) and use 10.99.0.3:14550, routed '
+                  'live across the mesh to the drone. Both reach the same Pi '
+                  'MAVLink gateway on the system drone.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
