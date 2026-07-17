@@ -24,6 +24,7 @@ dependencies:
   latlong2: ^0.9.1
   rescue_mesh_shared:
     path: ../shared_dart
+  dart_mavlink: ^0.1.0
 
 dev_dependencies:
   flutter_test:

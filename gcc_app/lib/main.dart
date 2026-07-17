@@ -19,6 +19,7 @@ import 'screens/personnel_screen.dart';
 import 'screens/settings_screen.dart';
 import 'state/app_state.dart';
 import 'state/data_store.dart';
+import 'state/drone_controller.dart';
 import 'state/plan_state.dart';
 
 Future<void> main() async {
@@ -41,6 +42,7 @@ class GccApp extends StatelessWidget {
         ChangeNotifierProvider(
             create: (_) => DataStore(appState)..start(), lazy: false),
         ChangeNotifierProvider(create: (_) => PlanState()),
+        ChangeNotifierProvider(create: (_) => DroneController()),
       ],
       child: MaterialApp(
         title: 'Rescue Mesh GCC',

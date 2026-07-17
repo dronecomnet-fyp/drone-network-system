@@ -74,3 +74,35 @@ Phase 1 security docs) is flagged here, never silently drifted.
     in file 03. This supersedes the "LoRa MISO D9" entry in file 03's pin
     map; update design v3/v4 accordingly. Confidence: High (reproduced on
     the bench). All other pins in file 03's table were confirmed correct.
+
+## 2026-07-16 System drone / MAVLink descope (hardware reality, rule 5)
+
+11. The system drone (AeroSync 5) is confirmed to speak MAVLink already
+    (CC3D Revo Mini + ESP32 DroneBridge), so no ArduPilot reflash was
+    needed. Master plan D5 Stage 0 is satisfied; see docs/DRONE_LINK.md.
+
+12. DRONE_S is NOT a DTN mesh node this phase, superseding file 08's
+    "third Pi as DRONE_S at 10.99.0.3 on the IBSS backbone" design. The
+    system drone's Pi 4 has a single onboard radio and no AR9271, so it
+    cannot join the 2.4 GHz mesh AND talk to the 2.4 GHz ESP32 at once.
+    Control is therefore DIRECT only (GCC over the DroneBridge AP); the
+    mesh-relayed control path is documented as future work needing a
+    second radio. Reasoning (incl. why time-slicing a live control link
+    is disqualified) in docs/DRONE_LINK.md section 3. The DTN mesh and
+    user APs are unaffected.
+
+13. Drone control goal descoped to PROPS-OFF ground testing: motor test
+    from the GCC as the command-pipeline proof, not armed flight (no RC
+    transmitter available, no tuning time). GCS-only arming params are
+    bench-only and not airworthy (DRONE_LINK.md section 4).
+
+14. MAVLink 2 packet signing (file 09 plane 4 layer 2) is NOT implemented
+    this phase: the Dart MAVLink library's outbound signing support is
+    unconfirmed. Compensating control is network isolation of the
+    point-to-point DroneBridge control link (plane 4 layer 1); signing is
+    recorded as honest residual risk / future work (DRONE_LINK.md sec 5).
+
+15. GCC Drone tab implemented (was a locked Stage 0 placeholder): live
+    MAVLink telemetry and a command palette (arm/disarm, always-on force
+    DISARM kill, per-motor test, mode set) with every control gated on a
+    heartbeat fresher than 2 s. gcc_app now depends on dart_mavlink.

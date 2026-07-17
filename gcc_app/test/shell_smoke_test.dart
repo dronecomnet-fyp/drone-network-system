@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gcc_app/main.dart';
 import 'package:gcc_app/state/app_state.dart';
 import 'package:gcc_app/state/data_store.dart';
+import 'package:gcc_app/state/drone_controller.dart';
 import 'package:gcc_app/state/plan_state.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,6 +14,8 @@ Widget _shell(AppState app) => MultiProvider(
         // DataStore deliberately NOT started: no timers, no network.
         ChangeNotifierProvider(create: (_) => DataStore(app)),
         ChangeNotifierProvider(create: (_) => PlanState()),
+        // DroneController not connected: no socket, no MAVLink.
+        ChangeNotifierProvider(create: (_) => DroneController()),
       ],
       child: MaterialApp(
         theme: ThemeData(
@@ -63,12 +66,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('No announcements.'), findsOneWidget);
 
-    // Drone tab: Stage 0 gate, no control surfaces anywhere.
+    // Drone tab: disconnected, so no command surfaces. The safety
+    // invariant is that Arm never appears without a live MAVLink link.
     await tester.tap(find.text('Drone'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('locked pending Stage 0'), findsOneWidget);
+    expect(find.textContaining('Not connected to the flight controller'),
+        findsOneWidget);
+    expect(find.text('Connect'), findsOneWidget);
     expect(find.text('Arm'), findsNothing);
-    expect(find.text('Takeoff'), findsNothing);
+    expect(find.text('Motor 1'), findsNothing);
 
     // Settings: pinning state is explicit when no CA is loaded.
     await tester.tap(find.text('Settings'));

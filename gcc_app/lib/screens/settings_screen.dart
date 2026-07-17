@@ -177,28 +177,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text('MAVLink target (system drone)',
                     style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
+                // Free-form host:port so it can point at whatever the drone
+                // exposes. Preset chips fill common cases; the ESP32
+                // DroneBridge default (192.168.2.1) is the primary path.
+                TextFormField(
+                  key: ValueKey(app.mavlinkTarget),
                   initialValue: app.mavlinkTarget,
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'udp:10.42.0.1:14550',
-                      child: Text('DIRECT: laptop on RESCUE_S (10.42.0.1)'),
+                  decoration: const InputDecoration(
+                    labelText: 'host:port',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  onFieldSubmitted: (v) =>
+                      app.updateSettings(newMavlinkTarget: v.trim()),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    ActionChip(
+                      label: const Text('DroneBridge direct'),
+                      onPressed: () => app.updateSettings(
+                          newMavlinkTarget: 'udp:192.168.2.1:14550'),
                     ),
-                    DropdownMenuItem(
-                      value: 'udp:10.99.0.3:14550',
-                      child: Text(
-                          'MESH RELAY: laptop on RESCUE_A/B, via 10.99.0.3'),
+                    ActionChip(
+                      label: const Text('Pi relay 10.42.0.1'),
+                      onPressed: () => app.updateSettings(
+                          newMavlinkTarget: 'udp:10.42.0.1:14550'),
                     ),
                   ],
-                  onChanged: (v) {
-                    if (v != null) app.updateSettings(newMavlinkTarget: v);
-                  },
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Used by the Drone tab once file 04 Stage 0/1 completes. '
-                  'The relay path only exists while both drones are in '
-                  '2.4 GHz range of each other.',
+                  'Primary path this phase: join the ESP32 DroneBridge Wi-Fi '
+                  'and use its address (default 192.168.2.1:14550). Tap a '
+                  'chip to fill, or type a host:port and press Enter.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],

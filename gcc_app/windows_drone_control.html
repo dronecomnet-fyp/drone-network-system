@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Drone Control from the GCC — Motors On, Props Off</title>
+<style>
+@font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
+:root {
+  --ink: #1b2028; --paper: #f6f4ef; --paper-raised: #eeebe3; --line: #d8d3c6;
+  --wire: #5b6b7a; --accent: #d9711c; --accent-strong: #b85c14;
+  --pass: #1f8f5b; --pass-bg: #e4f4ec; --stop: #c23a3a; --stop-bg: #fbe9e7;
+  --term-bg: #14181e; --term-fg: #e6e2d6; --term-dim: #8a93a3; --code-fg: #2a2f38;
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+  --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+  --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+  --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+  --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+    --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+    --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+    --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+body { font-family: var(--sans); font-size: 16px; line-height: 1.6; padding: 0 0 6rem; }
+::selection { background: var(--accent); color: #14181e; }
+a { color: var(--accent-strong); }
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; }
+.masthead { border-bottom: 1px solid var(--line); padding: 2.6rem 0 1.8rem; margin-bottom: 2.2rem; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--wire); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+h1.title { font-family: var(--mono); font-size: 1.9rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6rem; }
+.dek { max-width: 46ch; color: var(--wire); font-size: 1.02rem; margin: 0; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1.4rem; font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+.meta-row b { color: var(--ink); font-weight: 600; }
+.index { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin-bottom: 2.6rem; }
+.index-title { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--wire); margin: 0 0 0.7rem; }
+.index ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.25rem 1rem; }
+.index li a { display: flex; gap: 0.55rem; align-items: baseline; text-decoration: none; color: var(--ink); font-size: 0.88rem; padding: 0.2rem 0; }
+.index li a:hover { color: var(--accent-strong); }
+.index .n { font-family: var(--mono); color: var(--wire); font-size: 0.78rem; min-width: 1.4em; }
+.stage { border-left: 3px solid var(--line); padding: 0 0 0 1.3rem; margin-bottom: 2.9rem; scroll-margin-top: 1.5rem; }
+.stage.gate { border-left-color: var(--stop); }
+.stage-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 0.85rem; }
+.stage-num { font-family: var(--mono); font-size: 0.85rem; color: var(--wire); background: var(--paper-raised); border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.6rem; flex-shrink: 0; }
+h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+.stage ul, .stage ol.steps { margin: 0 0 1rem; padding-left: 1.25rem; max-width: 60ch; }
+.stage li { margin-bottom: 0.4rem; }
+.term { background: var(--term-bg); border-radius: 8px; margin: 0 0 1rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000); }
+.term-bar { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.term-bar .cap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--term-dim); margin-left: 0.3rem; }
+.term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
+.term-bar .led.r { background: #e5645c; } .term-bar .led.y { background: #e5b84f; } .term-bar .led.g { background: #57c273; }
+.term pre { margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg); }
+.term .prompt { color: var(--term-dim); } .term .comment { color: var(--term-dim); font-style: italic; }
+code.inline { font-family: var(--mono); font-size: 0.88em; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 4px; padding: 0.05rem 0.35rem; color: var(--code-fg); }
+.readout { background: var(--pass-bg); border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line)); border-radius: 8px; padding: 0.9rem 1.1rem 1rem; margin: 0 0 1rem; }
+.readout .label { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pass); margin-bottom: 0.55rem; }
+.readout pre, .readout code { font-family: var(--mono); font-size: 0.85rem; color: var(--code-fg); white-space: pre-wrap; word-break: break-word; margin: 0; }
+.readout .hint { font-family: var(--sans); font-size: 0.85rem; color: var(--wire); margin-top: 0.55rem; white-space: normal; }
+.ui { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px; padding: 0.9rem 1.1rem; margin: 0 0 1rem; }
+.ui .label { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 0.5rem; }
+.gatebox { background: var(--stop-bg); border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line)); border-radius: 8px; padding: 0.95rem 1.1rem 1.05rem; margin: 0 0 0.4rem; }
+.gatebox .label { font-family: var(--mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.gatebox p { margin: 0 0 0.5rem; max-width: 58ch; font-size: 0.95rem; }
+.gatebox p:last-child { margin: 0; }
+.safety { background: color-mix(in srgb, var(--stop) 14%, var(--paper)); border: 2px solid var(--stop); border-radius: 10px; padding: 1rem 1.2rem; margin: 0 0 1rem; }
+.safety .label { font-family: var(--mono); font-weight: 700; font-size: 0.82rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem; }
+.safety ul { margin: 0.3rem 0 0; padding-left: 1.2rem; }
+.safety li { margin-bottom: 0.35rem; }
+.note { border: 1px dashed var(--line); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.88rem; color: var(--wire); margin: 0 0 1rem; max-width: 60ch; }
+.note b { color: var(--ink); }
+.fieldtable-wrap { overflow-x: auto; margin-bottom: 1rem; }
+table.fieldtable { border-collapse: collapse; width: 100%; font-size: 0.85rem; min-width: 30rem; }
+table.fieldtable th, table.fieldtable td { text-align: left; padding: 0.45rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.fieldtable th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wire); font-weight: 600; }
+footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+@media (max-width: 640px) { h1.title { font-size: 1.55rem; } .index ol { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; File 04 + 08 &middot; Drone Control</div>
+    <h1 class="title">Motors On from the GCC<br>Props Off, on the Bench</h1>
+    <p class="dek">Connect the Ground Control Center to the AeroSync 5 over its DroneBridge link, watch live flight-controller telemetry, and spin a motor from a GCC button. No flying this phase: props off, drone secured.</p>
+    <div class="meta-row">
+      <span><b>Drone</b> CC3D Revo Mini + ESP32 DroneBridge</span>
+      <span><b>Link</b> MAVLink UDP over Wi-Fi</span>
+      <span><b>Goal</b> command pipeline proven, props off</span>
+    </div>
+  </header>
+
+  <div class="safety">
+    <div class="label">Safety, before anything else</div>
+    <ul>
+      <li><b>Remove all four propellers.</b> Every step here assumes bare motors.</li>
+      <li><b>Secure the drone</b> so it cannot move: clamp it or strap the frame to something heavy. Armed motors produce thrust and torque even without props.</li>
+      <li><b>Keep hands, hair, and cables clear</b> of the motors whenever the battery is connected.</li>
+      <li><b>Know the kill switch:</b> the red <b>DISARM</b> button (top-right of the Drone tab) always works while connected and stops the motors immediately.</li>
+      <li>Connect the LiPo only when you reach the step that needs it, and disconnect it as soon as you are done.</li>
+    </ul>
+  </div>
+
+  <nav class="index">
+    <p class="index-title">Stages</p>
+    <ol>
+      <li><a href="#s1"><span class="n">1</span>Update and run the GCC</a></li>
+      <li><a href="#s2"><span class="n">2</span>Confirm the MAVLink link</a></li>
+      <li><a href="#s3"><span class="n">3</span>Secure the drone, props off</a></li>
+      <li><a href="#s4"><span class="n">4</span>Join DroneBridge + Connect</a></li>
+      <li><a href="#s5"><span class="n">5</span>Gate &mdash; live telemetry</a></li>
+      <li><a href="#s6"><span class="n">6</span>Gate &mdash; motor test</a></li>
+      <li><a href="#s7"><span class="n">7</span>Arm/disarm (optional)</a></li>
+      <li><a href="#s8"><span class="n">8</span>Scope + troubleshooting</a></li>
+    </ol>
+  </nav>
+
+  <!-- 1 -->
+  <section class="stage" id="s1">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">Update and run the GCC</h2></div>
+    <p>The Drone tab is new code, so pull the latest and rebuild on the Windows laptop:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell &middot; drone-network-system\gcc_app</span></div>
+      <pre><span class="prompt">PS&gt;</span> git pull
+<span class="prompt">PS&gt;</span> flutter pub get
+<span class="prompt">PS&gt;</span> flutter run -d windows</pre>
+    </div>
+    <p>The Drone tab in the nav rail is now a real cockpit, not the old locked placeholder.</p>
+  </section>
+
+  <!-- 2 -->
+  <section class="stage" id="s2">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">Confirm the MAVLink link and note the address</h2></div>
+    <p>You already confirmed the flight controller speaks MAVLink. Just note the DroneBridge Wi-Fi details you will use:</p>
+    <ul>
+      <li>The ESP32 broadcasts a Wi-Fi network (commonly named "DroneBridge for ESP32"). Note its SSID.</li>
+      <li>Its MAVLink endpoint is usually <code class="inline">192.168.2.1:14550</code>. If your DroneBridge web UI (browse to the ESP32's IP) shows a different UDP client port or IP, note that instead.</li>
+    </ul>
+    <div class="note">If you want to double-check end to end first, connect Mission Planner to that same Wi-Fi / UDP and confirm telemetry, then close it (only one GCS can hold the link at a time).</div>
+  </section>
+
+  <!-- 3 -->
+  <section class="stage" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Secure the drone, props off</h2></div>
+    <p>Physically prepare the drone:</p>
+    <ol class="steps">
+      <li>Confirm all four props are OFF.</li>
+      <li>Clamp or strap the frame down so it cannot flip or slide.</li>
+      <li>Have the charged LiPo ready but not yet connected.</li>
+      <li>Clear the area around the motors.</li>
+    </ol>
+    <div class="safety">
+      <div class="label">Do not skip this</div>
+      <ul><li>A 2200 kV motor at even low throttle is loud and forceful. Props off plus secured frame is the whole safety margin for a bench test.</li></ul>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="stage" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Join DroneBridge and connect the GCC</h2></div>
+    <ol class="steps">
+      <li>On the laptop, join the ESP32 DroneBridge Wi-Fi network. (It has no internet; that is fine.)</li>
+      <li>In the GCC <b>Settings</b> tab, find <b>MAVLink target</b>. Tap the <b>DroneBridge direct</b> chip (fills <code class="inline">udp:192.168.2.1:14550</code>), or type your address and press Enter.</li>
+      <li>Go to the <b>Drone</b> tab and tap <b>Connect</b>.</li>
+    </ol>
+    <div class="ui">
+      <div class="label">Drone tab, top bar</div>
+      <p style="margin:0; font-size:0.9rem;">Shows the target and a Connect / Disconnect button. After Connect, a link-status card appears below it.</p>
+    </div>
+    <p>Now connect the LiPo to the drone so the flight controller powers up and starts sending MAVLink (the ESP32 may run from USB, but the FC needs the battery/BEC).</p>
+  </section>
+
+  <!-- 5: GATE -->
+  <section class="stage gate" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Gate &mdash; live telemetry</h2></div>
+    <div class="readout">
+      <div class="label">Expected on the Drone tab</div>
+      <pre>MAVLink heartbeat live. Commands enabled.   (green card)
+Telemetry:  DISARMED
+  Mode STABILIZE   Battery 11.4 V   GPS no fix (bench)   Attitude R/P/Y</pre>
+      <p class="hint">The green heartbeat card is the gate: it means a heartbeat arrived within the last 2 seconds. Battery voltage should match your pack. No GPS fix indoors is normal. If you tilt the drone, the Attitude numbers should change &mdash; a good sign the FC is really talking.</p>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Confirm the heartbeat card is green and telemetry is updating (battery voltage present, attitude changes when you tilt the frame). If it stays red ("waiting for heartbeat"), the link is not up &mdash; see troubleshooting; do not proceed to motor test until telemetry is live.</p>
+    </div>
+  </section>
+
+  <!-- 6: GATE -->
+  <section class="stage gate" id="s6">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Gate &mdash; spin a motor from the GCC</h2></div>
+    <p>This is the milestone: the GCC turns a motor on. The motor test spins ONE motor briefly at low throttle and needs no arming.</p>
+    <ol class="steps">
+      <li>Final check: props off, frame secured, everyone clear.</li>
+      <li>In the Commands card, tap <b>Motor 1</b>. Confirm the dialog.</li>
+      <li>Motor 1 should spin for ~3 seconds at low throttle, then stop on its own.</li>
+      <li>Try <b>Motor 2/3/4</b> to confirm each esc/motor responds.</li>
+    </ol>
+    <div class="readout">
+      <div class="label">Expected</div>
+      <pre>Last command (209): accepted        (green tick under the buttons)
+[6] motor test               (a status line from the FC, maybe)</pre>
+      <p class="hint">"209" is DO_MOTOR_TEST; "accepted" is the FC acknowledging. The motor spinning is the physical proof. If a motor does not spin but the command was accepted, that motor/ESC may be the issue, not the link.</p>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here &mdash; this is the deliverable</div>
+      <p>A motor spun on a command sent from your Ground Control Center, over Wi-Fi MAVLink, props off. That is "operate the drone motors from the GCC" achieved. If anything feels wrong, hit the red <b>DISARM</b> button or pull the battery. Record which motors responded for the report.</p>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section class="stage" id="s7">
+    <div class="stage-head"><span class="stage-num">07</span><h2 class="stage-title">Arm / disarm from the GCC (optional)</h2></div>
+    <p>Arming makes all motors live at once, so the motor test above is the safer proof. If you want to show arming too:</p>
+    <ol class="steps">
+      <li>Tap <b>Arm</b> and confirm. Watch the status log: ArduPilot will either arm (the DISARMED chip flips to ARMED) or refuse and print WHY (e.g. "PreArm: ..."). Those messages are exactly what the log is for.</li>
+      <li>With no RC transmitter, arming may be refused until bench-only parameters are relaxed in Mission Planner (<code class="inline">ARMING_CHECK</code> and RC/throttle-failsafe params). Those settings are <b>not airworthy</b> and must be reverted before any flight &mdash; see docs/DRONE_LINK.md section 4.</li>
+      <li>Tap <b>Disarm</b> (or the red kill button) to stand down.</li>
+    </ol>
+    <div class="note">Guided "go to marker" flight is intentionally out of scope this phase: it needs an outdoor GPS fix, tuning, and failsafes a bench racing quad does not have yet. The Drone tab shows it as an unavailable stretch, which is the honest state.</div>
+  </section>
+
+  <!-- 8 -->
+  <section class="stage" id="s8">
+    <div class="stage-head"><span class="stage-num">08</span><h2 class="stage-title">Scope note and troubleshooting</h2></div>
+    <p><b>Why only the direct link?</b> The system drone's Pi has one radio and no mesh adapter, so it cannot join the 2.4 GHz DTN backbone while also reaching the 2.4 GHz ESP32. Control is therefore direct over DroneBridge; the mesh-relayed path is documented as future work in docs/DRONE_LINK.md. This does not affect victims joining the drone APs or DRONE_A/B syncing.</p>
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <thead><tr><th>Symptom</th><th>Try this</th></tr></thead>
+        <tbody>
+          <tr><td>Heartbeat card stays red</td><td>Confirm the laptop is on the DroneBridge Wi-Fi, the target matches the ESP32 (default 192.168.2.1:14550), and the FC is powered (battery/BEC, not just USB). Only one GCS can hold the link &mdash; close Mission Planner.</td></tr>
+          <tr><td>"Could not open the link"</td><td>Another app is bound to the MAVLink UDP port, or the address is wrong. Close other GCS software and re-tap Connect.</td></tr>
+          <tr><td>Telemetry frozen / commands greyed out</td><td>The heartbeat went stale (&gt;2 s), which disables commands by design. Check Wi-Fi range to the drone; the buttons re-enable when the heartbeat returns.</td></tr>
+          <tr><td>Motor test accepted but no spin</td><td>Link is fine; suspect that motor/ESC or a low battery. Try another motor number to compare.</td></tr>
+          <tr><td>Arm refused with a PreArm message</td><td>Read the message in the status log &mdash; it names the exact check. With no RC, relax the bench-only params (DRONE_LINK.md sec 4); revert before flight.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="wrap" style="padding:0;">gcc_app &middot; files 04 + 08 &middot; rescue mesh phase 2 &middot; system drone</div>
+</footer>
+</body>
+</html>
