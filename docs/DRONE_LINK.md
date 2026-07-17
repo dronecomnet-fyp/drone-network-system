@@ -50,16 +50,37 @@ SYS_STATUS -> flight-battery voltage, SYSTEM_TIME -> sets the Pi clock from
 GPS time. So the drone's own GPS makes DRONE_S a self-locating, time-synced
 node. No INA3221, no LoRa, no separate GPS module needed.
 
-## 4. Wiring the Pi to the flight controller (no reflash)
+## 4. Connecting the Pi to the flight controller (no reflash)
 
-CC3D is 3.3 V logic, Pi GPIO UART is 3.3 V: direct connection, no level
-shifter. FC telem TX -> Pi pin 10 (RX), FC telem RX -> Pi pin 8 (TX),
-GND -> GND. Then FC_SERIAL=/dev/serial0. setup_node.sh (DRONE_CONTROL=true)
-frees the primary UART from the login console, enables it, and adds the
-service user to dialout. A USB-TTL adapter (FC_SERIAL=/dev/ttyUSB0) is the
-alternative. Confirm the FC telemetry baud and set FC_BAUD (CC3D telem is
-commonly 57600). The FC serial was already emitting MAVLink (the ESP32
-used it), so nothing on the FC changes.
+RECOMMENDED - the FC's micro-USB port. Run a USB-A to micro-USB DATA cable
+from a Pi USB port to the Revo Mini's USB port. On ArduPilot the USB port
+is SERIAL0 and speaks MAVLink by default, so it appears on the Pi as
+/dev/ttyACM0 with no FC config, no GPIO wiring, no level shifter. Set
+FC_SERIAL=/dev/ttyACM0 (FC_BAUD is ignored over USB CDC but pyserial needs
+a value; 115200). Note the port is micro-USB, not USB-C. Power: with the
+LiPo powering the FC via the BEC and the Pi's USB also feeding 5 V, the FC
+has two sources; fine on a Revo for bench work, but if it resets oddly use
+a cable with the VBUS (red) wire taped so only data + ground connect.
+
+ALTERNATIVE - GPIO UART. CC3D is 3.3 V and so is the Pi GPIO UART: direct,
+no level shifter. FC telem TX -> Pi pin 10 (RX), FC telem RX -> Pi pin 8
+(TX), GND -> GND; FC_SERIAL=/dev/serial0, FC_BAUD to the FC telem baud
+(often 57600). setup_node.sh frees the primary UART from the login console
+for this path. A USB-TTL adapter (/dev/ttyUSB0) is a third option.
+
+Either way, no FC reflash: the FC was already emitting MAVLink.
+
+## 4a. DRONE_S also serves victims and rescuers
+
+Because DRONE_S runs the same node software as A/B and hosts RESCUE_S
+(5 GHz AP, captive portal on 80, authenticated API on 8443), victims and
+rescue personnel get the same service on RESCUE_S as on any node, and it
+all syncs over the mesh. The GCC operator on RESCUE_S gets both the normal
+node functions (8443) and drone control (14550) at once. Honest gaps vs
+A/B (no aux module): DRONE_S does not BLE-advertise (the emergency app's
+automatic "drone nearby" notification will not fire for it; manual join to
+RESCUE_S still works) and cannot send a LoRa fallback beacon if its Pi
+dies. Its GPS and time come from the flight controller instead.
 
 ## 5. Arming without an RC transmitter (bench-only)
 

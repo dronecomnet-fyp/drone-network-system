@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>System Drone Node DRONE_S — Mesh + MAVLink Gateway</title>
+<title>System Drone Node DRONE_S: Mesh + MAVLink Gateway</title>
 <style>
 @font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
 :root {
@@ -132,17 +132,20 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
     <ol class="steps">
       <li>Plug the <b>second AR9271</b> USB adapter into the drone's Pi. This is the 2.4 GHz mesh radio; the Pi's onboard WiFi becomes RESCUE_S.</li>
       <li><b>Remove the ESP32.</b> It was only the FC's WiFi-serial bridge; the Pi replaces it. Nothing else on the drone changes and no firmware is reflashed.</li>
-      <li><b>Wire the Pi to the CC3D telemetry UART.</b> Both are 3.3 V, so connect directly, no level shifter:
-        <ul>
-          <li>CC3D telem <b>TX</b> &rarr; Pi <b>pin 10</b> (GPIO15, RX)</li>
-          <li>CC3D telem <b>RX</b> &rarr; Pi <b>pin 8</b> (GPIO14, TX)</li>
-          <li>CC3D <b>GND</b> &rarr; any Pi <b>GND</b> pin</li>
-        </ul>
-        This gives <code class="inline">/dev/serial0</code>. A USB-TTL adapter (<code class="inline">/dev/ttyUSB0</code>) is the alternative; set <code class="inline">FC_SERIAL</code> to match in the config.
+      <li><b>Connect the Pi to the CC3D. Recommended: the FC's micro-USB port.</b>
+        Run a <b>USB-A to micro-USB data cable</b> from a Pi USB port to the Revo
+        Mini's USB port. It appears as <code class="inline">/dev/ttyACM0</code> and
+        speaks MAVLink by default (ArduPilot SERIAL0) &mdash; one cable, no FC
+        config, no wiring, no level shifter. The port is micro-USB, not USB-C.
+        <br><b>Alternative (GPIO UART):</b> FC telem TX &rarr; Pi pin 10, RX
+        &rarr; pin 8, GND &rarr; GND (both 3.3 V); that is
+        <code class="inline">/dev/serial0</code>. Set <code class="inline">FC_SERIAL</code>
+        to match your choice in <code class="inline">drone_s.conf</code>
+        (default is <code class="inline">/dev/ttyACM0</code>).
       </li>
-      <li>Props OFF. Note the FC telemetry baud (CC3D telem is commonly 57600); you will set <code class="inline">FC_BAUD</code> to it.</li>
+      <li>Props OFF. For the USB path <code class="inline">FC_BAUD</code> is ignored (any value); for the GPIO path set it to the FC telem baud (CC3D telem is commonly 57600).</li>
     </ol>
-    <div class="note">If the ESP32 was using the FC's only telemetry UART, the Pi now uses that same port (you moved the wires from ESP32 to Pi). The FC is already emitting MAVLink there, so no FC change is needed.</div>
+    <div class="note"><b>Power note (USB path):</b> with the LiPo powering the FC through the BEC and the Pi's USB also feeding 5 V, the FC has two sources. Fine on a Revo for bench work; if it resets oddly, tape the red (VBUS) wire of the USB cable so only data + ground connect.</div>
   </section>
 
   <!-- 1 -->
@@ -175,11 +178,11 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
       <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-s shell</span><span class="where s">DRONE_S</span></div>
       <pre><span class="prompt">$</span> lsusb | grep -i atheros          <span class="comment"># the 2nd AR9271 is present</span>
 <span class="prompt">$</span> iw list | grep -A8 "Supported interface modes"   <span class="comment"># must list IBSS</span>
-<span class="prompt">$</span> ls -l /dev/serial0               <span class="comment"># the FC UART (GPIO path)</span></pre>
+<span class="prompt">$</span> ls -l /dev/ttyACM* /dev/serial0 2>/dev/null   <span class="comment"># the FC serial device</span></pre>
     </div>
     <div class="gatebox">
       <div class="label">Stop here</div>
-      <p>Confirm the AR9271 shows in <code class="inline">lsusb</code>, <code class="inline">IBSS</code> is in the interface modes, and the FC serial device exists (<code class="inline">/dev/serial0</code> for GPIO, or <code class="inline">/dev/ttyUSB0</code> for USB-TTL). If the serial console still owns <code class="inline">/dev/serial0</code>, the setup script frees it in the next stage.</p>
+      <p>Confirm the AR9271 shows in <code class="inline">lsusb</code>, <code class="inline">IBSS</code> is in the interface modes, and the FC device exists: <code class="inline">/dev/ttyACM0</code> (USB, recommended) or <code class="inline">/dev/serial0</code> (GPIO). If you used USB and see nothing, re-check the cable is a DATA micro-USB cable and the FC is powered.</p>
     </div>
   </section>
 
@@ -241,6 +244,7 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
       <div class="label">Stop here</div>
       <p>Confirm the ping works and DRONE_A/B appear as peers. Send a victim message on RESCUE_A and confirm it reaches DRONE_S within ~40 s (curl <code class="inline">/messages</code> with the HQ key). DRONE_S is now a first-class mesh node.</p>
     </div>
+    <div class="note"><b>DRONE_S also serves people.</b> It hosts <code class="inline">RESCUE_S</code> with the same captive portal and rescue-app service as A/B, all syncing over the mesh: victims can join and send messages, rescuers can log in and claim. Two gaps vs A/B (no aux module): no BLE "drone nearby" notification (manual join still works) and no LoRa fallback beacon. Its GPS/time come from the flight controller.</div>
   </section>
 
   <!-- 8: GATE -->
@@ -286,7 +290,7 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
       <table class="fieldtable">
         <thead><tr><th>Symptom</th><th>Try this</th></tr></thead>
         <tbody>
-          <tr><td>rescue-mesh-mavgw not active</td><td><code class="inline">journalctl -u rescue-mesh-mavgw -n 30</code>. No MAVGW_FC_CONNECT means the serial device is wrong or busy: check the FC wire, <code class="inline">FC_SERIAL</code>/<code class="inline">FC_BAUD</code>, and that the console was freed from <code class="inline">/dev/serial0</code> (a reboot after setup is required).</td></tr>
+          <tr><td>rescue-mesh-mavgw not active</td><td><code class="inline">journalctl -u rescue-mesh-mavgw -n 30</code>. No MAVGW_FC_CONNECT means the serial device is wrong or busy: check <code class="inline">ls /dev/ttyACM*</code> (USB) matches <code class="inline">FC_SERIAL</code>, the FC is powered, and the cable is a data cable. For the GPIO path, confirm the console was freed from <code class="inline">/dev/serial0</code> (reboot after setup required).</td></tr>
           <tr><td>/health has no GPS from the FC</td><td>The FC needs a GPS fix (take the drone outdoors). Confirm the FC is powered by the flight battery, not just the Pi. Tilt test: attitude changes prove MAVLink is flowing.</td></tr>
           <tr><td>Direct connect works, relay does not</td><td>On the volunteer, confirm the forward rule: <code class="inline">nft list table inet rescue_mesh</code> shows traffic to 10.99.0.3:14550 accepted. Confirm the laptop is on RESCUE_A and can <code class="inline">ping 10.99.0.3</code>.</td></tr>
           <tr><td>No mesh peers / no sync</td><td>Same as the two-node runbook: almost always the secrets mistake. Look for BEACON_REJECT / SYNC_REJECT in <code class="inline">audit.log</code>; re-copy <code class="inline">deploy/secrets</code> from A and re-run setup.</td></tr>
