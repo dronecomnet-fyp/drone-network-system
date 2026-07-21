@@ -169,6 +169,39 @@ def test_personnel_lifecycle_and_tokens():
                        json={"personnel_id": pid, "pin": pin}).status_code == 401
 
 
+def test_personnel_location_heartbeat(monkeypatch):
+    # A logged-in rescuer posts a location; it is stored under their token
+    # identity (not the body) and read back by the rescue/GCC plane. (M7d)
+    created = authed.post("/personnel", json={"name": "Mover", "role": "RESCUE_TEAM"},
+                          headers=HQ).json()
+    pid, pin = created["personnel_id"], created["pin"]
+    api._login_ip_limiter._events.clear()
+    token = authed.post("/auth/login",
+                        json={"personnel_id": pid, "pin": pin}).json()["token"]
+    TOK = {"X-Session-Token": token}
+
+    r = authed.post("/personnel-location",
+                    json={"lat": 6.91, "lon": 79.86, "accuracy_m": 12.0,
+                          "battery_pct": 77}, headers=TOK)
+    assert r.status_code == 200, r.text
+    assert r.json()["personnel_id"] == pid
+
+    listing = authed.get("/personnel-locations", headers=TOK).json()
+    mine = [row for row in listing if row["personnel_id"] == pid]
+    assert len(mine) == 1
+    assert mine[0]["lat"] == 6.91 and mine[0]["battery_pct"] == 77
+    assert mine[0]["node_id"] == config.NODE_ID
+    assert mine[0]["signature"]  # stored signed
+
+    # Out-of-range coordinates are rejected by validation.
+    assert authed.post("/personnel-location",
+                       json={"lat": 200, "lon": 0}, headers=TOK).status_code == 422
+
+    # Break-glass API-key callers have no personnel identity: refused.
+    assert authed.post("/personnel-location",
+                       json={"lat": 6.9, "lon": 79.8}, headers=RESCUE).status_code == 403
+
+
 def test_token_forgery_and_expiry_rejected():
     # forged with a wrong key (T9.2)
     import base64

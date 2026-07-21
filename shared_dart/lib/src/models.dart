@@ -406,3 +406,42 @@ class AuthSession {
   factory AuthSession.fromStoredJson(Map<String, dynamic> json) =>
       AuthSession.fromJson(json);
 }
+
+/// A rescuer's last known location (M7d). Latest-per-personnel: the GCC
+/// shows one marker per rescuer, as fresh as the heartbeat plus DTN sync.
+class PersonnelLocation {
+  final String personnelId;
+  final double? lat;
+  final double? lon;
+  final double? accuracyM;
+  final int? batteryPct;
+  final String recordedAt;
+  final String nodeId;
+  final String updatedAt;
+
+  const PersonnelLocation({
+    required this.personnelId,
+    this.lat,
+    this.lon,
+    this.accuracyM,
+    this.batteryPct,
+    required this.recordedAt,
+    required this.nodeId,
+    required this.updatedAt,
+  });
+
+  bool get hasLocation => lat != null && lon != null;
+
+  factory PersonnelLocation.fromJson(Map<String, dynamic> json) =>
+      PersonnelLocation(
+        personnelId: (json['personnel_id'] ?? '') as String,
+        lat: _toDouble(json['lat']),
+        lon: _toDouble(json['lon']),
+        accuracyM: _toDouble(json['accuracy_m']),
+        batteryPct:
+            json['battery_pct'] == null ? null : _toInt(json['battery_pct']),
+        recordedAt: (json['recorded_at'] ?? '') as String,
+        nodeId: (json['node_id'] ?? '') as String,
+        updatedAt: (json['updated_at'] ?? '') as String,
+      );
+}

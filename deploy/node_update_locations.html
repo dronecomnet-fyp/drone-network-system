@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Node Update: Rescuer Location Sharing</title>
+<style>
+@font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
+:root {
+  --ink: #1b2028; --paper: #f6f4ef; --paper-raised: #eeebe3; --line: #d8d3c6;
+  --wire: #5b6b7a; --accent: #d9711c; --accent-strong: #b85c14;
+  --pass: #1f8f5b; --pass-bg: #e4f4ec; --stop: #c23a3a; --stop-bg: #fbe9e7;
+  --term-bg: #14181e; --term-fg: #e6e2d6; --term-dim: #8a93a3; --code-fg: #2a2f38;
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+  --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+  --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+  --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+  --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+    --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+    --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+    --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+body { font-family: var(--sans); font-size: 16px; line-height: 1.6; padding: 0 0 6rem; }
+::selection { background: var(--accent); color: #14181e; }
+a { color: var(--accent-strong); }
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; }
+.masthead { border-bottom: 1px solid var(--line); padding: 2.6rem 0 1.8rem; margin-bottom: 2.2rem; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--wire); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+h1.title { font-family: var(--mono); font-size: 1.9rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6rem; }
+.dek { max-width: 48ch; color: var(--wire); font-size: 1.02rem; margin: 0; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1.4rem; font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+.meta-row b { color: var(--ink); font-weight: 600; }
+.index { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin-bottom: 2.6rem; }
+.index-title { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--wire); margin: 0 0 0.7rem; }
+.index ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.25rem 1rem; }
+.index li a { display: flex; gap: 0.55rem; align-items: baseline; text-decoration: none; color: var(--ink); font-size: 0.88rem; padding: 0.2rem 0; }
+.index li a:hover { color: var(--accent-strong); }
+.index .n { font-family: var(--mono); color: var(--wire); font-size: 0.78rem; min-width: 1.4em; }
+.stage { border-left: 3px solid var(--line); padding: 0 0 0 1.3rem; margin-bottom: 2.9rem; scroll-margin-top: 1.5rem; }
+.stage.gate { border-left-color: var(--stop); }
+.stage.crit { border-left-color: var(--accent); }
+.stage-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 0.85rem; }
+.stage-num { font-family: var(--mono); font-size: 0.85rem; color: var(--wire); background: var(--paper-raised); border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.6rem; flex-shrink: 0; }
+h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+.stage ul, .stage ol.steps { margin: 0 0 1rem; padding-left: 1.25rem; max-width: 60ch; }
+.stage li { margin-bottom: 0.4rem; }
+.term { background: var(--term-bg); border-radius: 8px; margin: 0 0 1rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000); }
+.term-bar { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.term-bar .cap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--term-dim); margin-left: 0.3rem; }
+.term-bar .where { margin-left: auto; font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.08rem 0.5rem; border-radius: 999px; }
+.term-bar .where.s { color: #a7e8c6; background: rgba(31,143,91,0.2); }
+.term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
+.term-bar .led.r { background: #e5645c; } .term-bar .led.y { background: #e5b84f; } .term-bar .led.g { background: #57c273; }
+.term pre { margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg); }
+.term .prompt { color: var(--term-dim); } .term .comment { color: var(--term-dim); font-style: italic; }
+code.inline { font-family: var(--mono); font-size: 0.88em; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 4px; padding: 0.05rem 0.35rem; color: var(--code-fg); }
+.readout { background: var(--pass-bg); border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line)); border-radius: 8px; padding: 0.9rem 1.1rem 1rem; margin: 0 0 1rem; }
+.readout .label { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pass); margin-bottom: 0.55rem; }
+.readout pre, .readout code { font-family: var(--mono); font-size: 0.85rem; color: var(--code-fg); white-space: pre-wrap; word-break: break-word; margin: 0; }
+.readout .hint { font-family: var(--sans); font-size: 0.85rem; color: var(--wire); margin-top: 0.55rem; white-space: normal; }
+.gatebox { background: var(--stop-bg); border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line)); border-radius: 8px; padding: 0.95rem 1.1rem 1.05rem; margin: 0 0 0.4rem; }
+.gatebox .label { font-family: var(--mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.gatebox p { margin: 0 0 0.5rem; max-width: 58ch; font-size: 0.95rem; } .gatebox p:last-child { margin: 0; }
+.critbox { background: color-mix(in srgb, var(--accent) 12%, var(--paper)); border: 2px solid var(--accent); border-radius: 10px; padding: 1rem 1.2rem; margin: 0 0 1rem; }
+.critbox .label { font-family: var(--mono); font-weight: 700; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 0.5rem; }
+.critbox p { margin: 0 0 0.6rem; } .critbox p:last-child { margin: 0; }
+.note { border: 1px dashed var(--line); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.88rem; color: var(--wire); margin: 0 0 1rem; max-width: 60ch; }
+.note b { color: var(--ink); }
+footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+@media (max-width: 640px) { h1.title { font-size: 1.55rem; } .index ol { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; Node Update &middot; M7d</div>
+    <h1 class="title">Node Update<br>Rescuer Location Sharing</h1>
+    <p class="dek">Roll one small software update to each node so the ground control app can see where rescue teams are. New signed table, syncs fleet-wide like messages. No reflash, no data loss, about five minutes per node.</p>
+    <div class="meta-row">
+      <span><b>Nodes</b> DRONE_A, DRONE_B, DRONE_S</span>
+      <span><b>Adds</b> personnel_locations table + endpoints</span>
+      <span><b>Downtime</b> a few seconds per node</span>
+    </div>
+  </header>
+
+  <div class="critbox">
+    <div class="label">What this does, and why it is safe</div>
+    <p>The rescue app already knows GPS. This update lets a logged-in rescuer send a periodic <b>location heartbeat</b> to the node, which signs it, stores the latest one per rescuer, and syncs it to the other nodes. The GCC then shows each rescuer's last known position on the map.</p>
+    <p>The new database table is created automatically the first time the updated API starts (<code class="inline">CREATE TABLE IF NOT EXISTS</code>). <b>Nothing is dropped and no existing data is touched.</b> Do the nodes one at a time; the fleet keeps working throughout.</p>
+  </div>
+
+  <nav class="index">
+    <p class="index-title">Stages</p>
+    <ol>
+      <li><a href="#s1"><span class="n">1</span>Update one node</a></li>
+      <li><a href="#s2"><span class="n">2</span>Gate &mdash; table + services</a></li>
+      <li><a href="#s3"><span class="n">3</span>Roll to the other nodes</a></li>
+      <li><a href="#s4"><span class="n">4</span>Gate &mdash; fleet-wide sync</a></li>
+      <li><a href="#s5"><span class="n">5</span>Gate &mdash; shows on the GCC</a></li>
+      <li><a href="#s6"><span class="n">6</span>Troubleshooting</a></li>
+    </ol>
+  </nav>
+
+  <!-- 1 -->
+  <section class="stage crit" id="s1">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">Update one node (start with DRONE_A)</h2></div>
+    <p>Join that node's Wi-Fi (or reach it over Ethernet), SSH in, pull the new code, and restart just the API and sync services. The captive portal and Wi-Fi stay up.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">SSH &middot; DRONE_A</span><span class="where s">drone@10.42.0.1</span></div>
+      <pre><span class="prompt">$</span> ssh drone@10.42.0.1
+<span class="prompt">$</span> cd ~/rescue-mesh
+<span class="prompt">$</span> git pull
+<span class="prompt">$</span> sudo systemctl restart rescue-mesh-api rescue-mesh-sync</pre>
+    </div>
+    <p>No dependency changes ship with this update, so there is nothing to <code class="inline">pip install</code>. If <code class="inline">git pull</code> reports local changes, you are on a modified node: stash or review before pulling, do not force.</p>
+  </section>
+
+  <!-- 2 -->
+  <section class="stage gate" id="s2">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">Gate: the table exists and services are healthy</h2></div>
+    <p>Confirm the API came back up and created the new table. <code class="inline">/health</code> lists a count per replicated table.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">SSH &middot; DRONE_A</span></div>
+      <pre><span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health | grep -o personnel_locations
+<span class="prompt">$</span> systemctl is-active rescue-mesh-api rescue-mesh-sync
+<span class="prompt">$</span> journalctl -u rescue-mesh-sync -n 20 --no-pager</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expect</div>
+      <pre>personnel_locations
+active
+active</pre>
+      <div class="hint">The word <code>personnel_locations</code> appears in <code>/health</code> (the table is registered and counted), both services are <code>active</code>, and the sync log shows peers syncing with no tracebacks.</div>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>If <code class="inline">/health</code> does not mention <code class="inline">personnel_locations</code>, the old code is still running: re-check <code class="inline">git pull</code> landed and restart the API again. Do not move to the next node until this one is clean.</p>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="stage" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Roll the same update to DRONE_B and DRONE_S</h2></div>
+    <p>Repeat stages 1 and 2 on each remaining node. Mixed versions are fine during the roll: an un-updated node simply does not have the new table yet and ignores the new sync path until you update it. Order does not matter.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">SSH &middot; DRONE_B then DRONE_S</span></div>
+      <pre><span class="prompt">$</span> ssh drone@10.42.0.1        <span class="comment"># on each node's own AP</span>
+<span class="prompt">$</span> cd ~/rescue-mesh &amp;&amp; git pull
+<span class="prompt">$</span> sudo systemctl restart rescue-mesh-api rescue-mesh-sync
+<span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health | grep -o personnel_locations</pre>
+    </div>
+    <div class="note"><b>DRONE_S is no different here.</b> It runs the same node software, so the update and the gate are identical; its MAVLink gateway is untouched by this change.</div>
+  </section>
+
+  <!-- 4 -->
+  <section class="stage gate" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Gate: a location filed on one node reaches another</h2></div>
+    <p>This proves the feature end to end: sign, store, and sync. Post a location as a logged-in rescuer on DRONE_A, then read it back from DRONE_B after one sync cycle.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">On DRONE_A: post as a rescuer</span></div>
+      <pre><span class="prompt">$</span> TOKEN=$(curl -sk https://10.42.0.1:8443/auth/login \
+    -H 'Content-Type: application/json' \
+    -d '{"personnel_id":"R-001","pin":"YOUR_PIN"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+<span class="prompt">$</span> curl -sk https://10.42.0.1:8443/personnel-location \
+    -H "X-Session-Token: $TOKEN" -H 'Content-Type: application/json' \
+    -d '{"lat":6.9271,"lon":79.8612,"battery_pct":80}'</pre>
+    </div>
+    <p>Wait one sync interval (about 30 s), then on DRONE_B read the fleet-wide list (any role key or session token works):</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">On DRONE_B: read it back</span></div>
+      <pre><span class="prompt">$</span> curl -sk https://10.42.0.1:8443/personnel-locations \
+    -H "X-API-Key: $HQ_KEY"</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expect on DRONE_B</div>
+      <pre>[{"personnel_id":"R-001","lat":6.9271,"lon":79.8612,
+  "battery_pct":80,"node_id":"DRONE_A", ...}]</pre>
+      <div class="hint">R-001's position, filed on A, is now readable on B with <code>node_id: DRONE_A</code>: it was signed, synced, and verified across the mesh. A tampered copy would be rejected at sync and never appear.</div>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>If it never appears on B, check that both nodes passed stage 2, that they see each other (<code class="inline">/health</code> peers), and that the sync log shows no rejects. A wrong PIN gives 401 at login, not a sync problem.</p>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section class="stage gate" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Gate: rescuers show up on the ground control app</h2></div>
+    <p>Update the rescue app to the build with location sharing, log in, and leave it open in the foreground. In the GCC, open the <b>Live Ops</b> tab (Rescuers card) and the <b>Map</b> (teal person pins).</p>
+    <ul>
+      <li>The rescue app Settings has a <b>Share my location</b> switch (on by default) showing when it last sent.</li>
+      <li>Within about 90 seconds the rescuer appears in Live Ops with a fresh "updated" age, and as a teal pin on the map.</li>
+      <li>Battery-friendly by design: it only sends while logged in and in the foreground. Background and logged-out send nothing; the operator sees the last known position with its age.</li>
+    </ul>
+    <div class="readout">
+      <div class="label">Done</div>
+      <div class="hint">Rescuers now appear on the operations picture alongside victims, SOS check-ins, and drones. Each carries its own data age, so the operator is never misled about how fresh a position is.</div>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section class="stage" id="s6">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Troubleshooting</h2></div>
+    <ul>
+      <li><b>App shows "Cannot reach the drone" when sharing.</b> The heartbeat uses the same authenticated API as everything else: confirm the phone is on a RESCUE_x Wi-Fi and the fleet CA is loaded. It shares the message poller's back-off, so it will not spam on failure.</li>
+      <li><b>Location switch on but nothing sent.</b> Grant the app location permission and enable device location. The app uses medium accuracy and falls back to the last known fix; indoors with no fix it simply waits.</li>
+      <li><b>Rescuer never appears on the GCC.</b> The GCC reads <code class="inline">/personnel-locations</code> only once credentials are set: log in (or set the break-glass key) in GCC Settings. Then confirm the node passed stage 4.</li>
+      <li><b>Old position lingers.</b> That is the honest last-known behaviour: the age next to it shows how stale it is. It refreshes on the next heartbeat.</li>
+    </ul>
+  </section>
+
+</div>
+<footer>Rescue Mesh &middot; Node update M7d &middot; Rescuer location sharing. Props policy and all Phase 2 security controls unchanged.</footer>
+</body>
+</html>

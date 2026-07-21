@@ -51,6 +51,7 @@ REPLICATED_TABLES = {
     "announcements": "id",
     "gs_messages": "id",
     "checkins": "id",
+    "personnel_locations": "personnel_id",
 }
 
 
@@ -124,12 +125,21 @@ def _checkin_payload(r: dict) -> str:
     )
 
 
+def _personnel_location_payload(r: dict) -> str:
+    return _canon(
+        r.get("personnel_id"), r.get("lat"), r.get("lon"), r.get("accuracy_m"),
+        r.get("battery_pct"), r.get("recorded_at"), r.get("node_id"),
+        r.get("updated_at"),
+    )
+
+
 _PAYLOAD_FN = {
     "messages": _message_payload,
     "personnel": _personnel_payload,
     "announcements": _announcement_payload,
     "gs_messages": _gs_message_payload,
     "checkins": _checkin_payload,
+    "personnel_locations": _personnel_location_payload,
 }
 
 
@@ -233,6 +243,23 @@ def init_db():
             location_lon REAL,
             location_accuracy REAL,
             location_timestamp TEXT,
+            signature TEXT,
+            local_ts TEXT
+        )
+    """)
+    # Latest known location per rescuer (M7d). Latest-per-personnel: PK is
+    # personnel_id, and sync keeps the newest signed updated_at (same
+    # newest-wins pattern as personnel, NOT the append-only checkin pattern).
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS personnel_locations (
+            personnel_id TEXT PRIMARY KEY,
+            lat REAL,
+            lon REAL,
+            accuracy_m REAL,
+            battery_pct INTEGER,
+            recorded_at TEXT,
+            node_id TEXT,
+            updated_at TEXT,
             signature TEXT,
             local_ts TEXT
         )
@@ -602,6 +629,71 @@ def save_checkin(device_id, lat, lon, accuracy, recorded_at, sos=0):
 def get_checkins():
     conn = get_conn()
     rows = conn.execute("SELECT * FROM checkins ORDER BY recorded_at DESC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Personnel locations (M7d): latest-per-rescuer, signed, replicated
+# ---------------------------------------------------------------------------
+
+def save_personnel_location(personnel_id, lat, lon, accuracy_m=None,
+                            battery_pct=None):
+    """Record a rescuer's latest position (from the rescue app heartbeat).
+    Signs the record and upserts by personnel_id; updated_at is the signed
+    origin timestamp used for newest-wins at sync."""
+    now = iso_now()
+    record = {
+        "personnel_id": personnel_id,
+        "lat": lat,
+        "lon": lon,
+        "accuracy_m": accuracy_m,
+        "battery_pct": battery_pct,
+        "recorded_at": now,
+        "node_id": config.NODE_ID,
+        "updated_at": now,
+    }
+    record["signature"] = sign_record("personnel_locations", record)
+    write_personnel_location_record(record, now)
+    return record
+
+
+def write_personnel_location_record(record: dict, local_ts: str = None):
+    """Upsert a fully-formed, signed location record (used by both the API
+    write and the sync ingest). The signed origin updated_at travels
+    unchanged; local_ts is this node's cursor stamp."""
+    conn = get_conn()
+    conn.execute("""
+        INSERT OR REPLACE INTO personnel_locations (
+            personnel_id, lat, lon, accuracy_m, battery_pct, recorded_at,
+            node_id, updated_at, signature, local_ts
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        record["personnel_id"], record.get("lat"), record.get("lon"),
+        record.get("accuracy_m"), record.get("battery_pct"),
+        record.get("recorded_at"), record.get("node_id"),
+        record.get("updated_at"), record.get("signature"),
+        local_ts or iso_now(),
+    ))
+    conn.commit()
+    conn.close()
+
+
+def get_personnel_location_by_id(personnel_id: str):
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT * FROM personnel_locations WHERE personnel_id = ?",
+        (personnel_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_personnel_locations():
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM personnel_locations ORDER BY updated_at DESC"
+    ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 

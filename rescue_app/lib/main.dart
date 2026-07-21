@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'providers/auth_provider.dart';
+import 'providers/heartbeat_provider.dart';
 import 'providers/message_provider.dart';
 import 'screens/announcements_screen.dart';
 import 'screens/hq_uplink_screen.dart';
@@ -34,6 +35,16 @@ class RescueApp extends StatelessWidget {
                 context.read<AuthProvider>().handleCredentialFailure(error),
           ),
           update: (_, __, provider) => provider!,
+        ),
+        // Location heartbeat (M7d): only active while logged in AND in the
+        // foreground. Deferred to a microtask so toggling loggedIn does not
+        // notify listeners during the provider update (build) phase.
+        ChangeNotifierProxyProvider<AuthProvider, HeartbeatProvider>(
+          create: (_) => HeartbeatProvider(),
+          update: (_, auth, hb) {
+            Future.microtask(() => hb!.setLoggedIn(value: auth.isLoggedIn));
+            return hb!;
+          },
         ),
       ],
       child: MaterialApp(
@@ -80,7 +91,7 @@ class MainApp extends StatefulWidget {
   State<MainApp> createState() => _MainAppState();
 }
 
-class _MainAppState extends State<MainApp> {
+class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
   int _selectedIndex = 0;
 
   final List<Widget> _screens = [
@@ -89,6 +100,35 @@ class _MainAppState extends State<MainApp> {
     const AnnouncementsScreen(),
     const SettingsScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // The main app is only shown while logged in, so mark the heartbeat
+    // foreground now; lifecycle changes below pause it in the background.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<HeartbeatProvider>().setForeground(value: true);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) {
+      return;
+    }
+    context
+        .read<HeartbeatProvider>()
+        .setForeground(value: state == AppLifecycleState.resumed);
+  }
 
   @override
   Widget build(BuildContext context) {

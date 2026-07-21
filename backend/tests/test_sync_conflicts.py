@@ -157,6 +157,44 @@ def test_announcement_append_only():
     assert sync_engine.ingest_announcement(tampered, "DRONE_P") == "rejected"
 
 
+def _make_peer_location(personnel_id, lat, lon, updated_at, node_id="DRONE_P"):
+    record = {
+        "personnel_id": personnel_id,
+        "lat": lat,
+        "lon": lon,
+        "accuracy_m": 10.0,
+        "battery_pct": 80,
+        "recorded_at": updated_at,
+        "node_id": node_id,
+        "updated_at": updated_at,
+    }
+    record["signature"] = models.sign_record("personnel_locations", record)
+    return record
+
+
+def test_personnel_location_newest_wins_and_forgery_rejected():
+    # Insert an older position, then a newer one for the same rescuer: newest
+    # signed updated_at wins (latest-per-personnel). (M7d)
+    old = _make_peer_location("R-loc-1", 6.90, 79.80, "2026-07-21T10:00:00Z")
+    assert sync_engine.ingest_personnel_location(old, "DRONE_P") == "inserted"
+    assert sync_engine.ingest_personnel_location(old, "DRONE_P") == "kept"
+
+    new = _make_peer_location("R-loc-1", 6.95, 79.90, "2026-07-21T10:05:00Z")
+    assert sync_engine.ingest_personnel_location(new, "DRONE_P") == "updated"
+    stored = models.get_personnel_location_by_id("R-loc-1")
+    assert stored["lat"] == 6.95
+
+    # An older copy arriving later cannot move the rescuer backwards.
+    assert sync_engine.ingest_personnel_location(old, "DRONE_P") == "kept"
+    assert models.get_personnel_location_by_id("R-loc-1")["lat"] == 6.95
+
+    # A forged position (tampered after signing) is rejected at ingest.
+    forged = _make_peer_location("R-loc-2", 6.90, 79.80, "2026-07-21T11:00:00Z")
+    forged["lat"] = 0.0  # move them without re-signing
+    assert sync_engine.ingest_personnel_location(forged, "DRONE_P") == "rejected"
+    assert models.get_personnel_location_by_id("R-loc-2") is None
+
+
 def test_beacon_replay_via_daemon_parser():
     import sync_daemon
     data = sync_daemon.build_beacon()

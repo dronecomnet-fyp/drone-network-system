@@ -9,11 +9,13 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:rescue_mesh_shared/rescue_mesh_shared.dart' as shared;
 
 import '../config/api_config.dart';
 import '../providers/auth_provider.dart';
+import '../providers/heartbeat_provider.dart';
 import '../providers/message_provider.dart';
 import '../services/api_service.dart';
 
@@ -188,6 +190,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ],
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // --- Location sharing (M7d) ------------------------------
+                    Consumer<HeartbeatProvider>(
+                      builder: (context, hb, _) {
+                        final last = hb.lastSent;
+                        final subtitle = !hb.enabled
+                            ? 'Off. Your position is not shared.'
+                            : (last == null
+                                ? 'On. Sends your location while logged in and '
+                                    'the app is open (about every 90 s).'
+                                : 'On. Last sent '
+                                    '${DateFormat.Hms().format(last.toLocal())}.');
+                        return Card(
+                          child: SwitchListTile(
+                            secondary: const Icon(Icons.my_location),
+                            title: const Text('Share my location'),
+                            subtitle: Text(subtitle),
+                            value: hb.enabled,
+                            onChanged: (v) => hb.setEnabled(value: v),
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 12),
 

@@ -35,6 +35,7 @@ SYNC_PATHS = {
     "announcements": "announcements",
     "gs_messages": "gs-messages",
     "checkins": "checkins",
+    "personnel_locations": "personnel-locations",
 }
 
 
@@ -163,12 +164,28 @@ def ingest_checkin(record, peer_node_id):
     )
 
 
+def ingest_personnel_location(record, peer_node_id):
+    # Latest-per-rescuer: newest signed origin updated_at wins (same shape as
+    # ingest_personnel, minus the REVOKED override which does not apply).
+    if not models.verify_record("personnel_locations", record):
+        return "rejected"
+    existing = models.get_personnel_location_by_id(record["personnel_id"])
+    if existing is None:
+        models.write_personnel_location_record(record)
+        return "inserted"
+    if (record.get("updated_at") or "") > (existing["updated_at"] or ""):
+        models.write_personnel_location_record(record)
+        return "updated"
+    return "kept"
+
+
 INGEST_FN = {
     "messages": ingest_message,
     "personnel": ingest_personnel,
     "announcements": ingest_announcement,
     "gs_messages": ingest_gs_message,
     "checkins": ingest_checkin,
+    "personnel_locations": ingest_personnel_location,
 }
 
 

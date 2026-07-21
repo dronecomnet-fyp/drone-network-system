@@ -202,6 +202,16 @@ class APIService {
     });
   }
 
+  // --- location heartbeat (M7d) ---------------------------------------------
+
+  /// Posts the logged-in rescuer's current location. The backend stamps the
+  /// identity from the session token, so only coordinates travel.
+  static Future<void> postLocation(double lat, double lon,
+      {double? accuracyM, int? batteryPct}) {
+    return _run((c) => c.postLocation(lat, lon,
+        accuracyM: accuracyM, batteryPct: batteryPct));
+  }
+
   // --- announcements (file 05 task 5.3: the REAL endpoints) -----------------------
 
   static Future<List<shared.Announcement>> getAnnouncements() {

@@ -91,6 +91,12 @@ class LiveOpsScreen extends StatelessWidget {
               age: data.gsMessages.age,
             ),
             _StatTile(
+              label: 'RESCUERS TRACKED',
+              value: '${data.personnelLocations.items.length}',
+              sub: 'sharing location',
+              age: data.personnelLocations.age,
+            ),
+            _StatTile(
               label: 'PERSONNEL',
               value: app.isHq ? '$activePersonnel active' : 'HQ only',
               sub: app.isHq
@@ -152,8 +158,54 @@ class LiveOpsScreen extends StatelessWidget {
         const SizedBox(height: 16),
         const FleetBoard(),
         const SizedBox(height: 16),
+        _RescuersCard(),
+        const SizedBox(height: 16),
         _NodesTable(),
       ],
+    );
+  }
+}
+
+/// Rescuers sharing their location (M7d), each with how fresh it is.
+class _RescuersCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final data = context.watch<DataStore>();
+    final locs = data.personnelLocations.items;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('Rescuers', style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(width: 8),
+                Text('list ${formatAge(data.personnelLocations.age)}',
+                    style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+            const SizedBox(height: 4),
+            if (locs.isEmpty)
+              const Text('No rescuers sharing location yet. The rescue app '
+                  'sends a heartbeat while logged in and in the foreground.')
+            else
+              ...locs.map((l) => ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.person_pin_circle,
+                        color: Colors.tealAccent),
+                    title: Text(l.personnelId),
+                    subtitle: Text([
+                      if (l.hasLocation)
+                        '${l.lat!.toStringAsFixed(5)}, ${l.lon!.toStringAsFixed(5)}',
+                      if (l.batteryPct != null) 'battery ${l.batteryPct}%',
+                      'updated ${l.updatedAt}',
+                    ].join('  |  ')),
+                  )),
+          ],
+        ),
+      ),
     );
   }
 }

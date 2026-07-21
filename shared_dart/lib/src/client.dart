@@ -290,6 +290,26 @@ class RescueMeshClient {
         .toList();
   }
 
+  /// Post the logged-in rescuer's location heartbeat (M7d). Identity is
+  /// taken from the session token server-side; only coordinates travel.
+  Future<void> postLocation(double lat, double lon,
+      {double? accuracyM, int? batteryPct}) async {
+    await _post('/personnel-location', {
+      'lat': lat,
+      'lon': lon,
+      if (accuracyM != null) 'accuracy_m': accuracyM,
+      if (batteryPct != null) 'battery_pct': batteryPct,
+    });
+  }
+
+  /// The last known location of each rescuer (M7d), for the GCC map.
+  Future<List<PersonnelLocation>> getPersonnelLocations() async {
+    final data = await _get('/personnel-locations');
+    return (data as List<dynamic>)
+        .map((p) => PersonnelLocation.fromJson(p as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<NodeHealth> getHealth() async {
     final data = await _get('/health');
     return NodeHealth.fromJson(data as Map<String, dynamic>);

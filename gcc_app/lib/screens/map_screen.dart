@@ -233,6 +233,33 @@ class _MapScreenState extends State<MapScreen> {
       ));
     }
 
+    // Rescuer last known locations (M7d): one person marker per rescuer.
+    for (final loc in data.personnelLocations.items.where((l) => l.hasLocation)) {
+      markers.add(Marker(
+        point: LatLng(loc.lat!, loc.lon!),
+        width: 130,
+        height: 44,
+        child: Tooltip(
+          message: 'rescuer ${loc.personnelId}\n'
+              'battery ${loc.batteryPct ?? "?"}%  updated ${loc.updatedAt}',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.person_pin_circle,
+                  size: 28, color: Colors.tealAccent),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                color: Colors.black54,
+                child: Text(loc.personnelId,
+                    style: const TextStyle(fontSize: 10),
+                    overflow: TextOverflow.ellipsis),
+              ),
+            ],
+          ),
+        ),
+      ));
+    }
+
     // Personnel field reports with a location.
     for (final g in data.gsMessages.items.where((g) => g.hasLocation)) {
       markers.add(Marker(
@@ -619,6 +646,7 @@ class _LegendCard extends StatelessWidget {
             row(Icons.location_pin, Colors.greenAccent, 'victim CLAIMED'),
             row(Icons.circle, Colors.lightBlueAccent, 'checkin'),
             row(Icons.circle, Colors.deepOrange, 'SOS checkin'),
+            row(Icons.person_pin_circle, Colors.tealAccent, 'rescuer'),
             row(Icons.flag, Colors.purpleAccent, 'field report'),
             row(Icons.airplanemode_active, Colors.cyanAccent, 'node (live)'),
             row(Icons.airplanemode_inactive, Colors.redAccent,

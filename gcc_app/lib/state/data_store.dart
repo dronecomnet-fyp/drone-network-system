@@ -29,6 +29,7 @@ class DataStore extends ChangeNotifier {
   final announcements = Dataset<Announcement>();
   final personnel = Dataset<Personnel>();
   final checkins = Dataset<Checkin>();
+  final personnelLocations = Dataset<PersonnelLocation>();
   NodeHealth? health;
   DateTime? healthUpdated;
 
@@ -76,6 +77,7 @@ class DataStore extends ChangeNotifier {
         await _pull(gsMessages, c.getGsMessages);
         await _pull(announcements, c.getAnnouncements);
         await _pull(checkins, c.getCheckins);
+        await _pull(personnelLocations, c.getPersonnelLocations);
         if (app.isHq) {
           await _pull(personnel, c.getPersonnel);
         }

@@ -47,6 +47,9 @@ _login_ip_limiter = ratelimit.SlidingWindowLimiter(
 _login_id_limiter = ratelimit.SlidingWindowLimiter(
     config.LOGIN_RATE_LIMIT_COUNT, config.LOGIN_RATE_LIMIT_WINDOW_SECONDS, "login per id"
 )
+# Location heartbeat: a rescuer app posts ~1/90 s; allow a small burst per
+# rescuer so a retry after a failure is fine, but a runaway app cannot flood.
+_location_limiter = ratelimit.SlidingWindowLimiter(6, 60, "location per id")
 
 
 class Role(str, Enum):
@@ -168,6 +171,36 @@ class MessageInput(BaseModel):
     @classmethod
     def dev_ok(cls, v):
         return (v or "").strip()[:64]
+
+
+class LocationInput(BaseModel):
+    """A rescuer's location heartbeat (M7d). Identity is taken from the
+    session token, never the body, so nobody can spoof another rescuer."""
+    lat: float
+    lon: float
+    accuracy_m: Optional[float] = None
+    battery_pct: Optional[int] = None
+
+    @field_validator("lat")
+    @classmethod
+    def lat_ok(cls, v):
+        if not -90 <= v <= 90:
+            raise ValueError("latitude out of range")
+        return v
+
+    @field_validator("lon")
+    @classmethod
+    def lon_ok(cls, v):
+        if not -180 <= v <= 180:
+            raise ValueError("longitude out of range")
+        return v
+
+    @field_validator("battery_pct")
+    @classmethod
+    def bat_ok(cls, v):
+        if v is not None and not 0 <= v <= 100:
+            raise ValueError("battery_pct out of range")
+        return v
 
 
 class GSMessageInput(BaseModel):
@@ -576,6 +609,44 @@ def get_checkins(
 
 
 # ---------------------------------------------------------------------------
+# Personnel locations (M7d): a logged-in rescuer posts a location heartbeat;
+# it signs + upserts by personnel_id and syncs fleet-wide (newest-wins), so
+# the GCC map shows each rescuer's last known position. Identity comes from
+# the token, never the body.
+# ---------------------------------------------------------------------------
+
+@app.post("/personnel-location")
+def post_personnel_location(
+    loc: LocationInput,
+    auth: Auth = Depends(require_roles({Role.RESCUE_TEAM, Role.HQ})),
+):
+    if not auth.personnel_id:
+        # Break-glass API key callers have no personnel identity to attach.
+        raise HTTPException(status_code=403,
+                            detail="Location requires a personnel session token")
+    _location_limiter.check(auth.personnel_id)
+    try:
+        record = models.save_personnel_location(
+            auth.personnel_id, loc.lat, loc.lon, loc.accuracy_m, loc.battery_pct
+        )
+        return {"personnel_id": record["personnel_id"],
+                "updated_at": record["updated_at"]}
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal error saving location")
+
+
+@app.get("/personnel-locations")
+def get_personnel_locations(
+    auth: Auth = Depends(require_roles({Role.RESCUE_TEAM, Role.HQ, Role.SYNC_NODE})),
+):
+    try:
+        return JSONResponse(content=models.get_personnel_locations())
+    except Exception:
+        raise HTTPException(status_code=500,
+                            detail="Internal error listing personnel locations")
+
+
+# ---------------------------------------------------------------------------
 # Health (file 02 task 2.5: the real payload design v3 requires)
 # ---------------------------------------------------------------------------
 
@@ -638,6 +709,7 @@ app.get("/sync/personnel")(_sync_endpoint("personnel"))
 app.get("/sync/announcements")(_sync_endpoint("announcements"))
 app.get("/sync/gs-messages")(_sync_endpoint("gs_messages"))
 app.get("/sync/checkins")(_sync_endpoint("checkins"))
+app.get("/sync/personnel-locations")(_sync_endpoint("personnel_locations"))
 
 
 if __name__ == "__main__":
