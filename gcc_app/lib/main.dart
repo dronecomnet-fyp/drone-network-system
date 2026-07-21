@@ -13,14 +13,17 @@ import 'package:provider/provider.dart';
 import 'screens/announcements_screen.dart';
 import 'screens/drone_control_screen.dart';
 import 'screens/live_feed_screen.dart';
+import 'screens/live_ops_screen.dart';
 import 'screens/map_screen.dart';
+import 'screens/mission_screen.dart';
 import 'screens/nodes_screen.dart';
 import 'screens/personnel_screen.dart';
 import 'screens/settings_screen.dart';
 import 'state/app_state.dart';
 import 'state/data_store.dart';
 import 'state/drone_controller.dart';
-import 'state/plan_state.dart';
+import 'state/fleet_state.dart';
+import 'state/mission_state.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,8 +44,18 @@ class GccApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: appState),
         ChangeNotifierProvider(
             create: (_) => DataStore(appState)..start(), lazy: false),
-        ChangeNotifierProvider(create: (_) => PlanState()),
+        ChangeNotifierProvider(create: (_) => MissionState()),
         ChangeNotifierProvider(create: (_) => DroneController()),
+        ChangeNotifierProvider(
+          create: (ctx) {
+            final drone = ctx.read<DroneController>();
+            return FleetState(
+              onRealDeploy: (d) =>
+                  drone.deploySequence(d.targetLat, d.targetLon, 30),
+              onRealRecall: (_) => drone.returnToLaunch(),
+            );
+          },
+        ),
       ],
       child: MaterialApp(
         title: 'Rescue Mesh GCC',
@@ -74,6 +87,14 @@ class _GccShellState extends State<GccShell> {
         selectedIcon: Icon(Icons.map),
         label: Text('Map')),
     NavigationRailDestination(
+        icon: Icon(Icons.monitor_heart_outlined),
+        selectedIcon: Icon(Icons.monitor_heart),
+        label: Text('Live Ops')),
+    NavigationRailDestination(
+        icon: Icon(Icons.assignment_outlined),
+        selectedIcon: Icon(Icons.assignment),
+        label: Text('Mission')),
+    NavigationRailDestination(
         icon: Icon(Icons.inbox_outlined),
         selectedIcon: Icon(Icons.inbox),
         label: Text('Live Feed')),
@@ -101,6 +122,8 @@ class _GccShellState extends State<GccShell> {
 
   static const _screens = <Widget>[
     MapScreen(),
+    LiveOpsScreen(),
+    MissionScreen(),
     LiveFeedScreen(),
     NodesScreen(),
     PersonnelScreen(),

@@ -67,6 +67,56 @@ void main() {
       expect(cmd.command, 209);
       expect(cmd.param3, 8); // throttle percent
     });
+
+    // M7f fleet-deploy commands.
+
+    test('takeoff encodes as NAV_TAKEOFF 22 with altitude in param7', () async {
+      // This is exactly what MavService.takeoff(30) builds.
+      final frame = await roundTrip(CommandLong(
+        param1: 0, param2: 0, param3: 0, param4: 0,
+        param5: 0, param6: 0, param7: 30,
+        command: mavCmdNavTakeoff,
+        targetSystem: 1, targetComponent: 1, confirmation: 0,
+      ));
+      final cmd = frame.message as CommandLong;
+      expect(cmd.command, 22);
+      expect(cmd.param7, 30); // takeoff altitude (m)
+    });
+
+    test('reposition encodes as DO_REPOSITION 192 with lat/lon as int32 1e7',
+        () async {
+      // This is exactly what MavService.gotoLocation(6.9271, 79.8612, 30)
+      // builds: COMMAND_INT so lat/lon keep int precision a float cannot.
+      final frame = await roundTrip(CommandInt(
+        param1: -1, param2: 0, param3: 0, param4: double.nan,
+        x: (6.9271 * 1e7).round(),
+        y: (79.8612 * 1e7).round(),
+        z: 30,
+        command: mavCmdDoReposition,
+        targetSystem: 1, targetComponent: 1,
+        frame: mavFrameGlobalRelativeAlt,
+        current: 0, autocontinue: 0,
+      ));
+      final cmd = frame.message as CommandInt;
+      expect(cmd.command, 192);
+      expect(cmd.x, 69271000);
+      expect(cmd.y, 798612000);
+      expect(cmd.z, 30);
+      expect(cmd.frame, mavFrameGlobalRelativeAlt);
+    });
+
+    test('return to launch encodes as NAV_RETURN_TO_LAUNCH 20', () async {
+      // This is exactly what MavService.returnToLaunch() builds (the recall
+      // button AND the fleet battery watchdog).
+      final frame = await roundTrip(CommandLong(
+        param1: 0, param2: 0, param3: 0, param4: 0,
+        param5: 0, param6: 0, param7: 0,
+        command: mavCmdNavReturnToLaunch,
+        targetSystem: 1, targetComponent: 1, confirmation: 0,
+      ));
+      final cmd = frame.message as CommandLong;
+      expect(cmd.command, 20);
+    });
   });
 
   group('Telemetry decode + heartbeat gate', () {

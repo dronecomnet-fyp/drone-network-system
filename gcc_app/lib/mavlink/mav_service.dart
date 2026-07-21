@@ -1,12 +1,12 @@
 /// MavService: the GCC's MAVLink link to the system drone's flight
 /// controller (file 04 Drone Control, file 08).
 ///
-/// Transport is UDP over whatever Wi-Fi the laptop is on: directly on the
-/// ESP32 DroneBridge AP (the primary path this phase), where the ESP32
-/// bridges Wi-Fi UDP to the CC3D Revo Mini's serial MAVLink. The system
-/// drone's Pi 4 has a single radio and no second adapter, so it cannot be
-/// a DTN mesh node this phase; the mesh-relay path is documented as a
-/// limitation in docs/DRONE_LINK.md, not faked here.
+/// Transport is UDP over whatever Wi-Fi the laptop is on. DRONE_S is now a
+/// full mesh node: its Pi connects to the CC3D over USB and runs
+/// mavlink_gateway (serial<->UDP), so the GCC reaches the FC either
+/// DIRECTLY on RESCUE_S (10.42.0.1:14550) or RELAYED through a volunteer
+/// node over the mesh (10.99.0.3:14550). Both are live MAVLink, never DTN
+/// store-and-forward. See docs/DRONE_LINK.md.
 ///
 /// Safety model (file 04 / file 08, non-negotiable):
 ///   - Every command button is gated on a MAVLink heartbeat fresher than
@@ -270,8 +270,43 @@ class MavService {
         p2: copterMode.toDouble()));
   }
 
-  void returnToLaunch() => setMode(CopterMode.rtl);
+  /// Return to launch via the explicit NAV command (works from any mode on
+  /// ArduCopter). Used by the RECALL button AND the fleet battery watchdog
+  /// (M7f), so a low battery always sends the drone home. NOTE: the flight
+  /// policy is unchanged, PROPS-OFF ground testing only; this is observed
+  /// on the bench, not flown, until the operator clears free flight.
+  void returnToLaunch() => _send(_cmd(mavCmdNavReturnToLaunch));
+
   void land() => setMode(CopterMode.land);
+
+  /// Guided takeoff to [altM] metres. ArduCopter requires GUIDED + armed
+  /// first; the fleet controller sequences setMode(guided) -> arm ->
+  /// takeoff. Bench: with props off this is the command pipeline proof, the
+  /// FC accepts and acks it, motors are not spun to flight.
+  void takeoff(double altM) =>
+      _send(_cmd(mavCmdNavTakeoff, p7: altM));
+
+  /// Reposition to a lat/lon in GUIDED via DO_REPOSITION. Uses COMMAND_INT
+  /// because lat/lon as degrees*1e7 need int32 precision a float param
+  /// cannot hold. [altM] is above home (MAV_FRAME_GLOBAL_RELATIVE_ALT).
+  void gotoLocation(double lat, double lon, double altM,
+      {double groundSpeed = -1}) {
+    _send(CommandInt(
+      param1: groundSpeed, // -1 = use default speed
+      param2: 0, // MAV_DO_REPOSITION_FLAGS
+      param3: 0,
+      param4: double.nan, // yaw: keep current heading
+      x: (lat * 1e7).round(),
+      y: (lon * 1e7).round(),
+      z: altM,
+      command: mavCmdDoReposition,
+      targetSystem: targetSystem,
+      targetComponent: targetComponent,
+      frame: mavFrameGlobalRelativeAlt,
+      current: 0,
+      autocontinue: 0,
+    ));
+  }
 
   void dispose() {
     disconnect();

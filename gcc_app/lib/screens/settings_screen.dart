@@ -20,6 +20,11 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _baseUrlCtrl;
   late final TextEditingController _apiKeyCtrl;
+  late final TextEditingController _prodUrlCtrl;
+  late final TextEditingController _prodKeyCtrl;
+  late final TextEditingController _aiEndpointCtrl;
+  late final TextEditingController _aiModelCtrl;
+  late final TextEditingController _aiKeyCtrl;
 
   @override
   void initState() {
@@ -27,6 +32,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final app = context.read<AppState>();
     _baseUrlCtrl = TextEditingController(text: app.baseUrl);
     _apiKeyCtrl = TextEditingController(text: app.apiKey);
+    _prodUrlCtrl = TextEditingController(text: app.productApiUrl);
+    _prodKeyCtrl = TextEditingController(text: app.productApiKey);
+    _aiEndpointCtrl = TextEditingController(text: app.aiEndpoint);
+    _aiModelCtrl = TextEditingController(text: app.aiModel);
+    _aiKeyCtrl = TextEditingController(text: app.aiApiKey);
+  }
+
+  @override
+  void dispose() {
+    _baseUrlCtrl.dispose();
+    _apiKeyCtrl.dispose();
+    _prodUrlCtrl.dispose();
+    _prodKeyCtrl.dispose();
+    _aiEndpointCtrl.dispose();
+    _aiModelCtrl.dispose();
+    _aiKeyCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -178,8 +200,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 8),
                 // Free-form host:port so it can point at whatever the drone
-                // exposes. Preset chips fill common cases; the ESP32
-                // DroneBridge default (192.168.2.1) is the primary path.
+                // exposes. Preset chips fill the two live paths to the Pi
+                // MAVLink gateway on DRONE_S (DIRECT on RESCUE_S, RELAY via
+                // the mesh).
                 TextFormField(
                   key: ValueKey(app.mavlinkTarget),
                   initialValue: app.mavlinkTarget,
@@ -213,6 +236,124 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'a volunteer AP (RESCUE_A/B) and use 10.99.0.3:14550, routed '
                   'live across the mesh to the drone. Both reach the same Pi '
                   'MAVLink gateway on the system drone.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // --- Product site (M7c) --------------------------------------------------
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Product site (spec lookup, online)',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 8),
+                const Text(
+                  'When online at HQ, the Mission tab fetches a unit\'s specs '
+                  'by ID from our product site and caches them into the '
+                  'mission file, so the field stays offline. The anon key is '
+                  'public by design (row-level security guards the data).',
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _prodUrlCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Supabase URL',
+                    hintText: 'https://xxxx.supabase.co',
+                  ),
+                  onSubmitted: (v) => app.updateSettings(newProductApiUrl: v),
+                ),
+                TextField(
+                  controller: _prodKeyCtrl,
+                  decoration: const InputDecoration(labelText: 'Anon key'),
+                  onSubmitted: (v) => app.updateSettings(newProductApiKey: v),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  app.productApiConfigured
+                      ? 'Configured.'
+                      : 'Not configured: spec fetch is disabled; enter specs '
+                          'manually on the Mission tab.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // --- AI deployment advisor (M7e) -----------------------------------------
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('AI deployment advisor (online)',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 8),
+                const Text(
+                  'OpenAI-compatible endpoint used at HQ to suggest a drone '
+                  'deployment from the mission (free tiers work: Groq, '
+                  'OpenRouter). The suggestion is always validated and the '
+                  'operator approves it; the field plans manually offline.',
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    ActionChip(
+                      label: const Text('Groq'),
+                      onPressed: () {
+                        _aiEndpointCtrl.text = 'https://api.groq.com/openai/v1';
+                        _aiModelCtrl.text = 'llama-3.3-70b-versatile';
+                        app.updateSettings(
+                            newAiEndpoint: _aiEndpointCtrl.text,
+                            newAiModel: _aiModelCtrl.text);
+                      },
+                    ),
+                    ActionChip(
+                      label: const Text('OpenRouter'),
+                      onPressed: () {
+                        _aiEndpointCtrl.text = 'https://openrouter.ai/api/v1';
+                        _aiModelCtrl.text =
+                            'meta-llama/llama-3.3-70b-instruct:free';
+                        app.updateSettings(
+                            newAiEndpoint: _aiEndpointCtrl.text,
+                            newAiModel: _aiModelCtrl.text);
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _aiEndpointCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'Base URL (…/v1)'),
+                  onSubmitted: (v) => app.updateSettings(newAiEndpoint: v),
+                ),
+                TextField(
+                  controller: _aiModelCtrl,
+                  decoration: const InputDecoration(labelText: 'Model'),
+                  onSubmitted: (v) => app.updateSettings(newAiModel: v),
+                ),
+                TextField(
+                  controller: _aiKeyCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'API key'),
+                  onSubmitted: (v) => app.updateSettings(newAiApiKey: v),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  app.aiConfigured
+                      ? 'Configured.'
+                      : 'Not configured: the AI suggest button is disabled.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -262,6 +403,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               await app.updateSettings(
                 newBaseUrl: _baseUrlCtrl.text,
                 newApiKey: _apiKeyCtrl.text,
+                newProductApiUrl: _prodUrlCtrl.text,
+                newProductApiKey: _prodKeyCtrl.text,
+                newAiEndpoint: _aiEndpointCtrl.text,
+                newAiModel: _aiModelCtrl.text,
+                newAiApiKey: _aiKeyCtrl.text,
               );
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(

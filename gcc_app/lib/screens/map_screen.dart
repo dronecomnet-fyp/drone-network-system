@@ -25,7 +25,8 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../state/data_store.dart';
-import '../state/plan_state.dart';
+import '../state/fleet_state.dart';
+import '../state/mission_state.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -39,8 +40,38 @@ class _MapScreenState extends State<MapScreen> {
   String _openedPath = '';
   String? _tileError;
 
+  // When a placement is selected in the panel, the next map tap MOVES it
+  // (flutter_map has no native marker drag).
+  DronePlacement? _selected;
+
   // Sri Lanka centroid as the no-data fallback view.
   static const _fallbackCenter = LatLng(7.8731, 80.7718);
+
+  Color _roleColor(String role) {
+    switch (role) {
+      case kRoleMeshRelay:
+        return Colors.cyanAccent;
+      case kRoleSystemDrone:
+        return Colors.pinkAccent;
+      default:
+        return Colors.amber;
+    }
+  }
+
+  Color _fleetPhaseColor(FleetPhase p) {
+    switch (p) {
+      case FleetPhase.onStation:
+        return Colors.greenAccent;
+      case FleetPhase.returning:
+        return Colors.orangeAccent;
+      case FleetPhase.fallback:
+        return Colors.deepOrange;
+      case FleetPhase.lost:
+        return Colors.redAccent;
+      default:
+        return Colors.amberAccent;
+    }
+  }
 
   @override
   void dispose() {
@@ -75,8 +106,11 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     final data = context.watch<DataStore>();
-    final plan = context.watch<PlanState>();
+    final mission = context.watch<MissionState>();
+    final fleet = context.watch<FleetState>();
     _syncTiles(app.mbtilesPath);
+
+    final active = mission.activeDeployment;
 
     return Stack(
       children: [
@@ -84,9 +118,7 @@ class _MapScreenState extends State<MapScreen> {
           options: MapOptions(
             initialCenter: _initialCenter(data),
             initialZoom: 13,
-            onTap: (tapPosition, latlng) {
-              if (plan.planningMode) _addPlanMarker(context, latlng);
-            },
+            onTap: (tapPosition, latlng) => _onMapTap(context, mission, latlng),
           ),
           children: [
             if (_mbtiles != null)
@@ -94,19 +126,33 @@ class _MapScreenState extends State<MapScreen> {
                 tileProvider: MbTilesTileProvider(
                     mbtiles: _mbtiles!, silenceTileNotFound: true),
               ),
+            if (mission.area.length >= 3)
+              PolygonLayer(
+                polygons: [
+                  Polygon(
+                    points: mission.area
+                        .map((p) => LatLng(p.lat, p.lon))
+                        .toList(),
+                    color: Colors.lightBlue.withValues(alpha: 0.10),
+                    borderColor: Colors.lightBlueAccent,
+                    borderStrokeWidth: 2,
+                  ),
+                ],
+              ),
             CircleLayer(
-              circles: plan.markers
-                  .map((m) => CircleMarker(
-                        point: LatLng(m.lat, m.lon),
-                        radius: m.radiusM,
-                        useRadiusInMeter: true,
-                        color: Colors.amber.withValues(alpha: 0.15),
-                        borderColor: Colors.amber,
-                        borderStrokeWidth: 1.5,
-                      ))
-                  .toList(),
+              circles: [
+                for (final p in active?.placements ?? const <DronePlacement>[])
+                  CircleMarker(
+                    point: LatLng(p.lat, p.lon),
+                    radius: p.radiusM,
+                    useRadiusInMeter: true,
+                    color: _roleColor(p.role).withValues(alpha: 0.12),
+                    borderColor: _roleColor(p.role),
+                    borderStrokeWidth: p == _selected ? 3 : 1.5,
+                  ),
+              ],
             ),
-            MarkerLayer(markers: _buildMarkers(data, plan)),
+            MarkerLayer(markers: _buildMarkers(data, mission, fleet)),
           ],
         ),
         if (_mbtiles == null)
@@ -135,16 +181,19 @@ class _MapScreenState extends State<MapScreen> {
         Positioned(
           top: _mbtiles == null ? 84 : 12,
           right: 12,
-          child: _PlanPanel(
-            onSave: () => _savePlan(context),
-            onLoad: () => _loadPlan(context),
+          child: _MissionPanel(
+            selected: _selected,
+            onSelect: (p) => setState(() => _selected = p),
+            onSave: () => _saveMission(context),
+            onLoad: () => _loadMission(context),
           ),
         ),
       ],
     );
   }
 
-  List<Marker> _buildMarkers(DataStore data, PlanState plan) {
+  List<Marker> _buildMarkers(
+      DataStore data, MissionState mission, FleetState fleet) {
     final markers = <Marker>[];
 
     // Victim messages with a user location.
@@ -227,20 +276,72 @@ class _MapScreenState extends State<MapScreen> {
       ));
     }
 
-    // Planning markers.
-    for (final p in plan.markers) {
+    // Area polygon vertices (draw mode), so the operator sees each tap.
+    if (mission.area.isNotEmpty) {
+      for (var i = 0; i < mission.area.length; i++) {
+        final v = mission.area[i];
+        markers.add(Marker(
+          point: LatLng(v.lat, v.lon),
+          width: 14,
+          height: 14,
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.lightBlueAccent,
+              border: Border.all(color: Colors.black54),
+            ),
+          ),
+        ));
+      }
+    }
+
+    // Deployed drones (M7f): moving through their lifecycle. Color by phase.
+    for (final d in fleet.deployed) {
+      if (d.phase == FleetPhase.landed) continue;
+      final color = _fleetPhaseColor(d.phase);
+      markers.add(Marker(
+        point: LatLng(d.curLat, d.curLon),
+        width: 150,
+        height: 46,
+        child: Tooltip(
+          message: '${d.label}: ${d.phase.label}\n${d.note}',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(d.phase == FleetPhase.fallback
+                  ? Icons.wifi_tethering_off
+                  : Icons.flight, size: 28, color: color),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                color: Colors.black54,
+                child: Text('${d.label} ${d.phase.label}',
+                    style: const TextStyle(fontSize: 10),
+                    overflow: TextOverflow.ellipsis),
+              ),
+            ],
+          ),
+        ),
+      ));
+    }
+
+    // Active deployment placements (role-colored, selectable).
+    for (final p in mission.activeDeployment?.placements ??
+        const <DronePlacement>[]) {
+      final color = _roleColor(p.role);
+      final selected = p == _selected;
       markers.add(Marker(
         point: LatLng(p.lat, p.lon),
-        width: 120,
-        height: 48,
+        width: 140,
+        height: 52,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.push_pin, size: 24, color: Colors.amber),
+            Icon(Icons.place,
+                size: selected ? 32 : 26, color: color),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 4),
-              color: Colors.black54,
-              child: Text(p.name,
+              color: selected ? color.withValues(alpha: 0.6) : Colors.black54,
+              child: Text('${p.name} (${p.assignedDrone.isEmpty ? p.role : p.assignedDrone})',
                   style: const TextStyle(fontSize: 11),
                   overflow: TextOverflow.ellipsis),
             ),
@@ -252,160 +353,248 @@ class _MapScreenState extends State<MapScreen> {
     return markers;
   }
 
-  Future<void> _addPlanMarker(BuildContext context, LatLng latlng) async {
+  /// Map tap dispatch: draw an area vertex, move the selected placement,
+  /// or drop a new placement, depending on the active mode.
+  Future<void> _onMapTap(
+      BuildContext context, MissionState mission, LatLng latlng) async {
+    if (mission.areaDrawMode) {
+      mission.addAreaVertex(latlng.latitude, latlng.longitude);
+      return;
+    }
+    if (!mission.planningMode) return;
+    if (_selected != null) {
+      mission.movePlacement(_selected!, latlng.latitude, latlng.longitude);
+      setState(() => _selected = null);
+      return;
+    }
+    await _addPlacement(context, mission, latlng);
+  }
+
+  Future<void> _addPlacement(
+      BuildContext context, MissionState mission, LatLng latlng) async {
     final app = context.read<AppState>();
-    final plan = context.read<PlanState>();
-    final nameCtrl = TextEditingController(
-        text: 'position ${plan.markers.length + 1}');
+    final active = mission.activeDeployment;
+    final count = active?.placements.length ?? 0;
+    final nameCtrl = TextEditingController(text: 'position ${count + 1}');
     final radiusCtrl =
         TextEditingController(text: app.coverageRadiusM.toStringAsFixed(0));
+    var role = kRoleUserAp;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Planning marker'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('${latlng.latitude.toStringAsFixed(5)}, '
-                '${latlng.longitude.toStringAsFixed(5)}'),
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(
-                  labelText: 'Name', hintText: 'e.g. place drone here'),
-            ),
-            TextField(
-              controller: radiusCtrl,
-              keyboardType: TextInputType.number,
-              decoration:
-                  const InputDecoration(labelText: 'Coverage radius (m)'),
-            ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Placement'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('${latlng.latitude.toStringAsFixed(5)}, '
+                  '${latlng.longitude.toStringAsFixed(5)}'),
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: 'Name'),
+              ),
+              DropdownButtonFormField<String>(
+                initialValue: role,
+                decoration: const InputDecoration(labelText: 'Role'),
+                items: const [
+                  DropdownMenuItem(
+                      value: kRoleUserAp, child: Text('user AP (victim coverage)')),
+                  DropdownMenuItem(
+                      value: kRoleMeshRelay, child: Text('mesh relay')),
+                  DropdownMenuItem(
+                      value: kRoleSystemDrone, child: Text('system drone')),
+                ],
+                onChanged: (v) => setLocal(() => role = v ?? kRoleUserAp),
+              ),
+              TextField(
+                controller: radiusCtrl,
+                keyboardType: TextInputType.number,
+                decoration:
+                    const InputDecoration(labelText: 'Coverage radius (m)'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Add')),
           ],
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Add')),
-        ],
       ),
     );
     if (confirmed != true) return;
     final radius = double.tryParse(radiusCtrl.text) ?? app.coverageRadiusM;
-    plan.addMarker(PlanMarker(
-      name: nameCtrl.text.trim().isEmpty ? 'marker' : nameCtrl.text.trim(),
+    mission.addPlacement(DronePlacement(
+      name: nameCtrl.text.trim().isEmpty ? 'placement' : nameCtrl.text.trim(),
       lat: latlng.latitude,
       lon: latlng.longitude,
+      role: role,
       radiusM: radius,
     ));
     await app.updateSettings(newCoverageRadiusM: radius);
   }
 
-  Future<void> _savePlan(BuildContext context) async {
-    final plan = context.read<PlanState>();
+  Future<void> _saveMission(BuildContext context) async {
+    final mission = context.read<MissionState>();
     final path = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save operation plan',
-      fileName: 'operation_plan.json',
+      dialogTitle: 'Save mission',
+      fileName:
+          '${mission.missionName.replaceAll(RegExp(r"[^A-Za-z0-9_-]"), "_")}.json',
       type: FileType.custom,
       allowedExtensions: ['json'],
     );
     if (path == null) return;
-    final err = await plan.saveToFile(path);
+    final err = await mission.saveToFile(path);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(err ?? 'Plan saved to $path')));
+          SnackBar(content: Text(err ?? 'Mission saved to $path')));
     }
   }
 
-  Future<void> _loadPlan(BuildContext context) async {
-    final plan = context.read<PlanState>();
+  Future<void> _loadMission(BuildContext context) async {
+    final mission = context.read<MissionState>();
     final result = await FilePicker.platform.pickFiles(
-      dialogTitle: 'Load operation plan',
+      dialogTitle: 'Load mission or legacy plan',
       type: FileType.custom,
       allowedExtensions: ['json'],
     );
     final path = result?.files.single.path;
     if (path == null) return;
-    final err = await plan.loadFromFile(path);
-    if (context.mounted && err != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(err)));
+    final err = await mission.loadFromFile(path);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(err ?? 'Loaded ${mission.missionName}')));
     }
+    setState(() => _selected = null);
   }
 }
 
-class _PlanPanel extends StatelessWidget {
+class _MissionPanel extends StatelessWidget {
+  final DronePlacement? selected;
+  final ValueChanged<DronePlacement?> onSelect;
   final VoidCallback onSave;
   final VoidCallback onLoad;
 
-  const _PlanPanel({required this.onSave, required this.onLoad});
+  const _MissionPanel({
+    required this.selected,
+    required this.onSelect,
+    required this.onSave,
+    required this.onLoad,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final plan = context.watch<PlanState>();
+    final mission = context.watch<MissionState>();
+    final active = mission.activeDeployment;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Planning'),
-                const SizedBox(width: 8),
-                Switch(
-                  value: plan.planningMode,
-                  onChanged: (_) => plan.togglePlanning(),
-                ),
-              ],
-            ),
-            if (plan.planningMode) ...[
-              Text('tap the map to drop a marker',
-                  style: Theme.of(context).textTheme.bodySmall),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 6,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 260),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  OutlinedButton(onPressed: onSave, child: const Text('Save')),
-                  OutlinedButton(onPressed: onLoad, child: const Text('Load')),
-                  OutlinedButton(
-                    onPressed:
-                        plan.markers.isEmpty ? null : () => plan.clear(),
-                    child: const Text('Clear'),
+                  const Text('Planning'),
+                  const Spacer(),
+                  Switch(
+                    value: mission.planningMode,
+                    onChanged: (_) => mission.togglePlanning(),
                   ),
                 ],
               ),
-              if (plan.markers.isNotEmpty)
-                ConstrainedBox(
-                  constraints:
-                      const BoxConstraints(maxHeight: 180, maxWidth: 240),
-                  child: ListView(
-                    shrinkWrap: true,
-                    children: plan.markers
-                        .map((m) => ListTile(
-                              dense: true,
-                              title: Text(m.name,
-                                  overflow: TextOverflow.ellipsis),
-                              subtitle:
-                                  Text('${m.radiusM.toStringAsFixed(0)} m'),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete_outline,
-                                    size: 18),
-                                onPressed: () => plan.removeMarker(m),
-                              ),
-                            ))
-                        .toList(),
-                  ),
+              if (mission.planningMode) ...[
+                Text('Mission: ${mission.missionName}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: Icon(
+                            mission.areaDrawMode
+                                ? Icons.check
+                                : Icons.pentagon_outlined,
+                            size: 16),
+                        label: Text(
+                            mission.areaDrawMode ? 'Done area' : 'Draw area'),
+                        onPressed: () => mission.toggleAreaDraw(),
+                      ),
+                    ),
+                    if (mission.area.isNotEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.undo, size: 18),
+                        tooltip: 'undo vertex',
+                        onPressed: () => mission.undoAreaVertex(),
+                      ),
+                  ],
                 ),
+                if (mission.areaDrawMode)
+                  Text('tap to add polygon vertices (${mission.area.length})',
+                      style: Theme.of(context).textTheme.bodySmall),
+                if (!mission.areaDrawMode)
+                  Text(
+                      selected == null
+                          ? 'tap the map to add a placement'
+                          : 'tap the map to MOVE "${selected!.name}"',
+                      style: Theme.of(context).textTheme.bodySmall),
+                const Divider(),
+                Text(
+                    active == null
+                        ? 'no active deployment'
+                        : 'deployment: ${active.name}',
+                    style: Theme.of(context).textTheme.labelSmall),
+                if (active != null && active.placements.isNotEmpty)
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 170),
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: active.placements
+                          .map((p) => ListTile(
+                                dense: true,
+                                selected: p == selected,
+                                onTap: () =>
+                                    onSelect(p == selected ? null : p),
+                                title: Text(p.name,
+                                    overflow: TextOverflow.ellipsis),
+                                subtitle: Text(
+                                    '${p.role}  ${p.radiusM.toStringAsFixed(0)} m'),
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.delete_outline,
+                                      size: 18),
+                                  onPressed: () {
+                                    if (p == selected) onSelect(null);
+                                    mission.removePlacement(p);
+                                  },
+                                ),
+                              ))
+                          .toList(),
+                    ),
+                  ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  alignment: WrapAlignment.end,
+                  children: [
+                    OutlinedButton(onPressed: onSave, child: const Text('Save')),
+                    OutlinedButton(onPressed: onLoad, child: const Text('Load')),
+                  ],
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
   }
+
 }
 
 class _LegendCard extends StatelessWidget {
@@ -434,7 +623,9 @@ class _LegendCard extends StatelessWidget {
             row(Icons.airplanemode_active, Colors.cyanAccent, 'node (live)'),
             row(Icons.airplanemode_inactive, Colors.redAccent,
                 'node DEGRADED'),
-            row(Icons.push_pin, Colors.amber, 'plan marker'),
+            row(Icons.place, Colors.amber, 'placement: user AP'),
+            row(Icons.place, Colors.cyanAccent, 'placement: mesh relay'),
+            row(Icons.place, Colors.pinkAccent, 'placement: system drone'),
           ],
         ),
       ),

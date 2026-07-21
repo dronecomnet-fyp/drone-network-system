@@ -10,7 +10,7 @@ import 'dart:async';
 import 'package:dart_mavlink/dialects/ardupilotmega.dart' show CommandAck;
 import 'package:flutter/foundation.dart';
 
-import '../mavlink/mav_service.dart';
+import '../mavlink/mav_service.dart' show MavService, Telemetry, MavStatusText, CopterMode;
 
 class DroneController extends ChangeNotifier {
   final MavService _svc;
@@ -72,6 +72,25 @@ class DroneController extends ChangeNotifier {
   void setMode(int mode) => _svc.setMode(mode);
   void land() => _svc.land();
   void returnToLaunch() => _svc.returnToLaunch();
+  void takeoff(double altM) => _svc.takeoff(altM);
+  void gotoLocation(double lat, double lon, double altM) =>
+      _svc.gotoLocation(lat, lon, altM);
+
+  /// The system drone's deploy sequence used by the fleet manager (M7f):
+  /// GUIDED, arm, takeoff, then reposition to the station. Small delays let
+  /// the FC settle between steps (mode before arm, arm before takeoff).
+  /// PROPS-OFF bench verification only: on the bench this is the command
+  /// pipeline proof (each step acks, motors spin), not a flown mission.
+  Future<void> deploySequence(double lat, double lon, double altM) async {
+    if (!linkFresh) return; // never command a dead link
+    setMode(CopterMode.guided);
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    arm();
+    await Future<void>.delayed(const Duration(milliseconds: 800));
+    takeoff(altM);
+    await Future<void>.delayed(const Duration(milliseconds: 800));
+    gotoLocation(lat, lon, altM);
+  }
 
   @override
   void dispose() {

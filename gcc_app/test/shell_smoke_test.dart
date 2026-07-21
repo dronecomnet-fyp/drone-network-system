@@ -4,7 +4,8 @@ import 'package:gcc_app/main.dart';
 import 'package:gcc_app/state/app_state.dart';
 import 'package:gcc_app/state/data_store.dart';
 import 'package:gcc_app/state/drone_controller.dart';
-import 'package:gcc_app/state/plan_state.dart';
+import 'package:gcc_app/state/fleet_state.dart';
+import 'package:gcc_app/state/mission_state.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -13,9 +14,10 @@ Widget _shell(AppState app) => MultiProvider(
         ChangeNotifierProvider.value(value: app),
         // DataStore deliberately NOT started: no timers, no network.
         ChangeNotifierProvider(create: (_) => DataStore(app)),
-        ChangeNotifierProvider(create: (_) => PlanState()),
+        ChangeNotifierProvider(create: (_) => MissionState()),
         // DroneController not connected: no socket, no MAVLink.
         ChangeNotifierProvider(create: (_) => DroneController()),
+        ChangeNotifierProvider(create: (_) => FleetState()),
       ],
       child: MaterialApp(
         theme: ThemeData(
@@ -80,7 +82,11 @@ void main() {
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Fleet CA: NOT LOADED'), findsOneWidget);
-    expect(find.textContaining('Break-glass HQ key'), findsOneWidget);
+    // The break-glass card is further down the (now longer) settings list.
+    final breakGlass = find.textContaining('Break-glass HQ key');
+    await tester.scrollUntilVisible(breakGlass, 300,
+        scrollable: find.byType(Scrollable).first);
+    expect(breakGlass, findsOneWidget);
   });
 
   testWidgets('HQ break-glass key unlocks personnel and compose surfaces',

@@ -27,6 +27,14 @@ class AppState extends ChangeNotifier {
   static const _kSession = 'session_json';
   static const _kMavlinkTarget = 'mavlink_target';
   static const _kCoverageRadiusM = 'coverage_radius_m';
+  // Product site (M7c): Supabase project the GCC fetches unit specs from
+  // while online. The anon key is public by design (RLS enforces access).
+  static const _kProductApiUrl = 'product_api_url';
+  static const _kProductApiKey = 'product_api_key';
+  // AI advisor (M7e): OpenAI-compatible endpoint + model + key (free tier).
+  static const _kAiEndpoint = 'ai_endpoint';
+  static const _kAiModel = 'ai_model';
+  static const _kAiApiKey = 'ai_api_key';
 
   SharedPreferences? _prefs;
 
@@ -42,6 +50,19 @@ class AppState extends ChangeNotifier {
   ///   RELAY:  laptop on RESCUE_A/B -> mesh -> 10.99.0.3:14550
   String mavlinkTarget = 'udp:10.42.0.1:14550';
   double coverageRadiusM = 300;
+
+  // Product site (M7c) and AI advisor (M7e). All entered at runtime, never
+  // committed. The Supabase anon key is public by design; the AI key is not,
+  // so the UI masks it.
+  String productApiUrl = '';
+  String productApiKey = '';
+  String aiEndpoint = 'https://api.groq.com/openai/v1';
+  String aiModel = 'llama-3.3-70b-versatile';
+  String aiApiKey = '';
+
+  bool get productApiConfigured =>
+      productApiUrl.isNotEmpty && productApiKey.isNotEmpty;
+  bool get aiConfigured => aiEndpoint.isNotEmpty && aiApiKey.isNotEmpty;
 
   AuthSession? session;
   RescueMeshClient? _client;
@@ -82,6 +103,11 @@ class AppState extends ChangeNotifier {
     mbtilesPath = p.getString(_kMbtilesPath) ?? '';
     mavlinkTarget = p.getString(_kMavlinkTarget) ?? mavlinkTarget;
     coverageRadiusM = p.getDouble(_kCoverageRadiusM) ?? coverageRadiusM;
+    productApiUrl = p.getString(_kProductApiUrl) ?? '';
+    productApiKey = p.getString(_kProductApiKey) ?? '';
+    aiEndpoint = p.getString(_kAiEndpoint) ?? aiEndpoint;
+    aiModel = p.getString(_kAiModel) ?? aiModel;
+    aiApiKey = p.getString(_kAiApiKey) ?? '';
     final sessionJson = p.getString(_kSession);
     if (sessionJson != null && sessionJson.isNotEmpty) {
       try {
@@ -103,6 +129,11 @@ class AppState extends ChangeNotifier {
     String? newMbtilesPath,
     String? newMavlinkTarget,
     double? newCoverageRadiusM,
+    String? newProductApiUrl,
+    String? newProductApiKey,
+    String? newAiEndpoint,
+    String? newAiModel,
+    String? newAiApiKey,
   }) async {
     final p = _prefs;
     if (newBaseUrl != null) {
@@ -132,6 +163,26 @@ class AppState extends ChangeNotifier {
     if (newCoverageRadiusM != null) {
       coverageRadiusM = newCoverageRadiusM;
       await p?.setDouble(_kCoverageRadiusM, coverageRadiusM);
+    }
+    if (newProductApiUrl != null) {
+      productApiUrl = newProductApiUrl.trim();
+      await p?.setString(_kProductApiUrl, productApiUrl);
+    }
+    if (newProductApiKey != null) {
+      productApiKey = newProductApiKey.trim();
+      await p?.setString(_kProductApiKey, productApiKey);
+    }
+    if (newAiEndpoint != null) {
+      aiEndpoint = newAiEndpoint.trim();
+      await p?.setString(_kAiEndpoint, aiEndpoint);
+    }
+    if (newAiModel != null) {
+      aiModel = newAiModel.trim();
+      await p?.setString(_kAiModel, aiModel);
+    }
+    if (newAiApiKey != null) {
+      aiApiKey = newAiApiKey.trim();
+      await p?.setString(_kAiApiKey, aiApiKey);
     }
     _rebuildClient();
   }
