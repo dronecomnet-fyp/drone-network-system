@@ -136,3 +136,70 @@ Phase 1 security docs) is flagged here, never silently drifted.
     but the relay path is now firewalled (nftables-drone-s.nft restricts
     UDP 14550 to 10.42.0.0/24 and the volunteer mesh addresses), which is
     file 09 plane 4 LAYER 1. Signing (layer 2) remains future work.
+
+## 2026-07-21 Phase 2 mission layer (M7: planning, live ops, product site, AI)
+
+20. New synced table personnel_locations (M7d): rescuers' last known
+    positions replicate fleet-wide. Chosen shape: latest-per-personnel,
+    newest-signed-updated_at wins (the personnel table pattern), NOT the
+    append-only checkin pattern. Reason: the GCC needs one current marker
+    per rescuer, not a history; upsert-by-personnel_id keeps the table small
+    and the sync merge simple. Rejected: append-only + GROUP BY MAX at read
+    (works, but grows without bound for a live-position use case). Follows
+    all existing controls: K_MSG record signature, verified at sync;
+    identity taken from the session token, never the request body. The table
+    is created automatically at service start (CREATE TABLE IF NOT EXISTS),
+    no migration; see deploy/node_update_locations.html.
+
+21. Rescuer location tracking is FOREGROUND-ONLY (M7d), an accepted
+    limitation. The rescue app heartbeats every ~90 s only while logged in
+    and in the foreground; background and logged-out send nothing. Reason:
+    battery. Continuous background tracking (WorkManager foreground service)
+    is documented future work; the emergency_app already has the pattern
+    (location_logger.dart) if it is ever wanted. Consequence: the operator
+    sees each rescuer's LAST known position with its age, never a live
+    stream. No new Android permissions (FINE/COARSE already declared).
+
+22. Product data moves to a real hosted backend (M7c): a Supabase project
+    (PostgREST + row-level security) backs the product website and the GCC
+    unit-spec lookup. Decision: the anon key is public by design (embedded
+    in the site and enterable in the GCC); RLS is the access control (anon
+    reads products/units, insert-only on quotes; the service_role key is
+    never committed). Supersedes the earlier assumption that product specs
+    would be hard-coded; the GCC now fetches a unit's specs by ID online and
+    caches them into the mission so the field stays offline.
+
+23. Fleet management is a two-mode coordination layer (M7f), not multi-drone
+    flight. Reality (file 08 scope guard) is unchanged: only DRONE_S has a
+    flight controller the GCC commands. So "manage 10 drones" is handled by
+    a DEMO simulator (any count, exam-safe) that flies each drone, drains a
+    modelled battery, and auto-returns before a 1.5x-home-energy reserve is
+    spent; the REAL path (DRONE_S only) uses the existing heartbeat-gated
+    MAVLink with added takeoff / DO_REPOSITION / NAV_RETURN_TO_LAUNCH and a
+    per-cell-voltage watchdog. FLIGHT POLICY UNCHANGED: props-off bench
+    verification only; free flight waits for the operator's explicit safety
+    clearance. Inventory accounting ("Deployed X / Y available") disables
+    Deploy when the pool is empty, so the platform manages the whole
+    operation even though one drone is ours. Battery/cruise figures are
+    tunable estimates (confidence Low/Moderate, labelled in code).
+
+24. The AI deployment advisor (M7e) speaks the OpenAI-compatible chat API,
+    not the Anthropic API. Reason: a FREE tier was required (Groq,
+    OpenRouter). Endpoint/model/key are entered in Settings and never
+    committed. The model only PROPOSES placements as JSON; the app validates
+    them (point-in-polygon, count, mesh connectivity, one system drone,
+    radius clamp) and the operator approves on the map. The AI never
+    commands a drone, and planning is online-only (HQ); the field plans
+    manually. This supersedes the earlier plan note that assumed the
+    Anthropic API; both are reachable through the same OpenAI-compatible
+    code path (Anthropic via OpenRouter) with no second implementation.
+
+25. PlanState (advisory markers, item from file 04) is superseded by
+    MissionState (M7b): a mission holds identity, disaster type, challenges,
+    an area polygon, a resource inventory (drones by our unit ID, volunteer
+    drones with one of our modules attached, or minimal), a product-spec
+    cache, and named deployments, saved as one local JSON file. Legacy
+    operation-plan files still import (as one approved deployment), so no
+    prior evidence is lost. Placements remain advisory: activating a
+    deployment never commands a drone (the fleet manager, item 23, is the
+    only thing that does, and only for DRONE_S, props-off).
