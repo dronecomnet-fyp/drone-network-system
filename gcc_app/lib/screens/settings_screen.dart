@@ -323,7 +323,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onPressed: () {
                         _aiEndpointCtrl.text = 'https://openrouter.ai/api/v1';
                         _aiModelCtrl.text =
-                            'meta-llama/llama-3.3-70b-instruct:free';
+                            'nvidia/nemotron-3-super-120b-a12b:free';
                         app.updateSettings(
                             newAiEndpoint: _aiEndpointCtrl.text,
                             newAiModel: _aiModelCtrl.text);

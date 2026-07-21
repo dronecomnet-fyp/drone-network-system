@@ -51,13 +51,16 @@ class AppState extends ChangeNotifier {
   String mavlinkTarget = 'udp:10.42.0.1:14550';
   double coverageRadiusM = 300;
 
-  // Product site (M7c) and AI advisor (M7e). All entered at runtime, never
-  // committed. The Supabase anon key is public by design; the AI key is not,
-  // so the UI masks it.
-  String productApiUrl = '';
-  String productApiKey = '';
-  String aiEndpoint = 'https://api.groq.com/openai/v1';
-  String aiModel = 'llama-3.3-70b-versatile';
+  // Product site (M7c) and AI advisor (M7e). Overridable in Settings.
+  // The Supabase URL + anon key are the project's PUBLIC client config (the
+  // anon key ships in clients by design; RLS is the access control), so they
+  // are safe defaults. The AI key is a real secret: it stays empty and is
+  // entered at runtime, never committed, and the UI masks it.
+  String productApiUrl = 'https://ysxnvsyyngkkngltwqfk.supabase.co';
+  String productApiKey =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlzeG52c3l5bmdra25nbHR3cWZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2NDk2NTUsImV4cCI6MjEwMDIyNTY1NX0.x-5B_agAms_9QIew6klSkSvIOQKwSKZX4_zf2DBXrFU';
+  String aiEndpoint = 'https://openrouter.ai/api/v1';
+  String aiModel = 'nvidia/nemotron-3-super-120b-a12b:free';
   String aiApiKey = '';
 
   bool get productApiConfigured =>
@@ -103,8 +106,8 @@ class AppState extends ChangeNotifier {
     mbtilesPath = p.getString(_kMbtilesPath) ?? '';
     mavlinkTarget = p.getString(_kMavlinkTarget) ?? mavlinkTarget;
     coverageRadiusM = p.getDouble(_kCoverageRadiusM) ?? coverageRadiusM;
-    productApiUrl = p.getString(_kProductApiUrl) ?? '';
-    productApiKey = p.getString(_kProductApiKey) ?? '';
+    productApiUrl = p.getString(_kProductApiUrl) ?? productApiUrl;
+    productApiKey = p.getString(_kProductApiKey) ?? productApiKey;
     aiEndpoint = p.getString(_kAiEndpoint) ?? aiEndpoint;
     aiModel = p.getString(_kAiModel) ?? aiModel;
     aiApiKey = p.getString(_kAiApiKey) ?? '';
