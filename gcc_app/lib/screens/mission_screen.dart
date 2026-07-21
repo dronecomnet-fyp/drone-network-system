@@ -9,6 +9,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../services/ai_advisor.dart';
 import '../services/product_api.dart';
 import '../state/app_state.dart';
 import '../state/mission_state.dart';
@@ -508,7 +509,18 @@ class _DeploymentsCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Deployments', style: Theme.of(context).textTheme.titleSmall),
+            Row(
+              children: [
+                Text('Deployments',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const Spacer(),
+                TextButton.icon(
+                  icon: const Icon(Icons.auto_awesome, size: 18),
+                  label: const Text('AI suggest'),
+                  onPressed: () => _runAiAdvisor(context, m),
+                ),
+              ],
+            ),
             Text(
               'A deployment is a set of advisory placements drawn on the Map '
               'tab. Activating one never commands a drone.',
@@ -573,5 +585,107 @@ class _DeploymentsCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _runAiAdvisor(BuildContext context, MissionState m) async {
+    final app = context.read<AppState>();
+    final messenger = ScaffoldMessenger.of(context);
+    if (!app.aiConfigured) {
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Set the AI endpoint and key in Settings first.')));
+      return;
+    }
+    if (m.area.length < 3) {
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Draw the operation area on the Map tab first.')));
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(children: [
+          CircularProgressIndicator(),
+          SizedBox(width: 16),
+          Expanded(child: Text('Asking the AI for a deployment...')),
+        ]),
+      ),
+    );
+
+    final advisor = AiAdvisor(
+      endpoint: app.aiEndpoint,
+      model: app.aiModel,
+      apiKey: app.aiApiKey,
+    );
+    try {
+      final suggestion = await advisor.suggest(m);
+      var n = 1;
+      while (m.deployments.any((d) => d.name == 'AI plan $n')) {
+        n++;
+      }
+      m.addDeployment(
+        Deployment(
+          name: 'AI plan $n',
+          source: 'ai',
+          placements: suggestion.placements,
+        ),
+      );
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // dismiss the loading dialog
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('AI plan $n (draft)'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(suggestion.summary.isEmpty
+                    ? '${suggestion.placements.length} placements proposed. '
+                        'Review and edit on the Map, then approve.'
+                    : suggestion.summary),
+                if (suggestion.warnings.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text('Warnings',
+                      style: Theme.of(ctx).textTheme.labelLarge),
+                  const SizedBox(height: 4),
+                  ...suggestion.warnings.map((w) => Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.warning_amber,
+                              size: 16, color: Colors.orangeAccent),
+                          const SizedBox(width: 6),
+                          Expanded(child: Text(w)),
+                        ],
+                      )),
+                ],
+                const SizedBox(height: 12),
+                Text(
+                  'This is a DRAFT: it is now the active deployment on the Map '
+                  'so you can edit placements, then tick approve.',
+                  style: Theme.of(ctx).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Review on map')),
+          ],
+        ),
+      );
+    } on AiAdvisorException catch (e) {
+      if (context.mounted) Navigator.of(context).pop();
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (context.mounted) Navigator.of(context).pop();
+      messenger.showSnackBar(SnackBar(content: Text('AI planning failed: $e')));
+    } finally {
+      advisor.close();
+    }
   }
 }
