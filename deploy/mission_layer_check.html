@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mission Layer Check: Site, AI, Planning, Fleet</title>
+<style>
+@font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
+:root {
+  --ink: #1b2028; --paper: #f6f4ef; --paper-raised: #eeebe3; --line: #d8d3c6;
+  --wire: #5b6b7a; --accent: #d9711c; --accent-strong: #b85c14;
+  --pass: #1f8f5b; --pass-bg: #e4f4ec; --stop: #c23a3a; --stop-bg: #fbe9e7;
+  --term-bg: #14181e; --term-fg: #e6e2d6; --term-dim: #8a93a3; --code-fg: #2a2f38;
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+  --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+  --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+  --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+  --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+    --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+    --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+    --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+body { font-family: var(--sans); font-size: 16px; line-height: 1.6; padding: 0 0 6rem; }
+::selection { background: var(--accent); color: #14181e; }
+a { color: var(--accent-strong); }
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; }
+.masthead { border-bottom: 1px solid var(--line); padding: 2.6rem 0 1.8rem; margin-bottom: 2.2rem; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--wire); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+h1.title { font-family: var(--mono); font-size: 1.9rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6rem; }
+.dek { max-width: 48ch; color: var(--wire); font-size: 1.02rem; margin: 0; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1.4rem; font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+.meta-row b { color: var(--ink); font-weight: 600; }
+.index { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin-bottom: 2.6rem; }
+.index-title { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--wire); margin: 0 0 0.7rem; }
+.index ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.25rem 1rem; }
+.index li a { display: flex; gap: 0.55rem; align-items: baseline; text-decoration: none; color: var(--ink); font-size: 0.88rem; padding: 0.2rem 0; }
+.index li a:hover { color: var(--accent-strong); }
+.index .n { font-family: var(--mono); color: var(--wire); font-size: 0.78rem; min-width: 1.4em; }
+.stage { border-left: 3px solid var(--line); padding: 0 0 0 1.3rem; margin-bottom: 2.9rem; scroll-margin-top: 1.5rem; }
+.stage.gate { border-left-color: var(--stop); }
+.stage.crit { border-left-color: var(--accent); }
+.stage-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 0.85rem; }
+.stage-num { font-family: var(--mono); font-size: 0.85rem; color: var(--wire); background: var(--paper-raised); border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.6rem; flex-shrink: 0; }
+h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+.stage ul, .stage ol.steps { margin: 0 0 1rem; padding-left: 1.25rem; max-width: 60ch; }
+.stage li { margin-bottom: 0.4rem; }
+.term { background: var(--term-bg); border-radius: 8px; margin: 0 0 1rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000); }
+.term-bar { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.term-bar .cap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--term-dim); margin-left: 0.3rem; }
+.term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
+.term-bar .led.r { background: #e5645c; } .term-bar .led.y { background: #e5b84f; } .term-bar .led.g { background: #57c273; }
+.term pre { margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg); }
+.term .prompt { color: var(--term-dim); } .term .comment { color: var(--term-dim); font-style: italic; }
+code.inline { font-family: var(--mono); font-size: 0.88em; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 4px; padding: 0.05rem 0.35rem; color: var(--code-fg); }
+.readout { background: var(--pass-bg); border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line)); border-radius: 8px; padding: 0.9rem 1.1rem 1rem; margin: 0 0 1rem; }
+.readout .label { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pass); margin-bottom: 0.55rem; }
+.readout pre, .readout code { font-family: var(--mono); font-size: 0.85rem; color: var(--code-fg); white-space: pre-wrap; word-break: break-word; margin: 0; }
+.readout .hint { font-family: var(--sans); font-size: 0.85rem; color: var(--wire); margin-top: 0.55rem; white-space: normal; }
+.gatebox { background: var(--stop-bg); border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line)); border-radius: 8px; padding: 0.95rem 1.1rem 1.05rem; margin: 0 0 0.4rem; }
+.gatebox .label { font-family: var(--mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.gatebox p { margin: 0 0 0.5rem; max-width: 58ch; font-size: 0.95rem; } .gatebox p:last-child { margin: 0; }
+.critbox { background: color-mix(in srgb, var(--accent) 12%, var(--paper)); border: 2px solid var(--accent); border-radius: 10px; padding: 1rem 1.2rem; margin: 0 0 1rem; }
+.critbox .label { font-family: var(--mono); font-weight: 700; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 0.5rem; }
+.critbox p { margin: 0 0 0.6rem; } .critbox p:last-child { margin: 0; }
+.safety { background: color-mix(in srgb, var(--stop) 14%, var(--paper)); border: 2px solid var(--stop); border-radius: 10px; padding: 1rem 1.2rem; margin: 0 0 1rem; }
+.safety .label { font-family: var(--mono); font-weight: 700; font-size: 0.82rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.safety ul { margin: 0.3rem 0 0; padding-left: 1.2rem; } .safety li { margin-bottom: 0.35rem; }
+.note { border: 1px dashed var(--line); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.88rem; color: var(--wire); margin: 0 0 1rem; max-width: 60ch; }
+.note b { color: var(--ink); }
+footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+@media (max-width: 640px) { h1.title { font-size: 1.55rem; } .index ol { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; Mission Layer &middot; M7 acceptance</div>
+    <h1 class="title">Mission Layer Check<br>Site, AI, Planning, Fleet</h1>
+    <p class="dek">Verify the whole HQ-to-field mission layer: the live product site, the GCC spec fetch, the AI planner, rescuer tracking, and the fleet manager. Each stage is a gate. Drones stay props-off throughout.</p>
+    <div class="meta-row">
+      <span><b>Site</b> dronecomnet-fyp.github.io/drone-network-system</span>
+      <span><b>Needs</b> GCC build, 1-2 phones, DRONE_S on the bench</span>
+      <span><b>Flight</b> none (props off)</span>
+    </div>
+  </header>
+
+  <div class="critbox">
+    <div class="label">Before you start</div>
+    <p>Backend already verified live from here: the product site serves the real app, Supabase returns unit <code class="inline">DRN-S-0007</code> with AeroSync 5 specs, and the OpenRouter advisor returns valid in-area placements. This runbook checks the same things through the apps, the way an examiner sees them.</p>
+    <p>Have ready: the GCC desktop build with the fleet CA loaded and an operator logged in (or the break-glass key); the OpenRouter key pasted into <b>Settings &rarr; AI deployment advisor</b>; the rescue app build with location sharing; and DRONE_S powered with <b>props off</b> for the last stage.</p>
+  </div>
+
+  <nav class="index">
+    <p class="index-title">Checks</p>
+    <ol>
+      <li><a href="#s1"><span class="n">1</span>Product site is live</a></li>
+      <li><a href="#s2"><span class="n">2</span>GCC fetches unit specs</a></li>
+      <li><a href="#s3"><span class="n">3</span>Draw area + AI suggest</a></li>
+      <li><a href="#s4"><span class="n">4</span>Rescuer on the map</a></li>
+      <li><a href="#s5"><span class="n">5</span>Fleet DEMO + auto-return</a></li>
+      <li><a href="#s6"><span class="n">6</span>Fleet REAL (DRONE_S, props off)</a></li>
+      <li><a href="#s7"><span class="n">7</span>Live Ops picture</a></li>
+      <li><a href="#s8"><span class="n">8</span>Troubleshooting</a></li>
+    </ol>
+  </nav>
+
+  <!-- 1 -->
+  <section class="stage gate" id="s1">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">The product site is live and data-backed</h2></div>
+    <p>Open the site in any browser (online). It is a real React app backed by Supabase, not a static mockup.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">browser</span></div>
+      <pre>https://dronecomnet-fyp.github.io/drone-network-system/</pre>
+    </div>
+    <ul>
+      <li><b>Catalog</b> shows three products: DroneComNet Module, Aux Module, AeroSync 5.</li>
+      <li>Open <b>AeroSync 5</b>: the 3D model rotates, and the spec table lists the CC3D flight controller, 2200 kV motors, AP/mesh ranges.</li>
+      <li><b>Unit lookup</b>: enter <code class="inline">DRN-S-0007</code> &rarr; it resolves to AeroSync 5 with the full spec JSON.</li>
+      <li><b>Request a quote</b>: add a product, submit the form &rarr; success message (writes one row to Supabase).</li>
+    </ul>
+    <div class="gatebox">
+      <div class="label">Pass when</div>
+      <p>The catalog, the 3D view, the unit lookup for <code class="inline">DRN-S-0007</code>, and a quote submission all work. If the page shows a plain README instead, GitHub Pages is still serving the branch: set Pages source to <b>GitHub Actions</b> and re-run the "Deploy product website" workflow.</p>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="stage gate" id="s2">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">The GCC fetches unit specs into a mission</h2></div>
+    <p>In the GCC (online for this step), open the <b>Mission</b> tab. Create a mission (name it, e.g. "Flood 2026"). Add a comm module by unit ID, then a drone.</p>
+    <ul>
+      <li>Add module <code class="inline">DCM-A-0042</code>. Tap its <b>fetch specs</b> (cloud) icon &rarr; snackbar "Fetched ... for DCM-A-0042"; the icon turns to a filled cloud.</li>
+      <li>Add an <b>our-brand</b> drone with unit ID <code class="inline">DRN-S-0007</code>, then fetch its specs &rarr; the row shows the AP range from the product site.</li>
+      <li>Add a <b>volunteer</b> drone ("DJI Mavic", pilot name) and attach module <code class="inline">DCM-A-0042</code>; its coverage now resolves from the module.</li>
+    </ul>
+    <div class="readout">
+      <div class="label">Behind the scenes</div>
+      <div class="hint">The GCC calls Supabase for <code>units?unit_id=eq.DRN-S-0007&amp;select=...,products(*)</code> with the public anon key and caches the result into the mission file, so once fetched a unit resolves with no network.</div>
+    </div>
+    <div class="gatebox">
+      <div class="label">Pass when</div>
+      <p>Specs appear on the drone/module rows and persist after you save and reload the mission file. Offline, a previously-fetched unit still resolves; a never-fetched one shows "specs unknown" (enter them manually, by design).</p>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="stage gate" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Draw the area, then AI-suggest a deployment</h2></div>
+    <p>On the <b>Map</b> tab, turn on <b>Planning</b>, then <b>Draw area</b> and tap a polygon around your demo location; tap Done area. Back on the <b>Mission</b> tab, tap <b>AI suggest</b> (online; the OpenRouter key must be in Settings).</p>
+    <ul>
+      <li>A short "Asking the AI..." dialog, then an <b>AI plan N (draft)</b> appears with a summary and any warnings.</li>
+      <li>It becomes the active deployment: the placements show on the map as role-colored pins with coverage circles.</li>
+      <li>Edit one (select in the panel, tap a new spot to move it), then tick <b>approve</b> on the Mission tab.</li>
+    </ul>
+    <div class="readout">
+      <div class="label">The validator is the guarantee</div>
+      <div class="hint">The AI only proposes JSON. The GCC validates it before rendering: placements outside the polygon, more than the available drones, a second system drone, or a node out of mesh range each raise a warning. Verified from here: a 3-drone request returned 3 placements, all inside the area, one system drone.</div>
+    </div>
+    <div class="gatebox">
+      <div class="label">Pass when</div>
+      <p>An AI draft lands, you can edit and approve it, and it never commands a drone. Errors are honest: offline &rarr; "AI planning needs internet"; bad key &rarr; 401; free tier busy &rarr; 429. If a model is unavailable, pick another free model in Settings (the OpenRouter preset uses a current one).</p>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="stage gate" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">A rescuer appears on the map</h2></div>
+    <p>This uses the location heartbeat (rolled out per the node-update runbook). On the rescue app, log in and leave it open in the foreground; keep <b>Settings &rarr; Share my location</b> on.</p>
+    <ul>
+      <li>Within about 90 s the rescuer shows on the GCC <b>Live Ops</b> Rescuers card with a fresh "updated" age, and as a <b>teal person pin</b> on the Map.</li>
+      <li>Toggle the app's <b>Share my location</b> off and on to show the control; background the app to show it pauses (battery).</li>
+    </ul>
+    <div class="gatebox">
+      <div class="label">Pass when</div>
+      <p>The rescuer's position appears on the GCC and updates. If not: confirm the nodes were updated (the <code class="inline">personnel_locations</code> table exists), the phone is on a RESCUE_x Wi-Fi with the fleet CA loaded, and location permission is granted. The GCC must be logged in (or have the break-glass key) to read locations.</p>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section class="stage gate" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Fleet: deploy in DEMO, watch the auto-return</h2></div>
+    <p>On <b>Live Ops</b>, the fleet board shows "Deployed X / Y available" from your inventory. With no live MAVLink link, deploys are DEMO simulations, safe for any number of drones.</p>
+    <ul>
+      <li><b>Deploy</b> a drone to a placement (leave "command over MAVLink" off). It flies out (ENROUTE), holds (ON STATION), and when the modelled battery reaches the home-reserve it turns back (RETURNING) and lands, freeing its slot.</li>
+      <li>Deploy until the pool is empty &rarr; the Deploy button disables with <b>"No more drones available"</b>.</li>
+      <li>On a flying drone tap <b>simulate signal loss</b> &rarr; it drops to <b>FALLBACK</b> (aux LoRa beacon at last position), then <b>LOST</b> after the timeout.</li>
+      <li>Volunteer rows read <b>pilot advisory</b>: the GCC shows the instruction rather than commanding flight.</li>
+    </ul>
+    <div class="gatebox">
+      <div class="label">Pass when</div>
+      <p>Drones fly, auto-return before the battery dies, the availability count gates Deploy, and signal loss shows FALLBACK then LOST. This is the "manage 10 drones and bring them home" story, exam-safe.</p>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section class="stage gate" id="s6">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Fleet: real DRONE_S deploy, props off</h2></div>
+    <div class="safety">
+      <div class="label">Props off</div>
+      <ul>
+        <li>All four props removed, frame secured, before the flight battery goes in.</li>
+        <li>This is command-pipeline verification, NOT flight. The drone is not flown.</li>
+      </ul>
+    </div>
+    <p>Connect the GCC to DRONE_S on the <b>Drone</b> tab (DIRECT on RESCUE_S, or RELAY via a volunteer). With the heartbeat fresh (under 2 s), the fleet board's Deploy dialog enables <b>command over MAVLink</b>.</p>
+    <ul>
+      <li>Deploy DRONE_S for real: the GCC runs the GUIDED &rarr; arm &rarr; takeoff &rarr; reposition sequence. On the bench the FC accepts and acks each step; the motor test spins a motor.</li>
+      <li>The <b>battery watchdog</b> issues return-to-launch below the per-cell threshold; <b>force DISARM</b> is always visible.</li>
+      <li>Only DRONE_S is real; every other drone in the fleet is DEMO (only one has a flight controller).</li>
+    </ul>
+    <div class="gatebox">
+      <div class="label">Pass when</div>
+      <p>The command sequence is observed on the bench (acks, motor spin, watchdog would RTL), props off, with force-DISARM reachable. Free flight stays out of scope until you clear it deliberately.</p>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section class="stage gate" id="s7">
+    <div class="stage-head"><span class="stage-num">07</span><h2 class="stage-title">Live Ops is the single operational picture</h2></div>
+    <p>Open <b>Live Ops</b> and confirm the whole operation reads at a glance, each figure with its own data age:</p>
+    <ul>
+      <li>Stat tiles: victim messages NEW/CLAIMED, SOS + check-ins, field reports, rescuers tracked, mesh nodes, node battery/GPS, clock source.</li>
+      <li>The fleet board (stage 5/6) and the Rescuers card (stage 4).</li>
+      <li>The known-nodes table: connected node, peers, any DEGRADED node.</li>
+      <li>On the <b>Map</b>: victims (red/green), SOS (orange), rescuers (teal), the node (cyan), degraded nodes (red), and the deployed drones moving through their lifecycle. Planned placement vs actual drone GPS is the planned-vs-actual view.</li>
+    </ul>
+    <div class="gatebox">
+      <div class="label">Pass when</div>
+      <p>Every number carries an age and nothing pretends to be more live than the mesh allows. That honesty is the point: the operator always knows how fresh each piece of the picture is.</p>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section class="stage" id="s8">
+    <div class="stage-head"><span class="stage-num">08</span><h2 class="stage-title">Troubleshooting</h2></div>
+    <ul>
+      <li><b>Site shows the README, not the app.</b> Pages is serving the branch. Settings &rarr; Pages &rarr; Source &rarr; GitHub Actions, then re-run the "Deploy product website" workflow (Actions tab).</li>
+      <li><b>Fetch specs says "not configured".</b> The GCC ships the public Supabase URL + anon key as defaults; if you cleared them, re-enter in Settings &rarr; Product site.</li>
+      <li><b>AI suggest disabled or errors.</b> Paste the OpenRouter key in Settings &rarr; AI deployment advisor (endpoint and model are pre-filled). 401 = bad key; 429 = free tier busy, retry; "model unavailable" = choose another free model.</li>
+      <li><b>No rescuer on the map.</b> Nodes must have the location update (personnel_locations table); the phone must be on a RESCUE_x Wi-Fi with the fleet CA; the GCC must be logged in to read locations.</li>
+      <li><b>Real deploy greyed out.</b> The MAVLink link is not fresh: connect on the Drone tab and confirm a heartbeat under 2 s. DEMO always works without a link.</li>
+    </ul>
+  </section>
+
+</div>
+<footer>Rescue Mesh &middot; Mission layer check (M7) &middot; Props policy and all Phase 2 security controls unchanged.</footer>
+</body>
+</html>
