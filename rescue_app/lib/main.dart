@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'providers/alerts_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/heartbeat_provider.dart';
 import 'providers/message_provider.dart';
@@ -10,6 +11,7 @@ import 'screens/login_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/victim_requests_screen.dart';
 import 'services/network_binder.dart';
+import 'widgets/alert_banner.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,6 +48,9 @@ class RescueApp extends StatelessWidget {
             return hb!;
           },
         ),
+        // Fallback alerts (task C): polls /health for drones on LoRa
+        // fallback so a red banner can warn rescuers across every tab.
+        ChangeNotifierProvider(create: (_) => AlertsProvider()),
       ],
       child: MaterialApp(
         title: 'Rescue Mesh',
@@ -133,7 +138,12 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_selectedIndex],
+      body: Column(
+        children: [
+          const RescueAlertBanner(),
+          Expanded(child: _screens[_selectedIndex]),
+        ],
+      ),
       bottomNavigationBar: Consumer<MessageProvider>(
         builder: (context, messageProvider, child) {
           final newCount = messageProvider.getNewMessageCount();

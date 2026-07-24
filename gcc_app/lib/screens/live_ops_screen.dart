@@ -15,6 +15,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../state/data_store.dart';
 import '../state/drone_controller.dart';
+import '../widgets/degraded_alert.dart';
 import 'fleet_board.dart';
 
 class LiveOpsScreen extends StatelessWidget {
@@ -59,6 +60,7 @@ class LiveOpsScreen extends StatelessWidget {
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 12),
+        const DegradedAlert(),
         if (data.lastError != null)
           Card(
             color: Theme.of(context).colorScheme.errorContainer,

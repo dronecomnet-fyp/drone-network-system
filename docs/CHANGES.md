@@ -220,3 +220,20 @@ Phase 1 security docs) is flagged here, never silently drifted.
     PROVISIONAL, compile-safe placeholder and must be moved to a freed ADC
     pin (or an external ADC) before the reading is trusted. Confidence:
     the mechanism is High; the specific pin is Low pending the wiring choice.
+
+## 2026-07-24 LoRa fallback drones surface as alerts (GCC + rescue app)
+
+27. A drone whose Raspberry Pi lost power is heard only through its aux
+    module's LoRa beacon and is reported as a DEGRADED node in /health.
+    Previously that only showed as a card on the GCC Nodes tab. It is now
+    elevated to a red alert banner: in the GCC on both the Live Ops
+    dashboard and over the Map (widgets/degraded_alert.dart, fed by the
+    already-replicated degraded_nodes list), and in the rescue app across
+    every tab (widgets/alert_banner.dart, driven by a new AlertsProvider
+    that polls the public /health every 15 s). Reason: a downed drone is a
+    coverage hole that both HQ and field rescuers must see immediately, not
+    a detail buried in a tab. No firmware, backend, or schema change: this
+    consumes the existing fallback-beacon path. Note: /health node_health
+    is per-node and not replicated, so the alert reflects what the node the
+    app is talking to has heard, consistent with the rest of the health
+    view.

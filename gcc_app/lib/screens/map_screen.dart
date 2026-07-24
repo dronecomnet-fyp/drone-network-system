@@ -28,6 +28,7 @@ import '../state/data_store.dart';
 import '../state/drone_controller.dart';
 import '../state/fleet_state.dart';
 import '../state/mission_state.dart';
+import '../widgets/degraded_alert.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -175,6 +176,15 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ),
           ),
+        // Fallback alert (task C): a drone on LoRa fallback (Pi down) is an
+        // emergency, so it sits as a red banner over the map, below the
+        // no-map notice if that is showing.
+        Positioned(
+          top: _mbtiles == null ? 84 : 12,
+          left: 12,
+          width: 320,
+          child: const DegradedAlert(),
+        ),
         Positioned(
           bottom: 12,
           left: 12,
