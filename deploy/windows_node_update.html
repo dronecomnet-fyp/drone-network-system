@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Update DRONE_A + DRONE_B for the M7 app features</title>
+<style>
+@font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
+:root {
+  --ink: #1b2028; --paper: #f6f4ef; --paper-raised: #eeebe3; --line: #d8d3c6;
+  --wire: #5b6b7a; --accent: #d9711c; --accent-strong: #b85c14;
+  --pass: #1f8f5b; --pass-bg: #e4f4ec; --stop: #c23a3a; --stop-bg: #fbe9e7;
+  --term-bg: #14181e; --term-fg: #e6e2d6; --term-dim: #8a93a3; --code-fg: #2a2f38;
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+  --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+  --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+  --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+  --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+    --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+    --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+    --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+body { font-family: var(--sans); font-size: 16px; line-height: 1.6; padding: 0 0 6rem; }
+::selection { background: var(--accent); color: #14181e; }
+a { color: var(--accent-strong); }
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; }
+.masthead { border-bottom: 1px solid var(--line); padding: 2.6rem 0 1.8rem; margin-bottom: 2.2rem; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--wire); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+h1.title { font-family: var(--mono); font-size: 1.9rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6rem; }
+.dek { max-width: 48ch; color: var(--wire); font-size: 1.02rem; margin: 0; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1.4rem; font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+.meta-row b { color: var(--ink); font-weight: 600; }
+.loop { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1.5rem; padding: 0.9rem 1rem; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; font-family: var(--mono); font-size: 0.76rem; }
+.loop .n { padding: 0.2rem 0.55rem; border-radius: 5px; background: var(--paper); border: 1px solid var(--line); white-space: nowrap; }
+.loop .n.hi { border-color: var(--accent); color: var(--accent-strong); }
+.loop .ar { color: var(--wire); }
+.index { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin-bottom: 2.6rem; }
+.index-title { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--wire); margin: 0 0 0.7rem; }
+.index ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.25rem 1rem; }
+.index li a { display: flex; gap: 0.55rem; align-items: baseline; text-decoration: none; color: var(--ink); font-size: 0.88rem; padding: 0.2rem 0; }
+.index li a:hover { color: var(--accent-strong); }
+.index .n { font-family: var(--mono); color: var(--wire); font-size: 0.78rem; min-width: 1.4em; }
+.stage { border-left: 3px solid var(--line); padding: 0 0 0 1.3rem; margin-bottom: 2.9rem; scroll-margin-top: 1.5rem; }
+.stage.gate { border-left-color: var(--stop); }
+.stage.crit { border-left-color: var(--accent); }
+.stage-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 0.85rem; }
+.stage-num { font-family: var(--mono); font-size: 0.85rem; color: var(--wire); background: var(--paper-raised); border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.6rem; flex-shrink: 0; }
+h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+.stage ul, .stage ol.steps { margin: 0 0 1rem; padding-left: 1.25rem; max-width: 60ch; }
+.stage li { margin-bottom: 0.4rem; }
+.stage li:last-child { margin-bottom: 0; }
+.term { background: var(--term-bg); border-radius: 8px; margin: 0 0 1rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000); }
+.term-bar { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.term-bar .cap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--term-dim); margin-left: 0.3rem; }
+.term-bar .where { margin-left: auto; font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.08rem 0.5rem; border-radius: 999px; }
+.term-bar .where.a { color: #a7e8c6; background: rgba(31,143,91,0.2); }
+.term-bar .where.b { color: #ffcfa3; background: rgba(217,113,28,0.2); }
+.term-bar .where.pc { color: #a9c9ff; background: rgba(59,110,180,0.22); }
+.term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
+.term-bar .led.r { background: #e5645c; } .term-bar .led.y { background: #e5b84f; } .term-bar .led.g { background: #57c273; }
+.term pre { margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg); }
+.term .prompt { color: var(--term-dim); }
+.term .comment { color: var(--term-dim); font-style: italic; }
+code.inline { font-family: var(--mono); font-size: 0.88em; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 4px; padding: 0.05rem 0.35rem; color: var(--code-fg); }
+.readout { background: var(--pass-bg); border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line)); border-radius: 8px; padding: 0.9rem 1.1rem 1rem; margin: 0 0 1rem; }
+.readout .label { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pass); margin-bottom: 0.55rem; }
+.readout pre, .readout code { font-family: var(--mono); font-size: 0.85rem; color: var(--code-fg); white-space: pre-wrap; word-break: break-word; margin: 0; }
+.readout .hint { font-family: var(--sans); font-size: 0.85rem; color: var(--wire); margin-top: 0.55rem; white-space: normal; }
+.gatebox { background: var(--stop-bg); border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line)); border-radius: 8px; padding: 0.95rem 1.1rem 1.05rem; margin: 0 0 0.4rem; }
+.gatebox .label { font-family: var(--mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.gatebox p { margin: 0; max-width: 58ch; font-size: 0.95rem; }
+.critbox { background: color-mix(in srgb, var(--accent) 12%, var(--paper)); border: 2px solid var(--accent); border-radius: 10px; padding: 1rem 1.2rem; margin: 0 0 1rem; }
+.critbox .label { font-family: var(--mono); font-weight: 700; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem; }
+.critbox p { margin: 0 0 0.6rem; }
+.critbox p:last-child { margin: 0; }
+.note { border: 1px dashed var(--line); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.88rem; color: var(--wire); margin: 0 0 1rem; max-width: 60ch; }
+.note b { color: var(--ink); }
+.fieldtable-wrap { overflow-x: auto; margin-bottom: 1rem; }
+table.fieldtable { border-collapse: collapse; width: 100%; font-size: 0.85rem; min-width: 30rem; }
+table.fieldtable th, table.fieldtable td { text-align: left; padding: 0.45rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.fieldtable th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wire); font-weight: 600; }
+footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+@media (max-width: 640px) { h1.title { font-size: 1.55rem; } .index ol { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; M7 update &middot; DRONE_A + DRONE_B</div>
+    <h1 class="title">Update DRONE_A and DRONE_B<br>for the M7 app features</h1>
+    <p class="dek">The two-node mesh already runs. This brings both existing nodes (Pi + aux) up to the code the new GCC and rescue-app features expect: rescuer-location sharing, LoRa-fallback alerts, and the rescue-app ops map. Plus the prepared Battery B firmware change and its one hardware caveat.</p>
+    <div class="meta-row">
+      <span><b>Already built</b> DRONE_A + DRONE_B (Pi + AR9271 + aux each)</span>
+      <span><b>Touches</b> both Pis (pull + restart); both aux only when ready</span>
+      <span><b>Drive from</b> Windows (SSH + PlatformIO)</span>
+    </div>
+    <div class="loop">
+      <span class="n">git pull on each Pi</span><span class="ar">&rarr;</span>
+      <span class="n hi">restart services</span><span class="ar">&rarr;</span>
+      <span class="n">nodes serve the new data</span><span class="ar">&rarr;</span>
+      <span class="n">apps show teammates, alerts, map</span>
+    </div>
+  </header>
+
+  <div class="critbox">
+    <div class="label">Read this first &mdash; what this update is, and is not</div>
+    <p>Almost all the change this cycle was in the <b>apps</b> (GCC and the rescue app). On the <b>nodes</b> the backend code did not change this cycle, so the node side is a plain <b>git pull + service restart</b> to make sure both Pis are on the current code that the new apps talk to (rescuer locations, checkins, health). There is <b>no manual database migration</b>: the service creates any missing table on start (<code class="inline">CREATE TABLE IF NOT EXISTS</code>), so no SQL and no data loss.</p>
+    <p>The <b>one hardware-gated item</b> is the aux Battery B firmware (Stage 3). It is correct in principle but its default ADC pin collides with the LoRa line, so <b>do not flash it blindly</b>. Read that stage before touching a module.</p>
+    <p>This is the <b>update</b> runbook. For building a Pi from a blank card, the fresh-setup runbook is still <code class="inline">deploy/windows_mesh_bringup.html</code>; the secrets rule there (copy DRONE_A's <code class="inline">deploy/secrets/</code>, never run <code class="inline">make_fleet_ca.sh</code> on B) is unchanged and untouched by this update.</p>
+  </div>
+
+  <nav class="index">
+    <p class="index-title">Stages</p>
+    <ol>
+      <li><a href="#s0"><span class="n">0</span>Before you start</a></li>
+      <li><a href="#s1"><span class="n">1</span>Update each Pi (A, then B)</a></li>
+      <li><a href="#s2"><span class="n">2</span>Gate &mdash; the fleet still converges</a></li>
+      <li><a href="#s3"><span class="n">3</span>Aux Battery B firmware (the caveat)</a></li>
+      <li><a href="#s4"><span class="n">4</span>Rebuild apps + Field Share bundle</a></li>
+      <li><a href="#s5"><span class="n">5</span>Troubleshooting</a></li>
+    </ol>
+  </nav>
+
+  <!-- 0 -->
+  <section class="stage" id="s0">
+    <div class="stage-head"><span class="stage-num">00</span><h2 class="stage-title">Before you start</h2></div>
+    <ul>
+      <li>Power both Pis, keep them within a couple of metres so the mesh cell stays up during and after the update.</li>
+      <li>Each Pi reachable from the Windows laptop over Ethernet or the same LAN: <code class="inline">ssh drone@drone-a.local</code> and <code class="inline">ssh drone@drone-b.local</code>.</li>
+      <li>For Stage 3 (aux firmware) only: the Windows laptop with PlatformIO (<code class="inline">pio</code>) and a USB lead to the module. Skip if you are not touching Battery B yet.</li>
+    </ul>
+    <div class="note"><b>Order matters a little:</b> update DRONE_A first, confirm it is healthy, then DRONE_B. Doing one at a time keeps a known-good node up while you work on the other.</div>
+  </section>
+
+  <!-- 1 -->
+  <section class="stage" id="s1">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">Update each Pi: pull, restart, verify</h2></div>
+    <p>Run these on <b>DRONE_A first</b>, confirm the gate at the bottom, then repeat the exact same block on <b>DRONE_B</b>. Nothing here is node-specific.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-a shell (then repeat on drone-b)</span><span class="where a">DRONE_A</span></div>
+      <pre><span class="prompt">$</span> cd ~/rescue-mesh
+<span class="prompt">$</span> git pull
+<span class="prompt">$</span> sudo systemctl restart rescue-mesh-api rescue-mesh-sync rescue-portal rescue-mesh-auxbridge
+<span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health | python3 -m json.tool</pre>
+    </div>
+    <p>If <code class="inline">git pull</code> says <code class="inline">Already up to date</code>, that is fine: it means this node already carried the current code (for example you ran the M7d update earlier). The restart is still worth doing so the running process matches the files.</p>
+    <div class="readout">
+      <div class="label">Expected /health highlights (per node)</div>
+      <pre>"node_id": "DRONE_A",              (and "DRONE_B" on the other)
+"aux": "present",
+"gps": { ... "fix": 1 near a window ... },
+"table_counts": { ... "personnel_locations": 0, "checkins": 0 ... }</pre>
+      <p class="hint">The one field that proves this update landed is <code class="inline">personnel_locations</code> under <code class="inline">table_counts</code>. If it is missing, the node is still on older code &mdash; see troubleshooting. A quick one-liner: <code class="inline">curl -sk https://10.42.0.1:8443/health | grep personnel_locations</code>.</p>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here (per node)</div>
+      <p>On this node, confirm the four services came back active, <code class="inline">/health</code> shows the right <code class="inline">node_id</code> with <code class="inline">aux</code> present, and <code class="inline">personnel_locations</code> appears in <code class="inline">table_counts</code>. Only then move to the other Pi.</p>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="stage gate" id="s2">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">Gate &mdash; the fleet still converges</h2></div>
+    <p>Both nodes updated. Prove the mesh is unbroken and the new rescuer-location table replicates like every other table. First, each still sees the other as a peer:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-a shell</span><span class="where a">DRONE_A</span></div>
+      <pre><span class="prompt">$</span> ping -c 2 10.99.0.2                                  <span class="comment"># B on the mesh</span>
+<span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health | python3 -m json.tool | grep -A4 peers</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected</div>
+      <pre>"peers": [ { "node_id": "DRONE_B", "ip": "10.99.0.2", "last_seen": "..." } ]</pre>
+    </div>
+    <p>Now the real proof for the new feature: a rescuer location created at one node reaches the other. Easiest with a phone at DRONE_B:</p>
+    <ol class="steps">
+      <li>Phone joins <code class="inline">RESCUE_B</code>, opens the rescue app, logs in with a PIN.</li>
+      <li>Settings &rarr; <b>Share my location</b> ON. Wait about 90 seconds (one heartbeat), then a further ~40 s for the mesh pull.</li>
+    </ol>
+    <p>Then read it back <b>from DRONE_A</b> (the HQ break-glass key is fine for this GET):</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-a shell</span><span class="where a">DRONE_A</span></div>
+      <pre><span class="prompt">$</span> HQ=$(grep HQ_API_KEY ~/rescue-mesh/deploy/secrets/fleet_secrets.env | cut -d= -f2)
+<span class="prompt">$</span> curl -sk -H "X-API-Key: $HQ" https://10.42.0.1:8443/personnel-locations | python3 -m json.tool</pre>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here &mdash; the M7d proof</div>
+      <p>If the rescuer who logged in at <b>B</b> shows up in <code class="inline">/personnel-locations</code> read from <b>A</b>, the new location table replicates across the mesh exactly like messages and personnel do (newest-wins, signature-checked). No phone to hand? The peer check plus the <code class="inline">personnel_locations</code> count in <code class="inline">table_counts</code> is enough to show the code deployed; the sync path is the same proven one the gs-uplink test already exercises.</p>
+    </div>
+  </section>
+
+  <!-- 3: CRIT -->
+  <section class="stage crit" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Aux Battery B firmware &mdash; the change and the caveat</h2></div>
+    <p>The firmware change (CHANGES.md item 26): Battery B is now read by the <b>ESP32-C3's own ADC</b> from the XIAO battery pad, not INA3221 channel 2 (only CH1 is wired, to Battery A). So Battery B reports <b>voltage only</b> (<code class="inline">bat_b_v</code>); <code class="inline">bat_b_ma</code> is always null, because a plain ADC cannot measure current.</p>
+    <div class="critbox">
+      <div class="label">Do not flash blindly &mdash; the pin conflict</div>
+      <p><code class="inline">PIN_BATT_B_ADC</code> defaults to <b>D0</b>, which on the XIAO is also the <b>LoRa MISO</b> line. Flashing as-is does two harmful things: (1) <code class="inline">bat_b_v</code> is not a trustworthy reading, and (2) driving that pin as an ADC input can interfere with the LoRa fallback beacon, which is the safety path when a Pi loses power.</p>
+      <p><b>Before flashing, set <code class="inline">PIN_BATT_B_ADC</code></b> in <code class="inline">firmware/aux1/src/main.cpp</code> to the ADC pin you actually wired Battery B's voltage divider to (or an external ADC). If Battery B sensing is not wired yet, <b>skip this stage entirely</b>: the current firmware keeps working and you lose nothing real, since INA3221 CH2 was never connected to Battery B anyway.</p>
+    </div>
+    <p>When the pin is decided, flash each module from Windows with it on USB (identity in flash survives a reflash, so DRONE_A stays DRONE_A):</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell &middot; firmware\aux1</span><span class="where pc">LAPTOP</span></div>
+      <pre><span class="prompt">PS&gt;</span> git pull
+<span class="prompt">PS&gt;</span> notepad src\main.cpp        <span class="comment"># set PIN_BATT_B_ADC to your wired pin</span>
+<span class="prompt">PS&gt;</span> pio run -t upload           <span class="comment"># module A on COMx; repeat for module B</span></pre>
+    </div>
+    <div class="readout">
+      <div class="label">After flashing: confirm on the Pi</div>
+      <pre><span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health | python3 -m json.tool | grep -A4 battery</pre>
+      <p class="hint">You should see <code class="inline">"b_v"</code> populated and <code class="inline">"b_ma": null</code>. The fallback beacon layout is unchanged (same field count; only the Battery B current field is now always empty), so the Pi bridge parses a reflashed module with no Pi-side change. If unsure a module kept its identity, plug it into the laptop and run <code class="inline">python tools\aux_sim.py --port COMx</code> then <code class="inline">n DRONE_A</code> (or <code class="inline">DRONE_B</code>) and check the ack.</p>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="stage" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Rebuild the apps + prepare the Field Share bundle</h2></div>
+    <p>The nodes now serve the data; these are the consumer-side builds that show it. On the Windows laptop:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell &middot; repo root</span><span class="where pc">LAPTOP</span></div>
+      <pre><span class="prompt">PS&gt;</span> cd gcc_app     &amp; flutter build windows        <span class="comment"># Live Ops + Map alerts, Field Share tab</span>
+<span class="prompt">PS&gt;</span> cd ..\rescue_app &amp; flutter build apk --release  <span class="comment"># fallback banner + ops map tab</span></pre>
+    </div>
+    <ul>
+      <li><b>GCC:</b> reinstall the new Windows build on the ground laptop. New this cycle: the system-drone live battery/GPS card, the LoRa-fallback alert on Live Ops and the Map, and the <b>Field Share</b> tab.</li>
+      <li><b>Rescue app:</b> the release APK now has the ops map tab and the fallback alert banner. Hand it out with Field Share (below).</li>
+    </ul>
+    <p><b>Field Share bundle (task E):</b> put the rescue APK and your offline region maps into one folder, then serve them from the GCC Field Share tab over a local router or the laptop hotspot. Full operator steps are in <code class="inline">docs/FIELD_SHARE.md</code>.</p>
+    <div class="note"><b>macOS demo note:</b> Field Share also runs under <code class="inline">flutter run -d macos</code> (the dev build already carries the network-server entitlement). The Windows build needs no entitlement.</div>
+  </section>
+
+  <!-- 5 -->
+  <section class="stage" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Troubleshooting</h2></div>
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <thead><tr><th>Symptom</th><th>Try this</th></tr></thead>
+        <tbody>
+          <tr><td><code class="inline">personnel_locations</code> missing from /health <code class="inline">table_counts</code></td><td>The node is still on old code. Confirm the pull landed: <code class="inline">git -C ~/rescue-mesh log -1 --oneline</code> should match origin. If it does, restart the services again; the table is created on start, so a clean restart on current code makes it appear.</td></tr>
+          <tr><td>Rescue app map shows victims and drones but no teammates</td><td>Either this node predates the update (check the row above), or the other rescuers have <b>Share my location</b> off. Confirm <code class="inline">/personnel-locations</code> returns entries; heartbeats are foreground-only and every ~90 s, so allow a minute.</td></tr>
+          <tr><td><code class="inline">/personnel-locations</code> returns 403 with the HQ key</td><td>Only the GET is HQ-allowed; POSTing a location needs a rescuer session token (identity comes from the token, by design). Read with the HQ key, write from the app.</td></tr>
+          <tr><td>After an aux reflash, LoRa fallback is flaky or <code class="inline">bat_b_v</code> looks wrong</td><td>The D0 / LoRa-MISO pin conflict (Stage 3). Set <code class="inline">PIN_BATT_B_ADC</code> to a genuinely free ADC pin (or an external ADC) and reflash, or revert to the prior firmware until Battery B is wired.</td></tr>
+          <tr><td>Peer disappears / sync stops after the restart</td><td>Not caused by this update (no secrets or network change here). Same checks as bring-up: <code class="inline">iw dev wlan1 info</code> shows type IBSS on both, <code class="inline">ping 10.99.0.2</code> works, and <code class="inline">tail ~/rescue-mesh/backend/audit.log</code> has no <code class="inline">SYNC_REJECT</code>.</td></tr>
+          <tr><td>Fallback alert never appears in the apps</td><td>The alert is driven by a DEGRADED node in <code class="inline">/health</code>, which only happens when a Pi is actually down and its aux is heard over LoRa. To rehearse it, power a Pi off and watch a neighbour's <code class="inline">degraded_nodes</code> populate.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><b>Reference:</b> <code class="inline">docs/CHANGES.md</code> items 26&ndash;29 (what changed and why), <code class="inline">docs/FIELD_SHARE.md</code> (the download point), and <code class="inline">deploy/windows_mesh_bringup.html</code> (fresh setup + the secrets rule).</div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="wrap" style="padding:0;">deploy &middot; M7 node update &middot; DRONE_A + DRONE_B &middot; rescue mesh phase 2</div>
+</footer>
+</body>
+</html>
