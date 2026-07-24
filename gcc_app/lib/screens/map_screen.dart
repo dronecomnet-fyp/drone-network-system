@@ -25,6 +25,7 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../state/data_store.dart';
+import '../state/drone_controller.dart';
 import '../state/fleet_state.dart';
 import '../state/mission_state.dart';
 
@@ -108,6 +109,7 @@ class _MapScreenState extends State<MapScreen> {
     final data = context.watch<DataStore>();
     final mission = context.watch<MissionState>();
     final fleet = context.watch<FleetState>();
+    final drone = context.watch<DroneController>();
     _syncTiles(app.mbtilesPath);
 
     final active = mission.activeDeployment;
@@ -152,7 +154,7 @@ class _MapScreenState extends State<MapScreen> {
                   ),
               ],
             ),
-            MarkerLayer(markers: _buildMarkers(data, mission, fleet)),
+            MarkerLayer(markers: _buildMarkers(data, mission, fleet, drone)),
           ],
         ),
         if (_mbtiles == null)
@@ -193,8 +195,50 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   List<Marker> _buildMarkers(
-      DataStore data, MissionState mission, FleetState fleet) {
+      DataStore data, MissionState mission, FleetState fleet,
+      DroneController drone) {
     final markers = <Marker>[];
+
+    // System drone live MAVLink position (M7 / task B). This is the drone's
+    // OWN GPS over the live control link, shown whenever the GCC is connected
+    // to it, independent of which node's /health we are polling and of any
+    // fleet deployment. That is why it shows over the relay path, where the
+    // dashboard is polling a volunteer node's /health and would otherwise
+    // never see DRONE_S's position or battery.
+    final dt = drone.telemetry;
+    if (drone.connected && dt.lat != null && dt.lon != null) {
+      final fresh = drone.linkFresh;
+      final bat = dt.batteryVolts == null
+          ? 'battery n/a'
+          : '${dt.batteryVolts!.toStringAsFixed(2)} V'
+              '${dt.batteryRemaining != null && dt.batteryRemaining! >= 0 ? " ${dt.batteryRemaining}%" : ""}';
+      markers.add(Marker(
+        point: LatLng(dt.lat!, dt.lon!),
+        width: 150,
+        height: 48,
+        child: Tooltip(
+          message: 'System drone (live MAVLink)\n'
+              '${dt.armed ? "ARMED" : "disarmed"}  ${dt.modeName}\n'
+              '$bat  ${dt.hasGpsFix ? "${dt.satellites} sats" : "no fix"}'
+              '${fresh ? "" : "\nlink STALE"}',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.flight,
+                  size: 30,
+                  color: fresh ? Colors.pinkAccent : Colors.grey),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                color: Colors.black54,
+                child: Text('system drone $bat',
+                    style: const TextStyle(fontSize: 10),
+                    overflow: TextOverflow.ellipsis),
+              ),
+            ],
+          ),
+        ),
+      ));
+    }
 
     // Victim messages with a user location.
     for (final m in data.messages.items.where((m) => m.hasUserLocation)) {
@@ -651,6 +695,7 @@ class _LegendCard extends StatelessWidget {
             row(Icons.airplanemode_active, Colors.cyanAccent, 'node (live)'),
             row(Icons.airplanemode_inactive, Colors.redAccent,
                 'node DEGRADED'),
+            row(Icons.flight, Colors.pinkAccent, 'system drone (live)'),
             row(Icons.place, Colors.amber, 'placement: user AP'),
             row(Icons.place, Colors.cyanAccent, 'placement: mesh relay'),
             row(Icons.place, Colors.pinkAccent, 'placement: system drone'),

@@ -14,6 +14,7 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../state/data_store.dart';
+import '../state/drone_controller.dart';
 import 'fleet_board.dart';
 
 class LiveOpsScreen extends StatelessWidget {
@@ -156,6 +157,8 @@ class LiveOpsScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
+        _SystemDroneCard(),
+        const SizedBox(height: 16),
         const FleetBoard(),
         const SizedBox(height: 16),
         _RescuersCard(),
@@ -164,6 +167,95 @@ class LiveOpsScreen extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The system drone's own live telemetry over MAVLink (task B). This is
+/// separate from node /health: when the operator controls DRONE_S over the
+/// relay path they are polling a volunteer node's /health, so the drone's
+/// battery and GPS only exist here, on the live control link. Shown whenever
+/// the drone link is connected.
+class _SystemDroneCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final drone = context.watch<DroneController>();
+    if (!drone.connected) return const SizedBox.shrink();
+    final t = drone.telemetry;
+    final fresh = drone.linkFresh;
+    final age = drone.sinceHeartbeat;
+    return Card(
+      color: fresh ? null : Colors.red.shade900.withValues(alpha: 0.15),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.flight, color: Colors.pinkAccent),
+                const SizedBox(width: 8),
+                Text('System drone (live MAVLink)',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const Spacer(),
+                Chip(
+                  visualDensity: VisualDensity.compact,
+                  backgroundColor:
+                      fresh ? Colors.green.shade900 : Colors.red.shade900,
+                  label: Text(fresh
+                      ? 'LINK LIVE'
+                      : age == null
+                          ? 'no heartbeat'
+                          : 'stale ${age.inSeconds}s'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'The drone\'s own battery and GPS over the control link, shown '
+              'no matter which node the dashboard is polling.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 24,
+              runSpacing: 10,
+              children: [
+                _dstat('State', t.armed ? 'ARMED' : 'disarmed',
+                    color: t.armed ? Colors.redAccent : Colors.greenAccent),
+                _dstat('Mode', t.modeName),
+                _dstat(
+                    'Battery',
+                    t.batteryVolts == null
+                        ? 'n/a'
+                        : '${t.batteryVolts!.toStringAsFixed(2)} V'
+                            '${t.batteryRemaining != null && t.batteryRemaining! >= 0 ? "  ${t.batteryRemaining}%" : ""}'),
+                _dstat(
+                    'GPS',
+                    t.hasGpsFix
+                        ? '3D fix, ${t.satellites} sats'
+                        : 'no fix (${t.satellites} sats)',
+                    color: t.hasGpsFix ? null : Colors.orangeAccent),
+                if (t.lat != null)
+                  _dstat('Position',
+                      '${t.lat!.toStringAsFixed(5)}, ${t.lon!.toStringAsFixed(5)}'),
+                if (t.relAltM != null)
+                  _dstat('Alt', '${t.relAltM!.toStringAsFixed(1)} m'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dstat(String label, String value, {Color? color}) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(fontSize: 11, color: Colors.white54)),
+          Text(value,
+              style: TextStyle(fontWeight: FontWeight.w600, color: color)),
+        ],
+      );
 }
 
 /// Rescuers sharing their location (M7d), each with how fresh it is.
