@@ -223,4 +223,16 @@ class APIService {
   static Future<shared.NodeHealth> getHealth() {
     return _run((c) => c.getHealth());
   }
+
+  // --- ops map layers (task D) ----------------------------------------------
+
+  /// Emergency-app checkins (SOS points and location pings) for the map.
+  static Future<List<shared.Checkin>> getCheckins() {
+    return _run((c) => c.getCheckins());
+  }
+
+  /// Latest reported location per rescuer (M7d) for the "teammates" layer.
+  static Future<List<shared.PersonnelLocation>> getPersonnelLocations() {
+    return _run((c) => c.getPersonnelLocations());
+  }
 }

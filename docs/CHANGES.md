@@ -237,3 +237,25 @@ Phase 1 security docs) is flagged here, never silently drifted.
     is per-node and not replicated, so the alert reflects what the node the
     app is talking to has heard, consistent with the rest of the health
     view.
+
+## 2026-07-24 Rescue app gains the ops map (phone-facing, task D)
+
+28. The operations map, previously GCC-only by design, now also ships as a
+    tab in the rescue app so a field team sees victims, teammates, and
+    drones on one picture. It uses the same flutter_map engine as the GCC
+    but ships NO MBTiles file: markers render on flutter_map's plain
+    background (the "markers on a plain grid" view the user chose), which
+    still pans, zooms, and uses true lat/lon. Layers: victim messages
+    (red new / green claimed) and emergency checkins (blue, orange for
+    SOS); other rescuers' last reported location (teal, named) plus the
+    logged-in rescuer as a blue dot (from the M7d personnel_locations
+    feed); the connected node's GPS (indigo) and DEGRADED nodes at their
+    last LoRa-beaconed position (red). No backend or schema change: it
+    consumes existing endpoints (/messages, /checkins, /personnel-locations,
+    /health) through two new APIService wrappers. Battery note: the map
+    polls every 12 s but only while its tab is on screen (the app builds
+    only the selected screen; the poll timer starts in initState and is
+    cancelled in dispose), so it costs nothing on the other tabs. Limit:
+    healthy peer drones carry no GPS in /health (node_health is not
+    replicated), so only the connected node and fallback nodes have plotted
+    positions, same as the GCC map.

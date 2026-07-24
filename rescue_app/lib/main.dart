@@ -8,6 +8,7 @@ import 'providers/message_provider.dart';
 import 'screens/announcements_screen.dart';
 import 'screens/hq_uplink_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/map_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/victim_requests_screen.dart';
 import 'services/network_binder.dart';
@@ -103,6 +104,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     const VictimRequestsScreen(),
     const HQUplinkScreen(),
     const AnnouncementsScreen(),
+    const MapScreen(),
     const SettingsScreen(),
   ];
 
@@ -175,6 +177,10 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
               BottomNavigationBarItem(
                 icon: const Icon(Icons.campaign),
                 label: 'Announcements',
+              ),
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.map),
+                label: 'Map',
               ),
               BottomNavigationBarItem(
                 icon: const Icon(Icons.settings),

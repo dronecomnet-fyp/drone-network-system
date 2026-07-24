@@ -22,6 +22,11 @@ dependencies:
   flutter_secure_storage: ^9.2.2
   url_launcher: ^6.1.10
   cupertino_icons: ^1.0.2
+  # Ops map (task D): same engine as the GCC, but tiles are optional.
+  # No offline MBTiles here by design, so markers render on flutter_map's
+  # plain background (no flutter_map_mbtiles dependency).
+  flutter_map: ^8.1.1
+  latlong2: ^0.9.1
   rescue_mesh_shared:
     path: ../shared_dart
 
