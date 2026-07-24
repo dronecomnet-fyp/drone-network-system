@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'screens/announcements_screen.dart';
+import 'screens/distribution_screen.dart';
 import 'screens/drone_control_screen.dart';
 import 'screens/live_feed_screen.dart';
 import 'screens/live_ops_screen.dart';
@@ -19,6 +20,7 @@ import 'screens/mission_screen.dart';
 import 'screens/nodes_screen.dart';
 import 'screens/personnel_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/distribution_server.dart';
 import 'state/app_state.dart';
 import 'state/data_store.dart';
 import 'state/drone_controller.dart';
@@ -46,6 +48,9 @@ class GccApp extends StatelessWidget {
             create: (_) => DataStore(appState)..start(), lazy: false),
         ChangeNotifierProvider(create: (_) => MissionState()),
         ChangeNotifierProvider(create: (_) => DroneController()),
+        // Field Share (task E): held here, above the shell, so the local
+        // download server keeps running while the operator uses other tabs.
+        ChangeNotifierProvider(create: (_) => DistributionServer()),
         ChangeNotifierProvider(
           create: (ctx) {
             final drone = ctx.read<DroneController>();
@@ -115,6 +120,10 @@ class _GccShellState extends State<GccShell> {
         selectedIcon: Icon(Icons.flight),
         label: Text('Drone')),
     NavigationRailDestination(
+        icon: Icon(Icons.wifi_tethering_outlined),
+        selectedIcon: Icon(Icons.wifi_tethering),
+        label: Text('Field Share')),
+    NavigationRailDestination(
         icon: Icon(Icons.settings_outlined),
         selectedIcon: Icon(Icons.settings),
         label: Text('Settings')),
@@ -129,6 +138,7 @@ class _GccShellState extends State<GccShell> {
     PersonnelScreen(),
     AnnouncementsScreen(),
     DroneControlScreen(),
+    DistributionScreen(),
     SettingsScreen(),
   ];
 

@@ -259,3 +259,28 @@ Phase 1 security docs) is flagged here, never silently drifted.
     healthy peer drones carry no GPS in /health (node_health is not
     replicated), so only the connected node and fallback nodes have plotted
     positions, same as the GCC map.
+
+## 2026-07-24 GCC "Field Share": local download point for the field (task E)
+
+29. New GCC tab that turns the ground laptop into an offline download
+    point. At a disaster site there is no internet and no app store, so
+    getting the rescue app and offline region maps onto personnel phones
+    was an unsolved gap. The operator copies the field bundle (rescue-app
+    APK, .mbtiles region maps, anything else) onto the laptop from a USB
+    stick beforehand; on site everyone joins one local Wi-Fi (a travel
+    router or the laptop hotspot); the operator points Field Share at that
+    folder and taps Start. The GCC then runs a small local HTTP server
+    (services/distribution_server.dart, a dart:io HttpServer on port 8080)
+    and shows a link plus a QR code (screens/distribution_screen.dart). A
+    rescuer scans the QR, opens a plain self-contained web page in their
+    phone browser, and taps to download. The server lives as a root
+    provider so it keeps running while the operator uses other tabs.
+    Security posture: it serves ONLY the chosen folder's top-level files
+    over plain HTTP on the LOCAL network; there is no upload path, filenames
+    are validated so a request cannot escape the folder, and this is a
+    deliberate hand-out of public installers/maps, not sensitive data. New
+    dependency: qr_flutter (pure Dart, offline). Platform note: the macOS
+    dev build already carries the com.apple.security.network.server
+    entitlement (DebugProfile) so the demo works under `flutter run`; the
+    Windows delivery build needs no entitlement. Operator steps are written
+    up in docs/FIELD_SHARE.md.
