@@ -18,6 +18,9 @@
  *   GPS TX    D6    (GPIO21, module RX)
  *   I2C SDA   D4    (GPIO6) INA3221 @ 0x40 (A0 to GND)
  *   I2C SCL   D5    (GPIO7)
+ *   Batt B    ADC   ESP32-C3 ADC on the XIAO battery pad via a divider,
+ *                   PIN_BATT_B_ADC (see the pin-availability note below);
+ *                   NOT the INA3221 anymore
  *   Pi link   USB-C native CDC @ 115200 (no GPIO used)
  *   (all signal pins now allocated; D0 was the former spare)
  *
@@ -67,12 +70,34 @@ static const long LORA_FREQ = 915E6;
 static const int LORA_TX_POWER_DBM = 2;
 
 // INA3221 at 0x40, 100 milliohm shunts (from the working Phase 1 test
-// sketch). Channel map per design v3: CH1 = Battery A (Pi side),
-// CH2 = Battery B (aux), CH3 = spare. Register math per the TI INA3221
+// sketch). Channel map (updated 2026-07-24): CH1 = Battery A (Pi side)
+// only; CH2 and CH3 are unused now that Battery B is read by the ESP32-C3
+// ADC (see the Battery B note above). Register math per the TI INA3221
 // datasheet (SBOS576): bus LSB 8 mV, shunt LSB 40 uV, values are 13-bit
 // left-aligned (>> 3). Confidence: High (manufacturer datasheet).
 static const uint8_t INA3221_ADDR = 0x40;
 static const float SHUNT_OHMS = 0.100f;
+
+// Battery B is read by the ESP32-C3's OWN ADC from the XIAO battery pad,
+// NOT the INA3221 (only CH1 / Battery A is wired to the INA3221 now; CH2
+// and CH3 are unused). The pad voltage reaches an ADC pin through a
+// voltage divider, and the ADC gives voltage only (no current), so
+// bat_b_ma is always null for Battery B.
+//
+// IMPORTANT pin availability: on the XIAO ESP32-C3 the ADC1-capable pins
+// are D0/D1/D2 (GPIO2/3/4), and all three are currently taken by LoRa. So
+// this read needs the integrator to pick ONE of: (a) free an ADC pin (for
+// example, move a LoRa control line and put Battery B on it), (b) use an
+// external ADC/divider, or (c) accept a LoRa/ADC pin tradeoff. Set
+// PIN_BATT_B_ADC to the pin you actually wire the divider to. The default
+// below is D0 (GPIO2, ADC1) purely because it is a known ADC-capable pin
+// and always compiles; D0 is currently LoRa MISO, so this default is
+// PROVISIONAL and must be moved to a freed ADC pin before it is trusted.
+// BATT_B_DIVIDER is (R_top + R_bottom) / R_bottom; a 1:1 divider (two equal
+// resistors) halves the voltage, so 2.0. A 1S LiPo tops out near 4.2 V, so
+// a /2 divider keeps the pin safely under the 3.3 V ADC limit.
+static const int PIN_BATT_B_ADC = D0;   // ADC1 pin; see the availability note above
+static const float BATT_B_DIVIDER = 2.0f;
 
 // Timing (file 03)
 static const uint32_t SENSOR_SEND_MS = 5000;     // gps + battery every 5 s
@@ -158,6 +183,16 @@ static bool inaReadChannel(uint8_t ch, float& busV, float& currentMa) {
   busV = sBus * 8e-3f;
   currentMa = (shuntV / SHUNT_OHMS) * 1000.0f;
   return true;
+}
+
+// Battery B voltage from the ESP32-C3 ADC on the XIAO battery pad (via the
+// divider; see PIN_BATT_B_ADC / BATT_B_DIVIDER). analogReadMilliVolts uses
+// the chip's factory ADC calibration, so this returns calibrated millivolts
+// at the pin, which we scale back up by the divider ratio. Voltage only:
+// a plain ADC cannot measure current, so Battery B has no current reading.
+static float readBattBVolts() {
+  uint32_t pinMv = analogReadMilliVolts(PIN_BATT_B_ADC);
+  return (pinMv / 1000.0f) * BATT_B_DIVIDER;
 }
 
 // ---------------------------------------------------------------------------
@@ -247,13 +282,10 @@ static void sendBattery() {
     doc["bat_a_v"] = nullptr;
     doc["bat_a_ma"] = nullptr;
   }
-  if (inaOk && inaReadChannel(2, v, ma)) {
-    doc["bat_b_v"] = v;
-    doc["bat_b_ma"] = ma;
-  } else {
-    doc["bat_b_v"] = nullptr;
-    doc["bat_b_ma"] = nullptr;
-  }
+  // Battery B: ESP32-C3 ADC on the XIAO battery pad, not the INA3221.
+  // Voltage only; the ADC gives no current, so bat_b_ma stays null.
+  doc["bat_b_v"] = readBattBVolts();
+  doc["bat_b_ma"] = nullptr;
   sendJson(doc);
 }
 
@@ -391,9 +423,10 @@ static void pollLora() {
 
 static void sendFallbackBeacon() {
   if (!loraOk) return;
-  float aV = 0, aMa = 0, bV = 0, bMa = 0;
+  float aV = 0, aMa = 0;
   bool haveA = inaOk && inaReadChannel(1, aV, aMa);
-  bool haveB = inaOk && inaReadChannel(2, bV, bMa);
+  // Battery B: ESP32-C3 ADC (voltage only, no current).
+  float bV = readBattBVolts();
   bool fix = gps.location.isValid();
 
   String beacon = "FB|" + nodeId + "|";
@@ -409,9 +442,9 @@ static void sendFallbackBeacon() {
   beacon += "|";
   beacon += haveA ? String(aMa, 0) : "";
   beacon += "|";
-  beacon += haveB ? String(bV, 2) : "";
+  beacon += String(bV, 2);   // Battery B from the ADC (always available)
   beacon += "|";
-  beacon += haveB ? String(bMa, 0) : "";
+  beacon += "";              // Battery B current: none from a plain ADC
   beacon += "|" + cachedMsgId + "|" + cachedMsgContent + "|" + cachedMsgTime + "|DOWN";
 
   if (beacon.length() > 255) beacon = beacon.substring(0, 255);
@@ -437,6 +470,12 @@ void setup() {
 
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
   inaOk = inaInit();
+
+  // Battery B ADC (XIAO battery pad via a divider). 12-bit reads and the
+  // 11 dB attenuation give the full ~0-3.3 V input range; combined with the
+  // divider that covers a 1S LiPo. analogReadMilliVolts applies calibration.
+  analogReadResolution(12);
+  analogSetPinAttenuation(PIN_BATT_B_ADC, ADC_11db);
 
   loraSPI.begin(PIN_LORA_SCK, PIN_LORA_MISO, PIN_LORA_MOSI, PIN_LORA_CS);
   LoRa.setSPI(loraSPI);

@@ -203,3 +203,20 @@ Phase 1 security docs) is flagged here, never silently drifted.
     prior evidence is lost. Placements remain advisory: activating a
     deployment never commands a drone (the fleet manager, item 23, is the
     only thing that does, and only for DRONE_S, props-off).
+
+## 2026-07-24 Battery B moves off the INA3221 to the ESP32-C3 ADC (rule 5)
+
+26. Battery B is now read by the ESP32-C3's own ADC from the XIAO battery
+    pad, not INA3221 channel 2. Reason (hardware reality): only CH1
+    (Battery A) is wired to the INA3221; Battery B sits on the XIAO battery
+    pads, so the module reads it directly with analogReadMilliVolts through
+    a divider (PIN_BATT_B_ADC / BATT_B_DIVIDER in firmware/aux1/src/main.cpp).
+    Consequence: Battery B reports VOLTAGE ONLY (bat_b_v); it has no current
+    reading (bat_b_ma is always null) because a plain ADC cannot measure
+    current, so the duty-cycle test (TESTS.md test 6) now measures current
+    externally. This supersedes design v3's "INA3221 CH2 = Battery B" channel
+    map; CH2/CH3 are unused now. Open hardware item: the XIAO's ADC1 pins
+    (D0/D1/D2) are all used by LoRa, so PIN_BATT_B_ADC defaults to D0 as a
+    PROVISIONAL, compile-safe placeholder and must be moved to a freed ADC
+    pin (or an external ADC) before the reading is trusted. Confidence:
+    the mechanism is High; the specific pin is Low pending the wiring choice.

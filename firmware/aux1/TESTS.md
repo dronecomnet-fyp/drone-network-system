@@ -26,8 +26,12 @@ With the unified firmware flashed and the module on a bench supply:
 2. Watch the serial stream. Within a few minutes expect, every 5 s:
    - `{"type":"gps","fix":1,"lat":...,"lon":...,"sats":N,...}` (fix flips
      from 0 to 1 when the antenna sees satellites)
-   - `{"type":"battery","bat_a_v":...,...}` with a plausible voltage on
-     the channel your bench supply feeds (CH2 = Battery B pads).
+   - `{"type":"battery","bat_a_v":...,"bat_b_v":...,...}`: `bat_a_v` is the
+     INA3221 CH1 (Battery A) voltage; `bat_b_v` is the ESP32-C3 ADC reading
+     of the XIAO battery pad (Battery B), scaled by BATT_B_DIVIDER.
+     `bat_b_ma` is always null (an ADC reads voltage only). Feed a known
+     voltage into the Battery B ADC pin through the divider and confirm
+     `bat_b_v` tracks it.
 3. LoRa path: flash the SECOND module with the same firmware (it doubles
    as the receiver). On module 1's serial, send
    `{"type":"lora_tx","payload":"hello-bench"}`.
@@ -92,15 +96,21 @@ Pass: UUID + payload visible in NORMAL, absent in FALLBACK.
 
 ## Test 6: duty-cycle sanity (rule 5 figure check)
 
-1. Wire Battery B through INA3221 CH2 (the module self-monitors).
+Battery B is now read by the ESP32-C3 ADC, which gives VOLTAGE ONLY (no
+current), so this test measures the module's current draw EXTERNALLY rather
+than from `bat_b_ma`.
+
+1. Power the module from a bench supply (or Battery B through an inline
+   ammeter / a supply with a current readout) so you can read the current
+   the module actually draws.
 2. Log serial `battery` lines for 10 minutes in NORMAL
-   (`python3 tools/aux_sim.py --port <port> --log normal.jsonl`).
-3. Repeat for 10 minutes in FALLBACK (stop pings, keep logging from the
-   second module is not possible; instead power the module from Battery B
-   and log CH2 with a multimeter or repeat with the sim attached but not
-   pinging).
-4. Average the bat_b_ma values for each mode and compare against the
-   battery capacity decision doc (177 mA class assumption).
+   (`python3 tools/aux_sim.py --port <port> --log normal.jsonl`) while
+   noting the external current reading.
+3. Repeat for 10 minutes in FALLBACK (stop pings so the module enters
+   fallback; keep it powered and keep reading the external current).
+4. Compare the measured average current in each mode against the battery
+   capacity decision doc (177 mA class assumption). `bat_b_v` from the
+   serial stream tracks the pad voltage sag over the run as a cross-check.
 
 Pass: measured averages recorded in docs/test_log.md. If NORMAL-mode
 current exceeds the doc's assumption materially, FLAG IT in
