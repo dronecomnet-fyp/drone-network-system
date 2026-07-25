@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/data_store.dart';
+import '../widgets/battery_text.dart';
 
 class NodesScreen extends StatelessWidget {
   const NodesScreen({super.key});
@@ -107,14 +108,12 @@ class _ConnectedNodeCard extends StatelessWidget {
                     gps.hasFix
                         ? '${gps.lat!.toStringAsFixed(5)}, ${gps.lon!.toStringAsFixed(5)} (${gps.sats} sats)'
                         : 'no fix'),
-                _stat('Battery A',
-                    bat.aV == null
-                        ? 'n/a'
-                        : '${bat.aV!.toStringAsFixed(2)} V  ${bat.aMa?.toStringAsFixed(0) ?? "-"} mA'),
-                _stat('Battery B',
-                    bat.bV == null
-                        ? 'n/a'
-                        : '${bat.bV!.toStringAsFixed(2)} V  ${bat.bMa?.toStringAsFixed(0) ?? "-"} mA'),
+                _stat('Battery A', batteryLine(bat.aV, bat.aMa),
+                    icon: batteryFlowIcon(bat.aMa),
+                    iconColor: batteryFlowColor(bat.aMa)),
+                _stat('Battery B', batteryLine(bat.bV, bat.bMa),
+                    icon: batteryFlowIcon(bat.bMa),
+                    iconColor: batteryFlowColor(bat.bMa)),
                 _stat('Uptime', _uptime(h.uptimeS)),
                 _stat('Clock', h.clockSource,
                     warn: h.clockSource != 'gps',
@@ -133,7 +132,10 @@ class _ConnectedNodeCard extends StatelessWidget {
   }
 
   Widget _stat(String label, String value,
-      {bool warn = false, String warnText = ''}) {
+      {bool warn = false,
+      String warnText = '',
+      IconData? icon,
+      Color? iconColor}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -141,6 +143,10 @@ class _ConnectedNodeCard extends StatelessWidget {
             style: const TextStyle(fontSize: 11, color: Colors.white54)),
         Row(
           children: [
+            if (icon != null) ...[
+              Icon(icon, size: 14, color: iconColor),
+              const SizedBox(width: 4),
+            ],
             Text(value),
             if (warn) ...[
               const SizedBox(width: 4),

@@ -206,6 +206,12 @@ Phase 1 security docs) is flagged here, never silently drifted.
 
 ## 2026-07-24 Battery B moves off the INA3221 to the ESP32-C3 ADC (rule 5)
 
+> WITHDRAWN, never deployed. Item 30 (2026-07-26) reverses this: Battery B
+> is wired to INA3221 CH2 after all. Item 26 is kept here rather than
+> deleted because rule 5 is about an honest record of decisions, including
+> the ones that were reversed before reaching hardware. No module was ever
+> flashed with the ADC firmware, so no field behaviour ever depended on it.
+
 26. Battery B is now read by the ESP32-C3's own ADC from the XIAO battery
     pad, not INA3221 channel 2. Reason (hardware reality): only CH1
     (Battery A) is wired to the INA3221; Battery B sits on the XIAO battery
@@ -284,3 +290,57 @@ Phase 1 security docs) is flagged here, never silently drifted.
     entitlement (DebugProfile) so the demo works under `flutter run`; the
     Windows delivery build needs no entitlement. Operator steps are written
     up in docs/FIELD_SHARE.md.
+
+## 2026-07-26 Battery B returns to CH2, both channels bidirectional (rule 5)
+
+30. Battery B is wired to INA3221 channel 2 after all, so item 26 (the
+    ESP32-C3 ADC route) is withdrawn before it ever reached hardware: no
+    module was flashed with it. This restores design v3's original channel
+    map, CH1 = Battery A and CH2 = Battery B, and removes the open pin
+    conflict item 26 carried (its provisional pin was D0, which is LoRa
+    MISO). Battery B therefore has a real current reading again
+    (bat_b_ma), and TESTS.md test 6 goes back to measuring draw from it
+    instead of externally.
+
+    The substantive new finding, and the reason this is a rule 5 entry
+    rather than a plain revert: BOTH battery channels are BIDIRECTIONAL,
+    because both packs are charged as well as discharged. The INA3221
+    shunt register is signed, so a pack on charge genuinely reads a
+    NEGATIVE current. Consequences now implemented fleet-wide:
+
+    - Sign convention, published by the firmware and read by every app:
+      positive = discharging, negative = charging, near zero = idle.
+    - The firmware sign-extends the 13-bit two's complement value
+      EXPLICITLY (ina13Bit in firmware/aux1/src/main.cpp) instead of
+      relying on ">>" of a negative signed value, which is
+      implementation-defined before C++20. Verified against the datasheet
+      by a host-compiled unit test of the boundary cases (+/-1 count,
+      full-scale both ways, a 500 mA charge).
+    - Per-channel BATT_A_SHUNT_INVERT / BATT_B_SHUNT_INVERT flags handle a
+      shunt soldered the other way round, so a wiring orientation mistake
+      is a one-line firmware change, not a re-solder.
+    - Classification lives in ONE place, shared_dart (batteryFlowFor,
+      kBatteryIdleMa = 5 mA), with a deadband: the INA3221 resolves 0.4 mA
+      per count, so a resting line jitters either side of zero and would
+      otherwise flap between "charging" and "discharging" on noise alone.
+    - The GCC shows direction as a word plus an icon (Nodes, Live Ops),
+      never a bare negative number, which an operator would read as a
+      fault when it is in fact good news.
+
+    This also answers an open item from file 03's power note, which asked
+    for Battery B's charge current to be measured on the bench: design v3
+    has Battery B charging from the Pi USB in NORMAL mode and taking over
+    in FALLBACK, so its expected reading is NEGATIVE (charging) while the
+    Pi is alive and POSITIVE (discharging) once the Pi is dead. That was
+    unmeasurable under item 26 (an ADC gives no current) and is now read
+    straight from bat_b_ma; the per-mode expectation is tabulated in
+    TESTS.md, where a positive reading with the Pi alive means the pack is
+    not charging at all.
+
+    Measurement limits now stated with the readings (datasheet plus the
+    0.100 ohm shunt, confidence High): range +/-1638 mA, and beyond that
+    the channel CLIPS rather than wrapping; resolution 0.4 mA per count.
+    No wire-format, schema, or backend change: the beacon and JSON field
+    layout are untouched, the node_health columns are REAL and already
+    store negatives, and the Pi bridge parses with float(), so a signed
+    value flows end to end with no Pi-side change.

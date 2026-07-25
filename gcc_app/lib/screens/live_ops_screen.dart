@@ -15,6 +15,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../state/data_store.dart';
 import '../state/drone_controller.dart';
+import '../widgets/battery_text.dart';
 import '../widgets/degraded_alert.dart';
 import 'fleet_board.dart';
 
@@ -126,12 +127,14 @@ class LiveOpsScreen extends StatelessWidget {
             ),
             _StatTile(
               label: 'NODE BATTERY',
-              value: h?.battery.aV == null
+              // A: voltage plus direction, so a pack on charge reads as
+              // charging rather than as a negative current.
+              value: h == null
                   ? 'n/a'
-                  : '${h!.battery.aV!.toStringAsFixed(2)} V',
-              sub: h?.battery.bV == null
+                  : batteryLine(h.battery.aV, h.battery.aMa),
+              sub: h == null || (h.battery.bV == null && h.battery.bMa == null)
                   ? (h?.aux == 'absent' ? 'no aux module' : 'B: n/a')
-                  : 'B: ${h!.battery.bV!.toStringAsFixed(2)} V',
+                  : 'B: ${batteryLine(h.battery.bV, h.battery.bMa)}',
               age: data.healthUpdated == null
                   ? null
                   : DateTime.now().difference(data.healthUpdated!),
@@ -373,9 +376,7 @@ class _NodesTable extends StatelessWidget {
         DataCell(Text(h.gps.hasFix
             ? '${h.gps.lat!.toStringAsFixed(5)}, ${h.gps.lon!.toStringAsFixed(5)}'
             : 'no fix')),
-        DataCell(Text(h.battery.aV == null
-            ? 'n/a'
-            : '${h.battery.aV!.toStringAsFixed(2)} V')),
+        DataCell(Text(batteryLine(h.battery.aV, h.battery.aMa))),
         DataCell(Text(data.healthUpdated == null
             ? 'never'
             : formatAge(DateTime.now().difference(data.healthUpdated!)))),

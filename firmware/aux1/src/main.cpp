@@ -18,9 +18,10 @@
  *   GPS TX    D6    (GPIO21, module RX)
  *   I2C SDA   D4    (GPIO6) INA3221 @ 0x40 (A0 to GND)
  *   I2C SCL   D5    (GPIO7)
- *   Batt B    ADC   ESP32-C3 ADC on the XIAO battery pad via a divider,
- *                   PIN_BATT_B_ADC (see the pin-availability note below);
- *                   NOT the INA3221 anymore
+ *   Batt A    INA3221 CH1 (shunt in the Battery A line)
+ *   Batt B    INA3221 CH2 (shunt in the Battery B line); BOTH channels are
+ *                   bidirectional: a battery that is being charged reads a
+ *                   NEGATIVE current. See the sign convention below.
  *   Pi link   USB-C native CDC @ 115200 (no GPIO used)
  *   (all signal pins now allocated; D0 was the former spare)
  *
@@ -70,34 +71,39 @@ static const long LORA_FREQ = 915E6;
 static const int LORA_TX_POWER_DBM = 2;
 
 // INA3221 at 0x40, 100 milliohm shunts (from the working Phase 1 test
-// sketch). Channel map (updated 2026-07-24): CH1 = Battery A (Pi side)
-// only; CH2 and CH3 are unused now that Battery B is read by the ESP32-C3
-// ADC (see the Battery B note above). Register math per the TI INA3221
-// datasheet (SBOS576): bus LSB 8 mV, shunt LSB 40 uV, values are 13-bit
-// left-aligned (>> 3). Confidence: High (manufacturer datasheet).
+// sketch). Channel map: CH1 = Battery A, CH2 = Battery B, CH3 unused.
+// Register math per the TI INA3221 datasheet (SBOS576): bus LSB 8 mV,
+// shunt LSB 40 uV, values are 13-bit left-aligned (>> 3) two's complement.
+// Confidence: High (manufacturer datasheet).
 static const uint8_t INA3221_ADDR = 0x40;
 static const float SHUNT_OHMS = 0.100f;
 
-// Battery B is read by the ESP32-C3's OWN ADC from the XIAO battery pad,
-// NOT the INA3221 (only CH1 / Battery A is wired to the INA3221 now; CH2
-// and CH3 are unused). The pad voltage reaches an ADC pin through a
-// voltage divider, and the ADC gives voltage only (no current), so
-// bat_b_ma is always null for Battery B.
+// BIDIRECTIONAL CURRENT (both batteries charge as well as discharge).
+// The INA3221 shunt register is SIGNED, so current has a direction, and a
+// battery on charge genuinely reads negative. The convention this firmware
+// publishes, fleet-wide:
 //
-// IMPORTANT pin availability: on the XIAO ESP32-C3 the ADC1-capable pins
-// are D0/D1/D2 (GPIO2/3/4), and all three are currently taken by LoRa. So
-// this read needs the integrator to pick ONE of: (a) free an ADC pin (for
-// example, move a LoRa control line and put Battery B on it), (b) use an
-// external ADC/divider, or (c) accept a LoRa/ADC pin tradeoff. Set
-// PIN_BATT_B_ADC to the pin you actually wire the divider to. The default
-// below is D0 (GPIO2, ADC1) purely because it is a known ADC-capable pin
-// and always compiles; D0 is currently LoRa MISO, so this default is
-// PROVISIONAL and must be moved to a freed ADC pin before it is trusted.
-// BATT_B_DIVIDER is (R_top + R_bottom) / R_bottom; a 1:1 divider (two equal
-// resistors) halves the voltage, so 2.0. A 1S LiPo tops out near 4.2 V, so
-// a /2 divider keeps the pin safely under the 3.3 V ADC limit.
-static const int PIN_BATT_B_ADC = D0;   // ADC1 pin; see the availability note above
-static const float BATT_B_DIVIDER = 2.0f;
+//     current > 0  ->  DISCHARGING (battery is supplying the load)
+//     current < 0  ->  CHARGING    (current flowing into the battery)
+//     current ~ 0  ->  idle / float (see the noise floor below)
+//
+// That holds when the shunt is wired with IN+ on the battery side and IN-
+// on the load side. If a channel is soldered the other way round, every
+// reading on it is inverted: rather than re-solder, flip the matching flag
+// below. Verify per board with TESTS.md test 1 (a known load must read
+// positive) before trusting the sign.
+static const bool BATT_A_SHUNT_INVERT = false;   // CH1 wired IN+ to battery
+static const bool BATT_B_SHUNT_INVERT = false;   // CH2 wired IN+ to battery
+
+// Measurement limits worth knowing when reading these numbers (both come
+// straight from the datasheet plus the 0.100 ohm shunt, confidence High):
+//   Range:       13-bit signed x 40 uV = +/-163.8 mV across the shunt,
+//                which is +/-1638 mA. A charge or load current beyond that
+//                CLIPS at the rail; it does not wrap.
+//   Resolution:  one count = 40 uV = 0.4 mA, so readings near zero jitter
+//                by a few tenths of a mA. Consumers must treat a small
+//                magnitude as "idle", not as a real direction; the apps do
+//                this with a shared threshold (kBatteryIdleMa).
 
 // Timing (file 03)
 static const uint32_t SENSOR_SEND_MS = 5000;     // gps + battery every 5 s
@@ -171,28 +177,30 @@ static bool inaInit() {
   return inaWrite16(0x00, 0x7127);
 }
 
+// Both data registers hold a 13-bit two's complement value in bits 15:3.
+// The sign is load-bearing here (it is what distinguishes charging from
+// discharging), so extend it EXPLICITLY rather than relying on ">>" of a
+// negative signed value, which is implementation-defined before C++20.
+static int16_t ina13Bit(uint16_t raw) {
+  int16_t v = (int16_t)((raw >> 3) & 0x1FFF);
+  if (v & 0x1000) v -= 0x2000;   // bit 12 set: negative
+  return v;
+}
+
 // channel: 1..3. Returns false if the chip did not answer.
-static bool inaReadChannel(uint8_t ch, float& busV, float& currentMa) {
+// currentMa is SIGNED: positive discharging, negative charging (see the
+// convention above). invert flips a channel whose shunt is wired backwards.
+static bool inaReadChannel(uint8_t ch, float& busV, float& currentMa,
+                           bool invert = false) {
   uint16_t rawShunt, rawBus;
   uint8_t shuntReg = 0x01 + 2 * (ch - 1);
   uint8_t busReg = 0x02 + 2 * (ch - 1);
   if (!inaRead16(shuntReg, rawShunt) || !inaRead16(busReg, rawBus)) return false;
-  int16_t sShunt = (int16_t)rawShunt >> 3;  // 13-bit signed, LSB 40 uV
-  int16_t sBus = (int16_t)rawBus >> 3;      // 13-bit signed, LSB 8 mV
-  float shuntV = sShunt * 40e-6f;
-  busV = sBus * 8e-3f;
+  float shuntV = ina13Bit(rawShunt) * 40e-6f;   // LSB 40 uV, may be negative
+  busV = ina13Bit(rawBus) * 8e-3f;              // LSB 8 mV
   currentMa = (shuntV / SHUNT_OHMS) * 1000.0f;
+  if (invert) currentMa = -currentMa;
   return true;
-}
-
-// Battery B voltage from the ESP32-C3 ADC on the XIAO battery pad (via the
-// divider; see PIN_BATT_B_ADC / BATT_B_DIVIDER). analogReadMilliVolts uses
-// the chip's factory ADC calibration, so this returns calibrated millivolts
-// at the pin, which we scale back up by the divider ratio. Voltage only:
-// a plain ADC cannot measure current, so Battery B has no current reading.
-static float readBattBVolts() {
-  uint32_t pinMv = analogReadMilliVolts(PIN_BATT_B_ADC);
-  return (pinMv / 1000.0f) * BATT_B_DIVIDER;
 }
 
 // ---------------------------------------------------------------------------
@@ -271,21 +279,27 @@ static void sendGps() {
   sendJson(doc);
 }
 
+// Both batteries: voltage plus SIGNED current (negative while charging).
+// A channel the chip cannot answer for reports null rather than 0, so the
+// Pi and the apps can tell "no reading" from "no current".
 static void sendBattery() {
   JsonDocument doc;
   doc["type"] = "battery";
   float v, ma;
-  if (inaOk && inaReadChannel(1, v, ma)) {
+  if (inaOk && inaReadChannel(1, v, ma, BATT_A_SHUNT_INVERT)) {
     doc["bat_a_v"] = v;
     doc["bat_a_ma"] = ma;
   } else {
     doc["bat_a_v"] = nullptr;
     doc["bat_a_ma"] = nullptr;
   }
-  // Battery B: ESP32-C3 ADC on the XIAO battery pad, not the INA3221.
-  // Voltage only; the ADC gives no current, so bat_b_ma stays null.
-  doc["bat_b_v"] = readBattBVolts();
-  doc["bat_b_ma"] = nullptr;
+  if (inaOk && inaReadChannel(2, v, ma, BATT_B_SHUNT_INVERT)) {
+    doc["bat_b_v"] = v;
+    doc["bat_b_ma"] = ma;
+  } else {
+    doc["bat_b_v"] = nullptr;
+    doc["bat_b_ma"] = nullptr;
+  }
   sendJson(doc);
 }
 
@@ -423,10 +437,9 @@ static void pollLora() {
 
 static void sendFallbackBeacon() {
   if (!loraOk) return;
-  float aV = 0, aMa = 0;
-  bool haveA = inaOk && inaReadChannel(1, aV, aMa);
-  // Battery B: ESP32-C3 ADC (voltage only, no current).
-  float bV = readBattBVolts();
+  float aV = 0, aMa = 0, bV = 0, bMa = 0;
+  bool haveA = inaOk && inaReadChannel(1, aV, aMa, BATT_A_SHUNT_INVERT);
+  bool haveB = inaOk && inaReadChannel(2, bV, bMa, BATT_B_SHUNT_INVERT);
   bool fix = gps.location.isValid();
 
   String beacon = "FB|" + nodeId + "|";
@@ -442,9 +455,11 @@ static void sendFallbackBeacon() {
   beacon += "|";
   beacon += haveA ? String(aMa, 0) : "";
   beacon += "|";
-  beacon += String(bV, 2);   // Battery B from the ADC (always available)
+  beacon += haveB ? String(bV, 2) : "";
   beacon += "|";
-  beacon += "";              // Battery B current: none from a plain ADC
+  // Signed, so a node beaconing while on charge sends a negative figure
+  // here. String(float, 0) keeps the minus sign; the Pi parses with float().
+  beacon += haveB ? String(bMa, 0) : "";
   beacon += "|" + cachedMsgId + "|" + cachedMsgContent + "|" + cachedMsgTime + "|DOWN";
 
   if (beacon.length() > 255) beacon = beacon.substring(0, 255);
@@ -470,12 +485,6 @@ void setup() {
 
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
   inaOk = inaInit();
-
-  // Battery B ADC (XIAO battery pad via a divider). 12-bit reads and the
-  // 11 dB attenuation give the full ~0-3.3 V input range; combined with the
-  // divider that covers a 1S LiPo. analogReadMilliVolts applies calibration.
-  analogReadResolution(12);
-  analogSetPinAttenuation(PIN_BATT_B_ADC, ADC_11db);
 
   loraSPI.begin(PIN_LORA_SCK, PIN_LORA_MISO, PIN_LORA_MOSI, PIN_LORA_CS);
   LoRa.setSPI(loraSPI);

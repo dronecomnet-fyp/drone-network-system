@@ -12,7 +12,8 @@ lives in `firmware/aux1/`.
 - **Seeed Studio XIAO ESP32-C3** microcontroller.
 - **INA3221** triple-channel current/voltage monitor over I2C, measuring the
   two flight batteries (Battery A on channel 1, Battery B on channel 2, with
-  100 milliohm shunts).
+  100 milliohm shunts). Both channels are **bidirectional**, which matters
+  for reading the numbers: see below.
 - **GPS module** (TinyGPS++, 9600 baud) for position and time.
 - **RFM95 LoRa radio** (915 MHz) for the fallback beacon.
 - Connected to the Pi over native USB CDC serial at 115200 baud.
@@ -32,6 +33,45 @@ know the story:
   and reproduced on the bench 2026-07-13. Every other pin in the table was
   correct. This is logged in `docs/CHANGES.md` item 10; the consequence is that
   every XIAO signal pin is now allocated (D0 is no longer the documented spare).
+
+## Reading the battery numbers: the sign is the story
+
+The batteries are not just drained, they are also charged. Design v3 has
+Battery B charging from the Pi's USB during normal operation and taking over
+when the Pi dies. So current has a **direction**, and the INA3221's shunt
+register is signed to match. The convention the firmware publishes, and every
+app reads:
+
+| Reading        | Meaning                                          |
+| -------------- | ------------------------------------------------ |
+| current > 0    | discharging: the pack is supplying the load      |
+| current < 0    | charging: current is flowing into the pack       |
+| current near 0 | idle or float                                    |
+| `null`         | no reading at all, which is not the same as zero |
+
+Three consequences worth knowing, because each one caused a decision:
+
+- **The sign extension is explicit.** The value is 13-bit two's complement
+  packed into the top of a 16-bit register. Recovering a negative number by
+  shifting a signed value right is implementation-defined behaviour before
+  C++20, so `ina13Bit()` masks and subtracts instead. Charging detection
+  should not rest on a compiler's choice.
+- **There is a deadband.** One count is 0.4 mA, so a resting line jitters
+  either side of zero. Without a threshold the display would flap between
+  "charging" and "discharging" on pure noise, so anything under
+  `kBatteryIdleMa` (5 mA, defined once in `shared_dart`) is called idle.
+- **A reversed shunt is a one-line fix.** If a channel is soldered with IN+
+  and IN- swapped, every reading on it is inverted. Rather than re-solder,
+  set `BATT_A_SHUNT_INVERT` / `BATT_B_SHUNT_INVERT` in the firmware. TESTS.md
+  test 1 is what tells you which case you have.
+
+The range is +/-1638 mA with the 100 milliohm shunts, and the channel **clips**
+at that rail rather than wrapping around, so an over-range current is
+under-reported but never reports the wrong direction.
+
+For the operator this surfaces as a word, not a minus sign: the GCC shows
+"4.05 V  500 mA charging", because a bare "-500 mA" reads as a fault when it
+is actually the system working as designed.
 
 ## The state machine
 

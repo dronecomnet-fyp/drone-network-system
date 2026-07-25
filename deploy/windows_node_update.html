@@ -101,10 +101,10 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
   <header class="masthead">
     <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; M7 update &middot; DRONE_A + DRONE_B</div>
     <h1 class="title">Update DRONE_A and DRONE_B<br>for the M7 app features</h1>
-    <p class="dek">The two-node mesh already runs. This brings both existing nodes (Pi + aux) up to the code the new GCC and rescue-app features expect: rescuer-location sharing, LoRa-fallback alerts, and the rescue-app ops map. Plus the prepared Battery B firmware change and its one hardware caveat.</p>
+    <p class="dek">The two-node mesh already runs. This brings both existing nodes (Pi + aux) up to the code the new GCC and rescue-app features expect: rescuer-location sharing, LoRa-fallback alerts, and the rescue-app ops map. Plus the aux firmware change that puts Battery B back on INA3221 channel 2 and reads both battery channels as bidirectional.</p>
     <div class="meta-row">
       <span><b>Already built</b> DRONE_A + DRONE_B (Pi + AR9271 + aux each)</span>
-      <span><b>Touches</b> both Pis (pull + restart); both aux only when ready</span>
+      <span><b>Touches</b> both Pis (pull + restart) and both aux modules (reflash)</span>
       <span><b>Drive from</b> Windows (SSH + PlatformIO)</span>
     </div>
     <div class="loop">
@@ -118,7 +118,7 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
   <div class="critbox">
     <div class="label">Read this first &mdash; what this update is, and is not</div>
     <p>Almost all the change this cycle was in the <b>apps</b> (GCC and the rescue app). On the <b>nodes</b> the backend code did not change this cycle, so the node side is a plain <b>git pull + service restart</b> to make sure both Pis are on the current code that the new apps talk to (rescuer locations, checkins, health). There is <b>no manual database migration</b>: the service creates any missing table on start (<code class="inline">CREATE TABLE IF NOT EXISTS</code>), so no SQL and no data loss.</p>
-    <p>The <b>one hardware-gated item</b> is the aux Battery B firmware (Stage 3). It is correct in principle but its default ADC pin collides with the LoRa line, so <b>do not flash it blindly</b>. Read that stage before touching a module.</p>
+    <p>The <b>aux modules do need reflashing</b> this time (Stage 3): Battery B is wired to INA3221 <b>channel 2</b>, and both battery channels are now read as <b>bidirectional</b>, so a pack on charge reports a negative current instead of a wrong one. Check the sign on the bench as part of that stage.</p>
     <p>This is the <b>update</b> runbook. For building a Pi from a blank card, the fresh-setup runbook is still <code class="inline">deploy/windows_mesh_bringup.html</code>; the secrets rule there (copy DRONE_A's <code class="inline">deploy/secrets/</code>, never run <code class="inline">make_fleet_ca.sh</code> on B) is unchanged and untouched by this update.</p>
   </div>
 
@@ -128,7 +128,7 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
       <li><a href="#s0"><span class="n">0</span>Before you start</a></li>
       <li><a href="#s1"><span class="n">1</span>Update each Pi (A, then B)</a></li>
       <li><a href="#s2"><span class="n">2</span>Gate &mdash; the fleet still converges</a></li>
-      <li><a href="#s3"><span class="n">3</span>Aux Battery B firmware (the caveat)</a></li>
+      <li><a href="#s3"><span class="n">3</span>Aux firmware + the sign check</a></li>
       <li><a href="#s4"><span class="n">4</span>Rebuild apps + Field Share bundle</a></li>
       <li><a href="#s5"><span class="n">5</span>Troubleshooting</a></li>
     </ol>
@@ -203,25 +203,29 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
 
   <!-- 3: CRIT -->
   <section class="stage crit" id="s3">
-    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Aux Battery B firmware &mdash; the change and the caveat</h2></div>
-    <p>The firmware change (CHANGES.md item 26): Battery B is now read by the <b>ESP32-C3's own ADC</b> from the XIAO battery pad, not INA3221 channel 2 (only CH1 is wired, to Battery A). So Battery B reports <b>voltage only</b> (<code class="inline">bat_b_v</code>); <code class="inline">bat_b_ma</code> is always null, because a plain ADC cannot measure current.</p>
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Aux firmware &mdash; Battery B on CH2, and the sign check</h2></div>
+    <p>Wire Battery B to <b>INA3221 channel 2</b> (Battery A stays on channel 1), then reflash both modules. The firmware change (CHANGES.md item 30) is that both channels are now read as <b>bidirectional</b>: the shunt register is signed, so a pack being charged reports a <b>negative</b> current rather than a nonsense one.</p>
     <div class="critbox">
-      <div class="label">Do not flash blindly &mdash; the pin conflict</div>
-      <p><code class="inline">PIN_BATT_B_ADC</code> defaults to <b>D0</b>, which on the XIAO is also the <b>LoRa MISO</b> line. Flashing as-is does two harmful things: (1) <code class="inline">bat_b_v</code> is not a trustworthy reading, and (2) driving that pin as an ADC input can interfere with the LoRa fallback beacon, which is the safety path when a Pi loses power.</p>
-      <p><b>Before flashing, set <code class="inline">PIN_BATT_B_ADC</code></b> in <code class="inline">firmware/aux1/src/main.cpp</code> to the ADC pin you actually wired Battery B's voltage divider to (or an external ADC). If Battery B sensing is not wired yet, <b>skip this stage entirely</b>: the current firmware keeps working and you lose nothing real, since INA3221 CH2 was never connected to Battery B anyway.</p>
+      <div class="label">The convention, fleet-wide</div>
+      <p><b>Positive = discharging</b> (the pack is supplying the load). <b>Negative = charging</b> (current flowing into the pack). <b>Near zero = idle</b>; anything under 5 mA is called idle, because one ADC count is 0.4 mA and a resting line jitters either side of zero.</p>
+      <p>This matters most for Battery B, which design v3 has <b>charging from the Pi's USB during normal operation</b> and taking over in fallback. So on a healthy node, Battery B reading negative is the system working correctly, not a fault.</p>
     </div>
-    <p>When the pin is decided, flash each module from Windows with it on USB (identity in flash survives a reflash, so DRONE_A stays DRONE_A):</p>
+    <p>Flash each module from Windows with it on USB. The node identity lives in flash and survives a reflash, so DRONE_A stays DRONE_A:</p>
     <div class="term">
       <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell &middot; firmware\aux1</span><span class="where pc">LAPTOP</span></div>
       <pre><span class="prompt">PS&gt;</span> git pull
-<span class="prompt">PS&gt;</span> notepad src\main.cpp        <span class="comment"># set PIN_BATT_B_ADC to your wired pin</span>
 <span class="prompt">PS&gt;</span> pio run -t upload           <span class="comment"># module A on COMx; repeat for module B</span></pre>
     </div>
     <div class="readout">
       <div class="label">After flashing: confirm on the Pi</div>
-      <pre><span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health | python3 -m json.tool | grep -A4 battery</pre>
-      <p class="hint">You should see <code class="inline">"b_v"</code> populated and <code class="inline">"b_ma": null</code>. The fallback beacon layout is unchanged (same field count; only the Battery B current field is now always empty), so the Pi bridge parses a reflashed module with no Pi-side change. If unsure a module kept its identity, plug it into the laptop and run <code class="inline">python tools\aux_sim.py --port COMx</code> then <code class="inline">n DRONE_A</code> (or <code class="inline">DRONE_B</code>) and check the ack.</p>
+      <pre><span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health | python3 -m json.tool | grep -A6 battery</pre>
+      <p class="hint">Both <code class="inline">"b_v"</code> and <code class="inline">"b_ma"</code> should now carry numbers (under item 26's withdrawn design <code class="inline">b_ma</code> was always null). The fallback beacon layout is unchanged, and the Pi bridge parses with <code class="inline">float()</code>, so a negative value flows end to end with no Pi-side change. If unsure a module kept its identity, run <code class="inline">python tools\aux_sim.py --port COMx</code> then <code class="inline">n DRONE_A</code> (or <code class="inline">DRONE_B</code>) and check the ack.</p>
     </div>
+    <div class="gatebox">
+      <div class="label">Stop here &mdash; check the sign per channel</div>
+      <p>With the Pi powered over USB, <b>Battery B should read negative (charging) or near zero (full)</b>, and Battery A should read positive under load. If a channel reads positive while it is plainly on charge, that channel's shunt is wired the other way round: set <code class="inline">BATT_A_SHUNT_INVERT</code> or <code class="inline">BATT_B_SHUNT_INVERT</code> to <code class="inline">true</code> in <code class="inline">src/main.cpp</code> and reflash. Do not re-solder for this. If Battery B reads a steady positive draw while the Pi is alive, it is not charging at all, which is the open power question in file 03 &mdash; log it in <code class="inline">docs/test_log.md</code>.</p>
+    </div>
+    <div class="note"><b>Range:</b> the channel measures +/-1638 mA with the 100 milliohm shunts and <b>clips</b> at that rail rather than wrapping, so a very large charge or load current is under-reported but never reports the wrong direction. Full procedure in <code class="inline">firmware/aux1/TESTS.md</code> tests 1 and 6.</div>
   </section>
 
   <!-- 4 -->
@@ -251,13 +255,14 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
           <tr><td><code class="inline">personnel_locations</code> missing from /health <code class="inline">table_counts</code></td><td>The node is still on old code. Confirm the pull landed: <code class="inline">git -C ~/rescue-mesh log -1 --oneline</code> should match origin. If it does, restart the services again; the table is created on start, so a clean restart on current code makes it appear.</td></tr>
           <tr><td>Rescue app map shows victims and drones but no teammates</td><td>Either this node predates the update (check the row above), or the other rescuers have <b>Share my location</b> off. Confirm <code class="inline">/personnel-locations</code> returns entries; heartbeats are foreground-only and every ~90 s, so allow a minute.</td></tr>
           <tr><td><code class="inline">/personnel-locations</code> returns 403 with the HQ key</td><td>Only the GET is HQ-allowed; POSTing a location needs a rescuer session token (identity comes from the token, by design). Read with the HQ key, write from the app.</td></tr>
-          <tr><td>After an aux reflash, LoRa fallback is flaky or <code class="inline">bat_b_v</code> looks wrong</td><td>The D0 / LoRa-MISO pin conflict (Stage 3). Set <code class="inline">PIN_BATT_B_ADC</code> to a genuinely free ADC pin (or an external ADC) and reflash, or revert to the prior firmware until Battery B is wired.</td></tr>
+          <tr><td>A battery current has the wrong sign (charging shows as a draw, or the reverse)</td><td>That channel's shunt is wired with IN+ and IN- swapped. Set <code class="inline">BATT_A_SHUNT_INVERT</code> or <code class="inline">BATT_B_SHUNT_INVERT</code> to <code class="inline">true</code> in <code class="inline">firmware/aux1/src/main.cpp</code> and reflash (Stage 3). No re-soldering needed.</td></tr>
+          <tr><td>Battery B shows a steady positive draw while the Pi is powered</td><td>It is not charging from the Pi USB, which design v3 assumes it does. Check the USB/charge path before any long unattended run, and log the finding (file 03 power note, still open).</td></tr>
           <tr><td>Peer disappears / sync stops after the restart</td><td>Not caused by this update (no secrets or network change here). Same checks as bring-up: <code class="inline">iw dev wlan1 info</code> shows type IBSS on both, <code class="inline">ping 10.99.0.2</code> works, and <code class="inline">tail ~/rescue-mesh/backend/audit.log</code> has no <code class="inline">SYNC_REJECT</code>.</td></tr>
           <tr><td>Fallback alert never appears in the apps</td><td>The alert is driven by a DEGRADED node in <code class="inline">/health</code>, which only happens when a Pi is actually down and its aux is heard over LoRa. To rehearse it, power a Pi off and watch a neighbour's <code class="inline">degraded_nodes</code> populate.</td></tr>
         </tbody>
       </table>
     </div>
-    <div class="note"><b>Reference:</b> <code class="inline">docs/CHANGES.md</code> items 26&ndash;29 (what changed and why), <code class="inline">docs/FIELD_SHARE.md</code> (the download point), and <code class="inline">deploy/windows_mesh_bringup.html</code> (fresh setup + the secrets rule).</div>
+    <div class="note"><b>Reference:</b> <code class="inline">docs/CHANGES.md</code> items 26&ndash;30 (what changed and why, including why item 26 was withdrawn), <code class="inline">docs/FIELD_SHARE.md</code> (the download point), and <code class="inline">deploy/windows_mesh_bringup.html</code> (fresh setup + the secrets rule).</div>
   </section>
 
 </div>

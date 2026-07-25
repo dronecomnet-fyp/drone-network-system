@@ -26,12 +26,20 @@ With the unified firmware flashed and the module on a bench supply:
 2. Watch the serial stream. Within a few minutes expect, every 5 s:
    - `{"type":"gps","fix":1,"lat":...,"lon":...,"sats":N,...}` (fix flips
      from 0 to 1 when the antenna sees satellites)
-   - `{"type":"battery","bat_a_v":...,"bat_b_v":...,...}`: `bat_a_v` is the
-     INA3221 CH1 (Battery A) voltage; `bat_b_v` is the ESP32-C3 ADC reading
-     of the XIAO battery pad (Battery B), scaled by BATT_B_DIVIDER.
-     `bat_b_ma` is always null (an ADC reads voltage only). Feed a known
-     voltage into the Battery B ADC pin through the divider and confirm
-     `bat_b_v` tracks it.
+   - `{"type":"battery","bat_a_v":...,"bat_a_ma":...,"bat_b_v":...,
+     "bat_b_ma":...}`: Battery A is INA3221 CH1, Battery B is CH2.
+   - CHECK THE SIGN, per channel, because both channels are bidirectional.
+     With the pack running a load, the current must be POSITIVE. Then put
+     that pack on charge: the same field must go NEGATIVE while voltage
+     rises. If a channel reads negative under load (and positive on
+     charge), its shunt is wired the other way round: set
+     `BATT_A_SHUNT_INVERT` / `BATT_B_SHUNT_INVERT` to `true` in
+     `src/main.cpp` and reflash, rather than re-soldering.
+   - A resting pack sits within a few tenths of a mA of zero, either side.
+     That is the 0.4 mA/count resolution, not a real direction; the apps
+     call anything under `kBatteryIdleMa` (5 mA) idle.
+   - A channel the chip cannot answer for reports `null`, which is not the
+     same as `0` (no reading vs no current).
 3. LoRa path: flash the SECOND module with the same firmware (it doubles
    as the receiver). On module 1's serial, send
    `{"type":"lora_tx","payload":"hello-bench"}`.
@@ -96,21 +104,23 @@ Pass: UUID + payload visible in NORMAL, absent in FALLBACK.
 
 ## Test 6: duty-cycle sanity (rule 5 figure check)
 
-Battery B is now read by the ESP32-C3 ADC, which gives VOLTAGE ONLY (no
-current), so this test measures the module's current draw EXTERNALLY rather
-than from `bat_b_ma`.
+Battery B is on INA3221 CH2, so `bat_b_ma` measures this directly.
 
-1. Power the module from a bench supply (or Battery B through an inline
-   ammeter / a supply with a current readout) so you can read the current
-   the module actually draws.
+1. Run the module from Battery B with nothing charging it, so the reading
+   is pure draw. Confirm `bat_b_ma` is POSITIVE before you start: a
+   negative figure means the pack is on charge (or the shunt is reversed,
+   see test 1) and the averages below would be meaningless.
 2. Log serial `battery` lines for 10 minutes in NORMAL
-   (`python3 tools/aux_sim.py --port <port> --log normal.jsonl`) while
-   noting the external current reading.
+   (`python3 tools/aux_sim.py --port <port> --log normal.jsonl`).
 3. Repeat for 10 minutes in FALLBACK (stop pings so the module enters
-   fallback; keep it powered and keep reading the external current).
-4. Compare the measured average current in each mode against the battery
-   capacity decision doc (177 mA class assumption). `bat_b_v` from the
-   serial stream tracks the pad voltage sag over the run as a cross-check.
+   fallback; keep it powered).
+4. Average `bat_b_ma` per mode and compare against the battery capacity
+   decision doc (177 mA class assumption). `bat_b_v` tracks the pack sag
+   over the run as a cross-check.
+
+Note the measurement ceiling: with the 0.100 ohm shunt the channel
+saturates at about +/-1638 mA and CLIPS rather than wrapping, so a draw or
+charge current beyond that is under-reported, not wrong-signed.
 
 Pass: measured averages recorded in docs/test_log.md. If NORMAL-mode
 current exceeds the doc's assumption materially, FLAG IT in
@@ -124,3 +134,21 @@ fallback. VERIFY on the Seeed XIAO ESP32-C3 wiki that simultaneous USB +
 battery is a supported configuration of its charging circuit, and measure
 the charge current once on the bench. Confidence pending that check:
 Moderate (file 03 power note).
+
+With Battery B on INA3221 CH2 the charge current is now directly readable,
+so that open item is answered from `bat_b_ma` rather than an external
+meter. This also gives the expected SIGN per mode, which is the quickest
+health check on the whole power design:
+
+| Mode                       | Expected `bat_b_ma`                       |
+| -------------------------- | ----------------------------------------- |
+| NORMAL, Pi USB present     | NEGATIVE (charging), tapering toward 0    |
+| NORMAL, pack already full  | around 0 (idle / float)                   |
+| FALLBACK, Pi dead, no VBUS | POSITIVE (the pack is now running things) |
+
+A pack reading positive while the Pi is alive and USB is present means it
+is NOT being charged: either the charging path is not working (the thing
+file 03 asks to verify) or that channel's shunt is reversed (test 1).
+Record the measured charge current in docs/test_log.md; if the pack does
+not actually charge from Pi USB, that breaks design v3's "takes over in
+fallback" story and must be flagged in docs/CHANGES.md under rule 5.

@@ -261,6 +261,27 @@ class GpsState {
         );
 }
 
+/// Which way current is flowing in a battery line.
+///
+/// Both battery channels on the aux module's INA3221 are BIDIRECTIONAL:
+/// a pack that is being charged reads a negative current. The firmware
+/// publishes the sign (positive discharging, negative charging, see
+/// firmware/aux1/src/main.cpp) and the apps classify it here, so the rule
+/// lives in exactly one place.
+enum BatteryFlow { charging, discharging, idle, unknown }
+
+/// Below this magnitude a reading is called idle rather than given a
+/// direction. The INA3221 resolves 0.4 mA per count, so a resting line
+/// jitters either side of zero; without a deadband the UI would flap
+/// between "charging" and "discharging" on noise alone.
+const double kBatteryIdleMa = 5.0;
+
+BatteryFlow batteryFlowFor(double? ma) {
+  if (ma == null) return BatteryFlow.unknown;
+  if (ma.abs() < kBatteryIdleMa) return BatteryFlow.idle;
+  return ma < 0 ? BatteryFlow.charging : BatteryFlow.discharging;
+}
+
 class BatteryState {
   final double? aV;
   final double? aMa;
@@ -268,6 +289,14 @@ class BatteryState {
   final double? bMa;
 
   const BatteryState({this.aV, this.aMa, this.bV, this.bMa});
+
+  BatteryFlow get flowA => batteryFlowFor(aMa);
+  BatteryFlow get flowB => batteryFlowFor(bMa);
+
+  /// Current magnitude without the direction, for "120 mA" style display
+  /// where the direction is already shown as a word or an icon.
+  double? get aMaAbs => aMa?.abs();
+  double? get bMaAbs => bMa?.abs();
 
   factory BatteryState.fromJson(Map<String, dynamic>? json) => json == null
       ? const BatteryState()
