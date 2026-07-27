@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Rolling out the DEGRADED and peer-info fixes</title>
+<style>
+@font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
+:root {
+  --ink: #1b2028; --paper: #f6f4ef; --paper-raised: #eeebe3; --line: #d8d3c6;
+  --wire: #5b6b7a; --accent: #d9711c; --accent-strong: #b85c14;
+  --pass: #1f8f5b; --pass-bg: #e4f4ec; --stop: #c23a3a; --stop-bg: #fbe9e7;
+  --term-bg: #14181e; --term-fg: #e6e2d6; --term-dim: #8a93a3; --code-fg: #2a2f38;
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+  --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+  --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+  --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+  --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+    --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+    --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+    --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+body { font-family: var(--sans); font-size: 16px; line-height: 1.6; padding: 0 0 6rem; }
+::selection { background: var(--accent); color: #14181e; }
+a { color: var(--accent-strong); }
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; }
+.masthead { border-bottom: 1px solid var(--line); padding: 2.6rem 0 1.8rem; margin-bottom: 2.2rem; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--wire); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+h1.title { font-family: var(--mono); font-size: 1.9rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6rem; }
+.dek { max-width: 48ch; color: var(--wire); font-size: 1.02rem; margin: 0; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1.4rem; font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+.meta-row b { color: var(--ink); font-weight: 600; }
+.loop { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1.5rem; padding: 0.9rem 1rem; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; font-family: var(--mono); font-size: 0.76rem; }
+.loop .n { padding: 0.2rem 0.55rem; border-radius: 5px; background: var(--paper); border: 1px solid var(--line); white-space: nowrap; }
+.loop .n.hi { border-color: var(--accent); color: var(--accent-strong); }
+.loop .ar { color: var(--wire); }
+.index { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin-bottom: 2.6rem; }
+.index-title { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--wire); margin: 0 0 0.7rem; }
+.index ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.25rem 1rem; }
+.index li a { display: flex; gap: 0.55rem; align-items: baseline; text-decoration: none; color: var(--ink); font-size: 0.88rem; padding: 0.2rem 0; }
+.index li a:hover { color: var(--accent-strong); }
+.index .n { font-family: var(--mono); color: var(--wire); font-size: 0.78rem; min-width: 1.4em; }
+.stage { border-left: 3px solid var(--line); padding: 0 0 0 1.3rem; margin-bottom: 2.9rem; scroll-margin-top: 1.5rem; }
+.stage.gate { border-left-color: var(--stop); }
+.stage.crit { border-left-color: var(--accent); }
+.stage-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 0.85rem; }
+.stage-num { font-family: var(--mono); font-size: 0.85rem; color: var(--wire); background: var(--paper-raised); border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.6rem; flex-shrink: 0; }
+h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+.stage ul, .stage ol.steps { margin: 0 0 1rem; padding-left: 1.25rem; max-width: 60ch; }
+.stage li { margin-bottom: 0.4rem; }
+.stage li:last-child { margin-bottom: 0; }
+.term { background: var(--term-bg); border-radius: 8px; margin: 0 0 1rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000); }
+.term-bar { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.term-bar .cap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--term-dim); margin-left: 0.3rem; }
+.term-bar .where { margin-left: auto; font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.08rem 0.5rem; border-radius: 999px; }
+.term-bar .where.a { color: #a7e8c6; background: rgba(31,143,91,0.2); }
+.term-bar .where.b { color: #ffcfa3; background: rgba(217,113,28,0.2); }
+.term-bar .where.pc { color: #a9c9ff; background: rgba(59,110,180,0.22); }
+.term-bar .where.s { color: #d8c2ff; background: rgba(124,92,190,0.24); }
+.term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
+.term-bar .led.r { background: #e5645c; } .term-bar .led.y { background: #e5b84f; } .term-bar .led.g { background: #57c273; }
+.term pre { margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg); }
+.term .prompt { color: var(--term-dim); }
+.term .comment { color: var(--term-dim); font-style: italic; }
+code.inline { font-family: var(--mono); font-size: 0.88em; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 4px; padding: 0.05rem 0.35rem; color: var(--code-fg); }
+.readout { background: var(--pass-bg); border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line)); border-radius: 8px; padding: 0.9rem 1.1rem 1rem; margin: 0 0 1rem; }
+.readout .label { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pass); margin-bottom: 0.55rem; }
+.readout pre, .readout code { font-family: var(--mono); font-size: 0.85rem; color: var(--code-fg); white-space: pre-wrap; word-break: break-word; margin: 0; }
+.readout .hint { font-family: var(--sans); font-size: 0.85rem; color: var(--wire); margin-top: 0.55rem; white-space: normal; }
+.gatebox { background: var(--stop-bg); border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line)); border-radius: 8px; padding: 0.95rem 1.1rem 1.05rem; margin: 0 0 0.4rem; }
+.gatebox .label { font-family: var(--mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.gatebox p { margin: 0; max-width: 58ch; font-size: 0.95rem; }
+.critbox { background: color-mix(in srgb, var(--accent) 12%, var(--paper)); border: 2px solid var(--accent); border-radius: 10px; padding: 1rem 1.2rem; margin: 0 0 1rem; }
+.critbox .label { font-family: var(--mono); font-weight: 700; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem; }
+.critbox p { margin: 0 0 0.6rem; }
+.critbox p:last-child { margin: 0; }
+.note { border: 1px dashed var(--line); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.88rem; color: var(--wire); margin: 0 0 1rem; max-width: 60ch; }
+.note b { color: var(--ink); }
+.fieldtable-wrap { overflow-x: auto; margin-bottom: 1rem; }
+table.fieldtable { border-collapse: collapse; width: 100%; font-size: 0.85rem; min-width: 30rem; }
+table.fieldtable th, table.fieldtable td { text-align: left; padding: 0.45rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.fieldtable th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wire); font-weight: 600; }
+footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+@media (max-width: 640px) { h1.title { font-size: 1.55rem; } .index ol { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; bug-fix rollout &middot; 2026-07-28</div>
+    <h1 class="title">Rolling out the DEGRADED<br>and peer-info fixes</h1>
+    <p class="dek">Two field bugs are fixed: a healthy drone stuck showing as DEGRADED, and peers that showed only a last-seen time. This is what to do to the kit you already have running. Nothing is reformatted, nothing is reinstalled, and no data is lost.</p>
+    <div class="meta-row">
+      <span><b>Touches</b> all three Pis + both aux modules (A and B)</span>
+      <span><b>Time</b> about 20 minutes total</span>
+      <span><b>Drive from</b> Windows (SSH + PlatformIO)</span>
+    </div>
+    <div class="loop">
+      <span class="n">pull + restart each Pi</span><span class="ar">&rarr;</span>
+      <span class="n hi">reflash both aux</span><span class="ar">&rarr;</span>
+      <span class="n">stale alert clears itself</span><span class="ar">&rarr;</span>
+      <span class="n">peers show position + battery</span>
+    </div>
+  </header>
+
+  <div class="critbox">
+    <div class="label">The short answer on "do I need to format or reflash?"</div>
+    <p><b>No formatting. No SD card reimaging. No flash erase. No re-provisioning.</b></p>
+    <p>The Pis take a <code class="inline">git pull</code> and a service restart. The aux modules take an ordinary <code class="inline">pio run -t upload</code>, which writes only the app partition and leaves NVS alone, so each module keeps its DRONE_A / DRONE_B identity and its cached last message. You never run <code class="inline">erase_flash</code>, and you never re-run <code class="inline">setup_node.sh</code> or <code class="inline">make_fleet_ca.sh</code>.</p>
+    <p><b>You also do not need to touch the database.</b> The stale DEGRADED row on DRONE_A is left exactly where it is: the new code stops trusting it rather than deleting it, so it ages out on its own. No SQL, at all.</p>
+  </div>
+
+  <nav class="index">
+    <p class="index-title">Stages</p>
+    <ol>
+      <li><a href="#s0"><span class="n">0</span>What broke, in one minute</a></li>
+      <li><a href="#s1"><span class="n">1</span>Update the three Pis</a></li>
+      <li><a href="#s2"><span class="n">2</span>Reflash aux A and B</a></li>
+      <li><a href="#s3"><span class="n">3</span>Gate &mdash; the false alert is gone</a></li>
+      <li><a href="#s4"><span class="n">4</span>Gate &mdash; peers show position</a></li>
+      <li><a href="#s5"><span class="n">5</span>Prove the recovery works</a></li>
+      <li><a href="#s6"><span class="n">6</span>Rebuild the GCC</a></li>
+      <li><a href="#s7"><span class="n">7</span>Troubleshooting</a></li>
+    </ol>
+  </nav>
+
+  <section class="stage" id="s0">
+    <div class="stage-head"><span class="stage-num">00</span><h2 class="stage-title">What broke, in one minute</h2></div>
+    <p><b>The false DEGRADED alert had two causes, and both are fixed.</b></p>
+    <ul>
+      <li><b>The aux module never recovered.</b> It declares the Pi dead after 15 seconds of silence. Restarting <code class="inline">rescue-mesh-auxbridge</code> can take longer than that, so the module dropped into fallback, and fallback was one-way until a power cycle. It then beaconed over LoRa every 30 s forever and kept BLE switched off, so the drone also went invisible to the emergency app. That is almost certainly what happened to DRONE_B during the last update.</li>
+      <li><b>The GCC never expired the alert.</b> The node stored a "degraded" flag and nothing anywhere ever cleared it, so one beacon heard once marked that drone down permanently.</li>
+    </ul>
+    <p><b>Peers had no position</b> because the mesh beacon deliberately carries only identity and counters, never GPS. Nodes now fetch each other's health over the sync link instead, so peers arrive with position, battery and their own data age.</p>
+    <div class="note"><b>Want the immediate workaround before you update anything?</b> Power-cycle DRONE_B's aux module. That alone stops the false beacons today. The update below is what stops it happening again.</div>
+  </section>
+
+  <section class="stage" id="s1">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">Update the three Pis</h2></div>
+    <p>Identical on each node, in turn: <b>DRONE_A</b>, then <b>DRONE_B</b>, then <b>DRONE_S</b>. Leave the others running while you do one.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">each Pi in turn</span><span class="where a">A, B, S</span></div>
+      <pre><span class="prompt">$</span> cd ~/rescue-mesh
+<span class="prompt">$</span> git pull
+<span class="prompt">$</span> sudo systemctl restart rescue-mesh-api rescue-mesh-sync rescue-mesh-auxbridge</pre>
+    </div>
+    <p>On <b>DRONE_S</b> only, also restart the MAVLink gateway. Do it with the flight controller <b>disarmed and props off</b>, since it briefly drops the control link:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-s shell</span><span class="where s">DRONE_S</span></div>
+      <pre><span class="prompt">$</span> sudo systemctl restart rescue-mesh-mavgw</pre>
+    </div>
+    <div class="note"><b>Expect a brief false alert while you do this.</b> Restarting the aux bridge is exactly the thing that trips the old firmware into fallback. On the nodes you have not reflashed yet, that is still possible. It clears by itself once stage 2 is done, and after this update it stops being permanent even if it happens.</div>
+  </section>
+
+  <section class="stage crit" id="s2">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">Reflash aux modules A and B</h2></div>
+    <p>This is the real fix for the false alert, so do not skip it. <b>DRONE_S has no aux module</b>, so there are only two to do.</p>
+    <p>Plug module A into the laptop over USB. From the repo:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell &middot; firmware\aux1</span><span class="where pc">LAPTOP</span></div>
+      <pre><span class="prompt">PS&gt;</span> cd firmware\aux1
+<span class="prompt">PS&gt;</span> git pull
+<span class="prompt">PS&gt;</span> pio run                <span class="comment"># build only, catches errors first</span>
+<span class="prompt">PS&gt;</span> pio run -t upload      <span class="comment"># then flash. repeat for module B</span></pre>
+    </div>
+    <div class="critbox">
+      <div class="label">Do NOT erase the flash</div>
+      <p><code class="inline">pio run -t upload</code> replaces only the program. The module's identity (DRONE_A or DRONE_B) lives in NVS and survives, so there is nothing to re-provision.</p>
+      <p><code class="inline">pio run -t erase</code> or <code class="inline">esptool erase_flash</code> would wipe that identity and the module would come back as <code class="inline">UNSET</code>, beaconing under the wrong name. If it ever happens, fix it with <code class="inline">python tools\aux_sim.py --port COMx</code> then <code class="inline">n DRONE_A</code>.</p>
+    </div>
+    <p>Same binary for both modules; there is nothing to edit between them.</p>
+  </section>
+
+  <section class="stage gate" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Gate &mdash; the false alert is gone</h2></div>
+    <p>Open the GCC on <code class="inline">RESCUE_A</code> and look at Live Ops and the Map. The red "drone on LoRa fallback" banner for DRONE_B should be gone.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-a shell</span><span class="where a">DRONE_A</span></div>
+      <pre><span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health | python3 -m json.tool | grep -A6 degraded</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected</div>
+      <pre>"degraded_nodes": []</pre>
+      <p class="hint">Two independent reasons it clears, so you do not have to wait for both: DRONE_B is an alive DTN peer (its signed mesh beacon proves its Pi is up, which outranks any LoRa claim), and the old claim is now older than the 120 s expiry. <b>The stale database row is still there and that is fine</b> &mdash; the node simply stops trusting it. Nothing to clean up.</p>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Confirm <code class="inline">degraded_nodes</code> is empty while DRONE_B is powered and healthy. If a node is genuinely down it should still appear, which stage 5 checks.</p>
+    </div>
+  </section>
+
+  <section class="stage gate" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Gate &mdash; peers show position and battery</h2></div>
+    <p>Allow one sync cycle (about 30 s) after the restarts, then on DRONE_A:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-a shell</span><span class="where a">DRONE_A</span></div>
+      <pre><span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health | python3 -m json.tool | grep -A14 peers</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected: each peer now carries health, not just a timestamp</div>
+      <pre>"peers": [
+    { "node_id": "DRONE_B", "ip": "10.99.0.2",
+      "last_seen": "...",         &lt;- its mesh beacon
+      "health_ts": "...",         &lt;- when WE last fetched its health
+      "lat": 6.92..., "lon": 79.86..., "gps_fix": 1,
+      "bat_a_v": 7.8, "bat_b_v": 4.05, "clock_source": "gps" }
+]</pre>
+      <p class="hint">In the GCC's Nodes tab this fills the new Position, Battery A, Battery B and Info age columns. <b>Beacon and Info age are separate on purpose:</b> a peer can be beaconing right now while its cached position is minutes old, and the display must not pretend otherwise.</p>
+    </div>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Confirm at least one peer shows a position and an info age. <code class="inline">"health_ts": null</code> with everything blank means that peer has not been updated yet: finish stage 1 on it. A node with no GPS fix indoors correctly shows "no fix" rather than a made-up position.</p>
+    </div>
+  </section>
+
+  <section class="stage" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Prove the recovery actually works</h2></div>
+    <p>Worth doing once, because it is the behaviour that was broken and it is a good thing to be able to demonstrate. On <b>DRONE_B</b>:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-b shell</span><span class="where b">DRONE_B</span></div>
+      <pre><span class="prompt">$</span> sudo systemctl stop rescue-mesh-auxbridge
+<span class="prompt">$</span> sleep 30                                  <span class="comment"># module enters fallback</span>
+<span class="prompt">$</span> sudo systemctl start rescue-mesh-auxbridge
+<span class="prompt">$</span> journalctl -u rescue-mesh-auxbridge -n 20</pre>
+    </div>
+    <ol class="steps">
+      <li>While the bridge is stopped, DRONE_A should show DRONE_B as degraded. That is correct: from A's point of view B's Pi really did stop talking.</li>
+      <li>Within about 15 s of restarting it (3 pings at 5 s apart) the module leaves fallback on its own, stops the LoRa beacons and switches BLE back on.</li>
+      <li>DRONE_A's alert clears by itself, no restart and no database edit.</li>
+    </ol>
+    <div class="note"><b>Old behaviour, for contrast:</b> step 2 never happened. The module stayed in fallback beaconing until someone unplugged it, and step 3 never happened either because the flag had no expiry. Full procedure in <code class="inline">firmware/aux1/TESTS.md</code> test 3b.</div>
+  </section>
+
+  <section class="stage" id="s6">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Rebuild the GCC</h2></div>
+    <p>The new peer columns are a GCC change, so the ground laptop needs a fresh build:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell &middot; repo root</span><span class="where pc">LAPTOP</span></div>
+      <pre><span class="prompt">PS&gt;</span> cd gcc_app
+<span class="prompt">PS&gt;</span> git pull
+<span class="prompt">PS&gt;</span> flutter build windows</pre>
+    </div>
+    <div class="note"><b>The phone apps do NOT need rebuilding for this fix.</b> Nothing changed in them. Keep the <code class="inline">phone-apps-v2</code> APKs you already have.</div>
+  </section>
+
+  <section class="stage" id="s7">
+    <div class="stage-head"><span class="stage-num">07</span><h2 class="stage-title">Troubleshooting</h2></div>
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <thead><tr><th>Symptom</th><th>Try this</th></tr></thead>
+        <tbody>
+          <tr><td>A drone STILL shows degraded after the update</td><td>Check it is actually up: is it listed under <code class="inline">peers</code>? If it is a live peer the alert cannot persist, so a lasting alert means the mesh link to it is down, which is a real fault worth investigating rather than a display bug. If it is not a peer and not really down, its aux module is probably still on old firmware and beaconing: finish stage 2 on it, or power-cycle that module.</td></tr>
+          <tr><td>Peers still show no position</td><td>The peer itself must be updated, not just the node you are looking at: the position comes from that peer's own /health. Check for <code class="inline">PEER_HEALTH_FAIL</code> in <code class="inline">~/rescue-mesh/backend/audit.log</code>, and allow one 30 s sync cycle.</td></tr>
+          <tr><td>An aux module now reports as UNSET</td><td>Its flash was erased at some point. Reprovision: <code class="inline">python tools\aux_sim.py --port COMx</code>, then <code class="inline">n DRONE_A</code> or <code class="inline">n DRONE_B</code>, and check the ack.</td></tr>
+          <tr><td>A drone keeps flipping in and out of fallback</td><td>Recovery deliberately needs 3 consecutive pings, so genuine flapping means the Pi itself is unstable. Check <code class="inline">journalctl -u rescue-mesh-auxbridge</code> for the bridge restarting in a loop, and check power.</td></tr>
+          <tr><td>The emergency app cannot see a drone over Bluetooth</td><td>BLE is switched off while a module is in fallback. If the drone is healthy, that module is stuck in old-firmware fallback: reflash (stage 2) or power-cycle it.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><b>Reference:</b> <code class="inline">docs/CHANGES.md</code> item 31 (both bugs, and why degraded is now derived rather than stored), <code class="inline">firmware/aux1/TESTS.md</code> tests 3 and 3b, and <code class="inline">deploy/windows_node_update.html</code> for the previous M7 feature update.</div>
+  </section>
+
+  <footer class="rb">deploy &middot; DEGRADED + peer-info fix &middot; DRONE_A + DRONE_B + DRONE_S &middot; rescue mesh phase 2</footer>
+
+</div>
+
+</body>
+</html>
