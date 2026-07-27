@@ -23,8 +23,8 @@ What it does (design v3 sections 3.1-3.4):
 
 ```
 pip install platformio
-cd firmware/aux
-pio run              # build
+cd firmware/aux1     # the folder holding platformio.ini
+pio run              # build only: do this first, it catches errors
 pio run -t upload    # flash over USB-C
 pio device monitor   # serial at 115200
 ```
