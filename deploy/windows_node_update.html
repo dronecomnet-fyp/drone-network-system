@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Update DRONE_A + DRONE_B for the M7 app features</title>
+<title>Update DRONE_A, DRONE_B and DRONE_S for the M7 app features</title>
 <style>
 @font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
 :root {
@@ -68,6 +68,7 @@ h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600;
 .term-bar .where.a { color: #a7e8c6; background: rgba(31,143,91,0.2); }
 .term-bar .where.b { color: #ffcfa3; background: rgba(217,113,28,0.2); }
 .term-bar .where.pc { color: #a9c9ff; background: rgba(59,110,180,0.22); }
+.term-bar .where.s { color: #d8c2ff; background: rgba(124,92,190,0.24); }
 .term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
 .term-bar .led.r { background: #e5645c; } .term-bar .led.y { background: #e5b84f; } .term-bar .led.g { background: #57c273; }
 .term pre { margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg); }
@@ -99,12 +100,12 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
 <div class="wrap">
 
   <header class="masthead">
-    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; M7 update &middot; DRONE_A + DRONE_B</div>
-    <h1 class="title">Update DRONE_A and DRONE_B<br>for the M7 app features</h1>
-    <p class="dek">The two-node mesh already runs. This brings both existing nodes (Pi + aux) up to the code the new GCC and rescue-app features expect: rescuer-location sharing, LoRa-fallback alerts, and the rescue-app ops map. Plus the aux firmware change that puts Battery B back on INA3221 channel 2 and reads both battery channels as bidirectional.</p>
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; M7 update &middot; DRONE_A + DRONE_B + DRONE_S</div>
+    <h1 class="title">Update DRONE_A, DRONE_B<br>and DRONE_S for the M7 features</h1>
+    <p class="dek">The mesh already runs. This brings ALL THREE existing nodes up to the code the new GCC and rescue-app features expect: rescuer-location sharing, LoRa-fallback alerts, and the rescue-app ops map. Plus the aux firmware change that puts Battery B back on INA3221 channel 2 and reads both battery channels as bidirectional.</p>
     <div class="meta-row">
-      <span><b>Already built</b> DRONE_A + DRONE_B (Pi + AR9271 + aux each)</span>
-      <span><b>Touches</b> both Pis (pull + restart) and both aux modules (reflash)</span>
+      <span><b>Already built</b> DRONE_A + DRONE_B (Pi + aux), DRONE_S (Pi + flight controller)</span>
+      <span><b>Touches</b> all three Pis (pull + restart); aux reflash on A and B only</span>
       <span><b>Drive from</b> Windows (SSH + PlatformIO)</span>
     </div>
     <div class="loop">
@@ -117,8 +118,9 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
 
   <div class="critbox">
     <div class="label">Read this first &mdash; what this update is, and is not</div>
-    <p>Almost all the change this cycle was in the <b>apps</b> (GCC and the rescue app). On the <b>nodes</b> the backend code did not change this cycle, so the node side is a plain <b>git pull + service restart</b> to make sure both Pis are on the current code that the new apps talk to (rescuer locations, checkins, health). There is <b>no manual database migration</b>: the service creates any missing table on start (<code class="inline">CREATE TABLE IF NOT EXISTS</code>), so no SQL and no data loss.</p>
+    <p>Almost all the change this cycle was in the <b>apps</b> (GCC and the rescue app). On the <b>nodes</b> the backend code did not change this cycle, so the node side is a plain <b>git pull + service restart</b> to make sure all three Pis are on the current code that the new apps talk to (rescuer locations, checkins, health). There is <b>no manual database migration</b>: the service creates any missing table on start (<code class="inline">CREATE TABLE IF NOT EXISTS</code>), so no SQL and no data loss.</p>
     <p>The <b>aux modules do need reflashing</b> this time (Stage 3): Battery B is wired to INA3221 <b>channel 2</b>, and both battery channels are now read as <b>bidirectional</b>, so a pack on charge reports a negative current instead of a wrong one. Check the sign on the bench as part of that stage.</p>
+    <p><b>DRONE_S is not optional here.</b> It runs the same backend and is a sync peer of both A and B (10.99.0.3), so if it stays on old code the new <code class="inline">personnel_locations</code> table never converges with it: A and B will log <code class="inline">SYNC_FAIL | peer=DRONE_S | table=personnel_locations</code> every cycle while every other table keeps working. Update all three. DRONE_S has <b>no aux module</b>, so the firmware stage does not apply to it.</p>
     <p>This is the <b>update</b> runbook. For building a Pi from a blank card, the fresh-setup runbook is still <code class="inline">deploy/windows_mesh_bringup.html</code>; the secrets rule there (copy DRONE_A's <code class="inline">deploy/secrets/</code>, never run <code class="inline">make_fleet_ca.sh</code> on B) is unchanged and untouched by this update.</p>
   </div>
 
@@ -128,9 +130,10 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
       <li><a href="#s0"><span class="n">0</span>Before you start</a></li>
       <li><a href="#s1"><span class="n">1</span>Update each Pi (A, then B)</a></li>
       <li><a href="#s2"><span class="n">2</span>Gate &mdash; the fleet still converges</a></li>
-      <li><a href="#s3"><span class="n">3</span>Aux firmware + the sign check</a></li>
-      <li><a href="#s4"><span class="n">4</span>Rebuild apps + Field Share bundle</a></li>
-      <li><a href="#s5"><span class="n">5</span>Troubleshooting</a></li>
+      <li><a href="#s3"><span class="n">3</span>DRONE_S: the system drone</a></li>
+      <li><a href="#s4"><span class="n">4</span>Aux firmware + the sign check (A and B)</a></li>
+      <li><a href="#s5"><span class="n">5</span>Rebuild apps + Field Share bundle</a></li>
+      <li><a href="#s6"><span class="n">6</span>Troubleshooting</a></li>
     </ol>
   </nav>
 
@@ -138,19 +141,19 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
   <section class="stage" id="s0">
     <div class="stage-head"><span class="stage-num">00</span><h2 class="stage-title">Before you start</h2></div>
     <ul>
-      <li>Power both Pis, keep them within a couple of metres so the mesh cell stays up during and after the update.</li>
-      <li>Each Pi reachable from the Windows laptop over Ethernet or the same LAN: <code class="inline">ssh drone@drone-a.local</code> and <code class="inline">ssh drone@drone-b.local</code>.</li>
-      <li>For Stage 3 (aux firmware) only: the Windows laptop with PlatformIO (<code class="inline">pio</code>) and a USB lead to the module. Skip if you are not touching Battery B yet.</li>
+      <li>Power all three Pis (A, B and S), keep them within a couple of metres so the mesh cell stays up during and after the update.</li>
+      <li>Each Pi reachable from the Windows laptop over Ethernet or the same LAN: <code class="inline">ssh drone@drone-a.local</code>, <code class="inline">drone-b.local</code>, <code class="inline">drone-s.local</code>.</li>
+      <li>For stage 4 (aux firmware, A and B only): the Windows laptop with PlatformIO (<code class="inline">pio</code>) and a USB lead to the module. Skip if you are not touching Battery B yet.</li>
     </ul>
-    <div class="note"><b>Order matters a little:</b> update DRONE_A first, confirm it is healthy, then DRONE_B. Doing one at a time keeps a known-good node up while you work on the other.</div>
+    <div class="note"><b>Order matters a little:</b> update DRONE_A first, confirm it is healthy, then DRONE_B, then DRONE_S. Doing one at a time keeps a known-good node up while you work on the other.</div>
   </section>
 
   <!-- 1 -->
   <section class="stage" id="s1">
     <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">Update each Pi: pull, restart, verify</h2></div>
-    <p>Run these on <b>DRONE_A first</b>, confirm the gate at the bottom, then repeat the exact same block on <b>DRONE_B</b>. Nothing here is node-specific.</p>
+    <p>Run these on <b>DRONE_A first</b>, confirm the gate at the bottom, then repeat the exact same block on <b>DRONE_B</b>, then on <b>DRONE_S</b>. Nothing here is node-specific: all three run the same backend. DRONE_S needs one extra service restart, covered in stage 3.</p>
     <div class="term">
-      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-a shell (then repeat on drone-b)</span><span class="where a">DRONE_A</span></div>
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-a shell (then drone-b, then drone-s)</span><span class="where a">DRONE_A</span></div>
       <pre><span class="prompt">$</span> cd ~/rescue-mesh
 <span class="prompt">$</span> git pull
 <span class="prompt">$</span> sudo systemctl restart rescue-mesh-api rescue-mesh-sync rescue-portal rescue-mesh-auxbridge
@@ -174,15 +177,18 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
   <!-- 2 -->
   <section class="stage gate" id="s2">
     <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">Gate &mdash; the fleet still converges</h2></div>
-    <p>Both nodes updated. Prove the mesh is unbroken and the new rescuer-location table replicates like every other table. First, each still sees the other as a peer:</p>
+    <p>All three nodes updated. Prove the mesh is unbroken and the new rescuer-location table replicates like every other table. First, DRONE_A should see BOTH other nodes as peers:</p>
     <div class="term">
       <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-a shell</span><span class="where a">DRONE_A</span></div>
       <pre><span class="prompt">$</span> ping -c 2 10.99.0.2                                  <span class="comment"># B on the mesh</span>
+<span class="prompt">$</span> ping -c 2 10.99.0.3                                  <span class="comment"># S on the mesh</span>
 <span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health | python3 -m json.tool | grep -A4 peers</pre>
     </div>
     <div class="readout">
       <div class="label">Expected</div>
-      <pre>"peers": [ { "node_id": "DRONE_B", "ip": "10.99.0.2", "last_seen": "..." } ]</pre>
+      <pre>"peers": [ { "node_id": "DRONE_B", "ip": "10.99.0.2", "last_seen": "..." },
+           { "node_id": "DRONE_S", "ip": "10.99.0.3", "last_seen": "..." } ]</pre>
+      <p class="hint">If DRONE_S is missing here, it is either powered down or not on the IBSS cell. A peer that is present but stale is the more telling case: check A's audit log for <code class="inline">SYNC_FAIL | peer=DRONE_S</code> lines naming a table, which is the signature of a node still on old code.</p>
     </div>
     <p>Now the real proof for the new feature: a rescuer location created at one node reaches the other. Easiest with a phone at DRONE_B:</p>
     <ol class="steps">
@@ -202,9 +208,34 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
   </section>
 
   <!-- 3: CRIT -->
-  <section class="stage crit" id="s3">
-    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Aux firmware &mdash; Battery B on CH2, and the sign check</h2></div>
-    <p>Wire Battery B to <b>INA3221 channel 2</b> (Battery A stays on channel 1), then reflash both modules. The firmware change (CHANGES.md item 30) is that both channels are now read as <b>bidirectional</b>: the shunt register is signed, so a pack being charged reports a <b>negative</b> current rather than a nonsense one.</p>
+  <section class="stage" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">DRONE_S: the system drone extras</h2></div>
+    <p>DRONE_S is a full mesh node like the others (same image, same backend, same sync), so stage 1 applies to it unchanged. What differs is what hangs off it. It is the only node with a <b>flight controller</b>, and the only node with <b>no aux module at all</b>: <code class="inline">AUX_SERIAL</code> is empty in <code class="inline">deploy/nodes/drone_s.conf</code>, so there is no INA3221, no LoRa, and no separate GPS. Its position and battery come from the flight controller over MAVLink instead.</p>
+    <p>So after the stage 1 pull, restart the gateway too:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-s shell</span><span class="where s">DRONE_S</span></div>
+      <pre><span class="prompt">$</span> sudo systemctl restart rescue-mesh-mavgw
+<span class="prompt">$</span> systemctl is-active rescue-mesh-mavgw     <span class="comment"># active</span>
+<span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health | python3 -m json.tool</pre>
+    </div>
+    <div class="critbox">
+      <div class="label">Restarting the gateway drops the live control link</div>
+      <p><code class="inline">rescue-mesh-mavgw</code> is the transparent serial-to-UDP bridge the GCC talks to. Restarting it cuts the MAVLink link for a few seconds, so do it with the <b>flight controller disarmed and props off</b>, never while the GCC is mid-command. That matches the standing props-off bench policy, which this update does not change.</p>
+    </div>
+    <div class="readout">
+      <div class="label">Expected /health on DRONE_S, which looks different on purpose</div>
+      <pre>"node_id": "DRONE_S",
+"aux": "absent",              &lt;- CORRECT here, not a fault
+"gps": { ... from the flight controller, via the gateway tap ... },
+"table_counts": { ... "personnel_locations": 0 ... }</pre>
+      <p class="hint"><code class="inline">"aux": "absent"</code> is the expected, healthy reading on DRONE_S: there is no module to find. Do not chase it. Battery A/B will also be empty for the same reason, which is exactly why this cycle added the system-drone battery and GPS card to the GCC, sourced from live MAVLink rather than from <code class="inline">/health</code>.</p>
+    </div>
+    <div class="note"><b>One honest consequence of having no aux:</b> DRONE_S cannot send a LoRa fallback beacon. If its Pi loses power, the other nodes hear nothing from it, so it goes quiet rather than appearing as a red DEGRADED alert the way A or B would. That is a property of the hardware, not a bug in the alerting, and it is worth stating when demonstrating the fallback feature.</div>
+  </section>
+
+  <section class="stage crit" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Aux firmware (DRONE_A and DRONE_B only)</h2></div>
+    <p>DRONE_S has no aux module, so skip this stage for it entirely. For A and B: wire Battery B to <b>INA3221 channel 2</b> (Battery A stays on channel 1), then reflash both modules. The firmware change (CHANGES.md item 30) is that both channels are now read as <b>bidirectional</b>: the shunt register is signed, so a pack being charged reports a <b>negative</b> current rather than a nonsense one.</p>
     <div class="critbox">
       <div class="label">The convention, fleet-wide</div>
       <p><b>Positive = discharging</b> (the pack is supplying the load). <b>Negative = charging</b> (current flowing into the pack). <b>Near zero = idle</b>; anything under 5 mA is called idle, because one ADC count is 0.4 mA and a resting line jitters either side of zero.</p>
@@ -229,8 +260,8 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
   </section>
 
   <!-- 4 -->
-  <section class="stage" id="s4">
-    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Rebuild the apps + prepare the Field Share bundle</h2></div>
+  <section class="stage" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Rebuild the apps + prepare the Field Share bundle</h2></div>
     <p>The nodes now serve the data; these are the consumer-side builds that show it. On the Windows laptop:</p>
     <div class="term">
       <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell &middot; repo root</span><span class="where pc">LAPTOP</span></div>
@@ -246,8 +277,8 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
   </section>
 
   <!-- 5 -->
-  <section class="stage" id="s5">
-    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Troubleshooting</h2></div>
+  <section class="stage" id="s6">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Troubleshooting</h2></div>
     <div class="fieldtable-wrap">
       <table class="fieldtable">
         <thead><tr><th>Symptom</th><th>Try this</th></tr></thead>
@@ -257,6 +288,9 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
           <tr><td><code class="inline">/personnel-locations</code> returns 403 with the HQ key</td><td>Only the GET is HQ-allowed; POSTing a location needs a rescuer session token (identity comes from the token, by design). Read with the HQ key, write from the app.</td></tr>
           <tr><td>A battery current has the wrong sign (charging shows as a draw, or the reverse)</td><td>That channel's shunt is wired with IN+ and IN- swapped. Set <code class="inline">BATT_A_SHUNT_INVERT</code> or <code class="inline">BATT_B_SHUNT_INVERT</code> to <code class="inline">true</code> in <code class="inline">firmware/aux1/src/main.cpp</code> and reflash (Stage 3). No re-soldering needed.</td></tr>
           <tr><td>Battery B shows a steady positive draw while the Pi is powered</td><td>It is not charging from the Pi USB, which design v3 assumes it does. Check the USB/charge path before any long unattended run, and log the finding (file 03 power note, still open).</td></tr>
+          <tr><td>A and B log <code class="inline">SYNC_FAIL | peer=DRONE_S | table=personnel_locations</code></td><td>DRONE_S is still on old code and has no such table or sync route. Run stage 1 on it. Failures are isolated per table, so every other dataset keeps syncing meanwhile, which is why this can go unnoticed: check the audit log rather than assuming silence means health.</td></tr>
+          <tr><td>DRONE_S <code class="inline">/health</code> says <code class="inline">"aux": "absent"</code></td><td>Expected and correct: DRONE_S has no aux module (<code class="inline">AUX_SERIAL</code> is empty in its conf). Its GPS and battery come from the flight controller through <code class="inline">rescue-mesh-mavgw</code>, and the GCC shows them on the system-drone card, not in the aux battery fields.</td></tr>
+          <tr><td>GCC loses the drone link after updating DRONE_S</td><td><code class="inline">sudo systemctl restart rescue-mesh-mavgw</code>, then confirm <code class="inline">systemctl is-active rescue-mesh-mavgw</code>. The GCC reconnects on its own once the UDP bridge is back; the heartbeat gate in the Drone tab is what tells you it is live again.</td></tr>
           <tr><td>Peer disappears / sync stops after the restart</td><td>Not caused by this update (no secrets or network change here). Same checks as bring-up: <code class="inline">iw dev wlan1 info</code> shows type IBSS on both, <code class="inline">ping 10.99.0.2</code> works, and <code class="inline">tail ~/rescue-mesh/backend/audit.log</code> has no <code class="inline">SYNC_REJECT</code>.</td></tr>
           <tr><td>Fallback alert never appears in the apps</td><td>The alert is driven by a DEGRADED node in <code class="inline">/health</code>, which only happens when a Pi is actually down and its aux is heard over LoRa. To rehearse it, power a Pi off and watch a neighbour's <code class="inline">degraded_nodes</code> populate.</td></tr>
         </tbody>
@@ -268,7 +302,7 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
 </div>
 
 <footer>
-  <div class="wrap" style="padding:0;">deploy &middot; M7 node update &middot; DRONE_A + DRONE_B &middot; rescue mesh phase 2</div>
+  <div class="wrap" style="padding:0;">deploy &middot; M7 node update &middot; DRONE_A + DRONE_B + DRONE_S &middot; rescue mesh phase 2</div>
 </footer>
 </body>
 </html>
