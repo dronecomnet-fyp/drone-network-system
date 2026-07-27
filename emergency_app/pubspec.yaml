@@ -4,7 +4,7 @@ description: >-
   a rescue drone's BLE advertisement and notifies the user, and once joined
   to the drone WiFi uploads the stored locations and lets them send an SOS.
 publish_to: 'none'
-version: 0.1.0+1
+version: 0.1.1+2
 
 environment:
   sdk: ^3.11.5

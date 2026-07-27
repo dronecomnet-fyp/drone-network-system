@@ -270,9 +270,10 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
     </div>
     <ul>
       <li><b>GCC:</b> reinstall the new Windows build on the ground laptop. New this cycle: the system-drone live battery/GPS card, the LoRa-fallback alert on Live Ops and the Map, and the <b>Field Share</b> tab.</li>
-      <li><b>Rescue app:</b> the release APK now has the ops map tab and the fallback alert banner. Hand it out with Field Share (below).</li>
+      <li><b>Rescue app:</b> you do not have to build this yourself. The signed APK is published on the repo's GitHub <b>releases</b> page as <code class="inline">phone-apps-v2</code> (<code class="inline">rescue-app-v2.1.apk</code>), together with <code class="inline">emergency-app-v0.1.1.apk</code>. Download those, drop them in the Field Share folder, and hand them out. Build locally only if you have changed the app since that release.</li>
     </ul>
-    <p><b>Field Share bundle (task E):</b> put the rescue APK and your offline region maps into one folder, then serve them from the GCC Field Share tab over a local router or the laptop hotspot. Full operator steps are in <code class="inline">docs/FIELD_SHARE.md</code>.</p>
+    <p><b>Field Share bundle (task E):</b> put the two release APKs and your offline region maps into one folder, then serve them from the GCC Field Share tab over a local router or the laptop hotspot. Full operator steps are in <code class="inline">docs/FIELD_SHARE.md</code>.</p>
+    <div class="note"><b>APK version check:</b> the runbook's stage 2 gate needs <b>Settings &rarr; Share my location</b>, which only exists in <code class="inline">rescue-app-v2.1.apk</code> or newer. If that toggle is missing on the phone, it is running the older <code class="inline">phone-apps-v1</code> build; install v2.1 over it (same signing key, no uninstall needed).</div>
     <div class="note"><b>macOS demo note:</b> Field Share also runs under <code class="inline">flutter run -d macos</code> (the dev build already carries the network-server entitlement). The Windows build needs no entitlement.</div>
   </section>
 
