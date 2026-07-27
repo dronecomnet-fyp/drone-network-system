@@ -21,6 +21,7 @@ Static role keys remain as labeled break-glass credentials only.
 
 import html
 import ssl
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -658,11 +659,47 @@ def _uptime_s() -> int:
         return 0
 
 
+def _fresher_than(ts: str, seconds: int) -> bool:
+    """True when an ISO timestamp WE wrote is newer than `seconds` ago.
+    Only ever applied to our own local stamps, so no cross-node clock skew."""
+    if not ts:
+        return False
+    try:
+        when = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return False
+    return (datetime.now(timezone.utc) - when).total_seconds() < seconds
+
+
 @app.get("/health")
 def health_check():
     state = aux_state.read_state()
     peers = models.alive_peers(config.PEER_EXPIRY)
-    degraded = [h for h in models.latest_node_health() if h.get("degraded")]
+    node_health = models.latest_node_health()
+    health_by_node = {h["node_id"]: h for h in node_health}
+    alive_ids = {p["node_id"] for p in peers}
+
+    # DEGRADED is DERIVED here, never simply read back from the stored flag
+    # (CHANGES.md item 31). A LoRa fallback beacon is one device (the aux
+    # module) CLAIMING its Pi is dead. Two things can disprove that claim,
+    # and either one wins:
+    #
+    #   1. the node is a live peer. Its DTN beacon is signed with K_SYNC and
+    #      sent BY the Pi that is supposedly dead, so it is direct proof of
+    #      liveness and beats any claim to the contrary.
+    #   2. the claim went stale. Fallback beacons repeat every 30 s, so if we
+    #      have not heard one within FALLBACK_EXPIRY we no longer have
+    #      evidence the node is down. Out of range is not the same as down,
+    #      and the honest answer is to stop asserting it.
+    #
+    # Without this, one beacon heard once marked a node DOWN forever, even
+    # while the fleet was actively syncing with it.
+    degraded = [
+        h for h in node_health
+        if h.get("degraded")
+        and h["node_id"] not in alive_ids
+        and _fresher_than(h.get("ts", ""), config.FALLBACK_EXPIRY)
+    ]
     return {
         "status": "ok",
         "node_id": config.NODE_ID,
@@ -673,8 +710,28 @@ def health_check():
         "clock_source": state.get("clock_source", "relative"),
         "message_counts": models.message_counts(),
         "table_counts": models.table_counts(),
+        # Peers carry their last known position and battery, not just a
+        # last-seen time. The DTN beacon does not (and should not) carry
+        # this; it comes from that peer's own /health, fetched over the
+        # sync channel and stamped with OUR clock as health_ts. Every field
+        # is therefore "what that node reported when we last reached it",
+        # which the GCC renders with an age rather than as live truth.
         "peers": [
-            {"node_id": p["node_id"], "ip": p["ip"], "last_seen": p["last_seen"]}
+            {
+                "node_id": p["node_id"],
+                "ip": p["ip"],
+                "last_seen": p["last_seen"],
+                "health_ts": (health_by_node.get(p["node_id"]) or {}).get("ts"),
+                "lat": (health_by_node.get(p["node_id"]) or {}).get("lat"),
+                "lon": (health_by_node.get(p["node_id"]) or {}).get("lon"),
+                "gps_fix": (health_by_node.get(p["node_id"]) or {}).get("gps_fix", 0),
+                "bat_a_v": (health_by_node.get(p["node_id"]) or {}).get("bat_a_v"),
+                "bat_a_ma": (health_by_node.get(p["node_id"]) or {}).get("bat_a_ma"),
+                "bat_b_v": (health_by_node.get(p["node_id"]) or {}).get("bat_b_v"),
+                "bat_b_ma": (health_by_node.get(p["node_id"]) or {}).get("bat_b_ma"),
+                "uptime_s": (health_by_node.get(p["node_id"]) or {}).get("uptime_s"),
+                "clock_source": (health_by_node.get(p["node_id"]) or {}).get("clock_source"),
+            }
             for p in peers
         ],
         "degraded_nodes": [

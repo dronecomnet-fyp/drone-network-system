@@ -79,6 +79,34 @@ Pass: every message type observed with correct fields.
 
 Pass: beacon within 45 s, degraded row appears.
 
+## Test 3b: fallback RECOVERY drill (the one that matters in the field)
+
+Entering fallback is easy to trigger by accident: 15 s of Pi silence is
+enough, and an ordinary `systemctl restart rescue-mesh-auxbridge` can take
+that long. Before CHANGES.md item 31 the module then beaconed forever and
+stayed BLE-dark until someone power-cycled it, so a healthy drone looked
+DOWN to the whole fleet. This test proves it now heals itself.
+
+1. From the end of test 3, with module 1 in FALLBACK and beaconing.
+2. Restart the pings (`aux_sim.py` again, or restart the aux bridge on the
+   Pi). Do NOT power-cycle the module.
+3. Expect within about 15 s (3 pings at 5 s):
+   `{"type":"fallback_exit"}` on serial, then `gps` and `battery` lines
+   resuming every 5 s, and the `FB|` beacons STOPPING.
+4. Rescan with nRF Connect: BLE advertising is back (it stops in fallback).
+5. On a neighbouring node, `curl -sk https://10.42.0.1:8443/health` must no
+   longer list module 1's node under `degraded_nodes`, within
+   FALLBACK_EXPIRY (120 s) at the latest, and sooner if that node is an
+   alive DTN peer.
+
+Pass: exits fallback within ~20 s of pings resuming, beacons stop, BLE
+returns, and the neighbour stops reporting it degraded without anyone
+touching the database.
+
+Also confirm it does NOT flap: send a single ping, then go quiet again for
+30 s. The module must STAY in fallback (recovery needs 3 consecutive
+pings), which is what stops a half-dead Pi toggling the fleet's view.
+
 ## Test 4: flash cache across power cycle
 
 1. With the sim, send

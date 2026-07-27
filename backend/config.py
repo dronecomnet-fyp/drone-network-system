@@ -96,6 +96,11 @@ BEACON_TARGETS = [t.strip() for t in os.getenv("BEACON_TARGETS", "").split(",") 
 BEACON_BIND = os.getenv("BEACON_BIND", "0.0.0.0")
 BEACON_INTERVAL = _int("BEACON_INTERVAL", 10)
 PEER_EXPIRY = _int("PEER_EXPIRY", 35)
+# How long a LoRa fallback beacon keeps a node marked DEGRADED. The aux
+# module repeats the beacon every 30 s, so 120 s is four intervals: long
+# enough to ride out a couple of lost packets, short enough that a node
+# that recovered (or flew out of range) stops being asserted as DOWN.
+FALLBACK_EXPIRY = _int("FALLBACK_EXPIRY", 120)
 SYNC_INTERVAL = _int("SYNC_INTERVAL", 30)
 SYNC_SCHEME = os.getenv("SYNC_SCHEME", "https")
 SYNC_VERIFY_TLS = _bool("SYNC_VERIFY_TLS", "false")

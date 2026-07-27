@@ -308,17 +308,68 @@ class BatteryState {
         );
 }
 
+/// A node we are hearing on the mesh.
+///
+/// `lastSeen` is when its signed DTN beacon last arrived, so it answers "is
+/// this node up". Everything below that comes from a different place: the
+/// peer's own /health, fetched over the sync channel and stamped locally as
+/// [healthTs]. The two ages are deliberately separate, because a node can be
+/// beaconing right now while its cached position is minutes old, and the UI
+/// must not imply otherwise. Older nodes send neither, so all of it is
+/// nullable.
 class PeerInfo {
   final String nodeId;
   final String ip;
   final String lastSeen;
 
-  const PeerInfo({required this.nodeId, required this.ip, required this.lastSeen});
+  /// When WE last fetched this peer's health. Null if never reached.
+  final String? healthTs;
+  final double? lat;
+  final double? lon;
+  final int gpsFix;
+  final double? batAV;
+  final double? batAMa;
+  final double? batBV;
+  final double? batBMa;
+  final int? uptimeS;
+  final String? clockSource;
+
+  const PeerInfo({
+    required this.nodeId,
+    required this.ip,
+    required this.lastSeen,
+    this.healthTs,
+    this.lat,
+    this.lon,
+    this.gpsFix = 0,
+    this.batAV,
+    this.batAMa,
+    this.batBV,
+    this.batBMa,
+    this.uptimeS,
+    this.clockSource,
+  });
+
+  bool get hasLocation => lat != null && lon != null;
+  bool get hasFix => gpsFix == 1 && hasLocation;
+
+  /// True once we have any cached health at all for this peer.
+  bool get hasHealth => healthTs != null && healthTs!.isNotEmpty;
 
   factory PeerInfo.fromJson(Map<String, dynamic> json) => PeerInfo(
         nodeId: (json['node_id'] ?? '') as String,
         ip: (json['ip'] ?? '') as String,
         lastSeen: (json['last_seen'] ?? '') as String,
+        healthTs: json['health_ts'] as String?,
+        lat: _toDouble(json['lat']),
+        lon: _toDouble(json['lon']),
+        gpsFix: _toInt(json['gps_fix']),
+        batAV: _toDouble(json['bat_a_v']),
+        batAMa: _toDouble(json['bat_a_ma']),
+        batBV: _toDouble(json['bat_b_v']),
+        batBMa: _toDouble(json['bat_b_ma']),
+        uptimeS: json['uptime_s'] == null ? null : _toInt(json['uptime_s']),
+        clockSource: json['clock_source'] as String?,
       );
 }
 

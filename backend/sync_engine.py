@@ -234,11 +234,70 @@ def sync_table_with_peer(peer: dict, table: str) -> dict:
     return stats
 
 
+def fetch_peer_health(peer: dict) -> bool:
+    """Cache one peer's live health (position, battery, GPS fix) locally.
+
+    node_health is deliberately NOT a replicated DTN table: it is live state,
+    not a record, and stale health must never travel the mesh pretending to
+    be current. So instead of syncing it we FETCH it, straight from the peer
+    over the same fleet-CA-pinned HTTPS the table pull uses, and stamp it
+    with OUR clock. Whatever we store is therefore "what that node said when
+    we last reached it", which is exactly what the GCC renders with an age.
+
+    Two things fall out of this, both wanted:
+      - the peers table finally has position and battery to show, instead of
+        just a last-seen time
+      - a successful fetch is PROOF that peer's Pi is alive, so it clears any
+        stale degraded flag left behind by an old LoRa fallback beacon
+
+    A peer running older code has no /health we can parse: the request just
+    fails and we skip it, so this is safe on a partially updated fleet.
+    """
+    peer_ip = peer["ip"]
+    peer_node_id = peer["node_id"]
+    api_port = peer.get("api_port") or config.API_PORT
+    url = f"{config.SYNC_SCHEME}://{peer_ip}:{api_port}/health"
+    verify = config.SYNC_CA_CERT if config.SYNC_VERIFY_TLS else False
+    try:
+        resp = requests.get(url, verify=verify, timeout=10)
+        resp.raise_for_status()
+        h = resp.json()
+    except (requests.exceptions.RequestException, json.JSONDecodeError, ValueError) as e:
+        audit_logger.warning(
+            f"PEER_HEALTH_FAIL | peer={peer_node_id} | reason={type(e).__name__}"
+        )
+        return False
+
+    # Trust the identity the peer reports about ITSELF only; never let one
+    # peer's /health rewrite a third node's row.
+    if h.get("node_id") != peer_node_id:
+        audit_logger.warning(
+            f"PEER_HEALTH_REJECT | peer={peer_node_id} | reason=node_id_mismatch"
+        )
+        return False
+
+    gps = h.get("gps") or {}
+    bat = h.get("battery") or {}
+    models.save_node_health(
+        node_id=peer_node_id,
+        lat=gps.get("lat"),
+        lon=gps.get("lon"),
+        gps_fix=1 if gps.get("fix") else 0,
+        bat_a_v=bat.get("a_v"), bat_a_ma=bat.get("a_ma"),
+        bat_b_v=bat.get("b_v"), bat_b_ma=bat.get("b_ma"),
+        uptime_s=h.get("uptime_s"),
+        clock_source=h.get("clock_source", "relative"),
+        degraded=0,   # we just spoke to its Pi over HTTP: it is not down
+    )
+    return True
+
+
 def sync_with_peer(peer: dict) -> bool:
     """Sync every replicated table from one peer, isolating failures per
     table so one bad table does not stop the rest."""
     peer_node_id = peer["node_id"]
     audit_logger.info(f"SYNC_START | peer={peer_node_id} | ip={peer['ip']}")
+    fetch_peer_health(peer)
     any_fail = False
     for table in models.REPLICATED_TABLES:
         try:

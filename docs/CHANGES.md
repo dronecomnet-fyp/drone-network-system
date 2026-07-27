@@ -344,3 +344,62 @@ Phase 1 security docs) is flagged here, never silently drifted.
     layout are untouched, the node_health columns are REAL and already
     store negatives, and the Pi bridge parses with float(), so a signed
     value flows end to end with no Pi-side change.
+
+## 2026-07-28 Stale DEGRADED nodes, and peers that carry position (rule 5)
+
+31. Two field-reported bugs, one root cause between them: the fleet had no
+    way to say a node had RECOVERED.
+
+    BUG 1, a healthy drone stuck as DEGRADED. Connected to DRONE_A, the GCC
+    showed DRONE_B down while B was working normally and actively syncing.
+    Two independent faults combined:
+
+    - Firmware: FALLBACK was terminal per boot (design v3, chosen for
+      simplicity). The aux declares the Pi dead after 15 s of silence, which
+      an ordinary `systemctl restart rescue-mesh-auxbridge` can exceed, and
+      then beaconed over LoRa every 30 s FOREVER and stayed BLE-dark until
+      hand power-cycled. So a service restart could permanently mark a
+      healthy drone as down and hide it from the emergency app. Fixed: the
+      module returns to NORMAL after FALLBACK_RECOVERY_PINGS (3) consecutive
+      pings, restarts BLE, resumes the sensor feed, and sends fallback_exit.
+      Entering takes 15 s of silence and leaving takes 15 s of contact, so
+      the transition is symmetric and a flapping Pi cannot make it
+      oscillate. Verified by a host-compiled state-machine test covering the
+      restart case, a genuinely dead Pi, and the flapping case.
+    - Backend: /health read the stored degraded flag back with no expiry and
+      nothing anywhere ever wrote degraded=0, so one beacon heard once was
+      permanent. Fixed: degraded is now DERIVED. A node is reported degraded
+      only if its fallback beacon is newer than FALLBACK_EXPIRY (120 s, four
+      beacon intervals) AND it is not currently an alive DTN peer. The
+      rationale is evidential: a LoRa fallback beacon is one device (the aux
+      module) CLAIMING its Pi is dead, while a DTN beacon is signed with
+      K_SYNC and sent BY that Pi, so it is direct proof of liveness and must
+      win. "Out of range" is also not "down", so a stale claim expires
+      rather than persisting.
+
+    BUG 2, peers showed only a last-seen time. The DTN beacon deliberately
+    carries no position or battery, so the Nodes tab had nothing to show.
+    Rather than extend the signed beacon payload (which would have forced
+    every node in the fleet to update simultaneously or have its beacons
+    rejected as forged), each node now FETCHES a peer's own /health over the
+    existing fleet-CA-pinned sync channel and caches it in node_health.
+    Peers therefore carry position, GPS fix, both batteries and uptime, each
+    stamped with the FETCHING node's clock and surfaced as a separate "info
+    age" column: a peer can be beaconing right now while its cached position
+    is minutes old, and the UI must not conflate the two. A peer on older
+    code simply fails the fetch and is listed with empty health instead of
+    disappearing, so a partially updated fleet stays safe.
+
+    That fetch also closes the loop on bug 1: reaching a peer's /health over
+    HTTP is proof its Pi is alive, so the cached row is written with
+    degraded=0 and overwrites any stale claim. node_health remains NOT
+    replicated (it is live state, never a DTN record); it is fetched, never
+    synced, so stale health never travels the mesh pretending to be current.
+
+    Housekeeping forced by the above: node_health is append-only and now has
+    a second writer (every peer, every sync cycle), so save_node_health
+    prunes to the newest NODE_HEALTH_KEEP_ROWS (50) rows per node. Only the
+    newest is ever read; the tail is kept for debugging. Without this the
+    table would grow without limit on the SD card.
+
+    No schema or wire-format change. Backend suite 35 tests (7 new).

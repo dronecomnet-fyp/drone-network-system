@@ -741,6 +741,10 @@ def get_gs_messages():
 # every node keeps what it has observed)
 # ---------------------------------------------------------------------------
 
+# Rows of per-node health history to retain (see save_node_health).
+NODE_HEALTH_KEEP_ROWS = 50
+
+
 def save_node_health(node_id, lat=None, lon=None, gps_fix=0, bat_a_v=None,
                      bat_a_ma=None, bat_b_v=None, bat_b_ma=None, uptime_s=None,
                      clock_source="relative", degraded=0, ts=None):
@@ -752,6 +756,17 @@ def save_node_health(node_id, lat=None, lon=None, gps_fix=0, bat_a_v=None,
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (node_id, ts or iso_now(), lat, lon, gps_fix, bat_a_v, bat_a_ma,
           bat_b_v, bat_b_ma, uptime_s, clock_source, 1 if degraded else 0))
+    # Bounded history per node. This table is append-only and written on a
+    # timer for ourselves AND for every peer we fetch health from, so on a
+    # long deployment it would grow without limit on the SD card. Only the
+    # newest row per node is ever read (latest_node_health), so keep a short
+    # tail for debugging and drop the rest.
+    conn.execute("""
+        DELETE FROM node_health
+         WHERE node_id = ?
+           AND ts NOT IN (SELECT ts FROM node_health WHERE node_id = ?
+                          ORDER BY ts DESC LIMIT ?)
+    """, (node_id, node_id, NODE_HEALTH_KEEP_ROWS))
     conn.commit()
     conn.close()
 

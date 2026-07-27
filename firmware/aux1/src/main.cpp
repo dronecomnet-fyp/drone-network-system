@@ -25,10 +25,12 @@
  *   Pi link   USB-C native CDC @ 115200 (no GPIO used)
  *   (all signal pins now allocated; D0 was the former spare)
  *
- * State machine: INIT -> NORMAL -> FALLBACK, one-way per boot (design v3
- * default: stay in fallback until power cycle; simpler to reason about.
- * If the team later wants auto-recovery on a fresh ping, change
- * FALLBACK_IS_TERMINAL below and re-run TESTS.md test 3).
+ * State machine: INIT -> NORMAL <-> FALLBACK. Entering fallback takes 15 s
+ * of Pi silence; LEAVING it takes 3 consecutive pings (also 15 s), so the
+ * transition is symmetric and cannot flap. This replaces design v3's
+ * one-way-per-boot rule, which latched a healthy drone into permanent
+ * LoRa beaconing after nothing worse than a service restart
+ * (CHANGES.md item 31; TESTS.md test 3).
  *
  * Power/duty figures to verify on the bench (TESTS.md test 6): the
  * battery decision doc assumes a 177 mA class average draw; measured
@@ -119,8 +121,21 @@ static const char* BLE_SERVICE_UUID = "2b57461c-1c04-49c4-944a-13643c1618da";
 static const uint16_t BLE_ADV_MIN = 800;   // 0.625 ms units -> 500 ms
 static const uint16_t BLE_ADV_MAX = 1600;  // -> 1000 ms
 
-// One-way state machine per boot (see header comment).
-static const bool FALLBACK_IS_TERMINAL = true;
+// FALLBACK auto-recovery (CHANGES.md item 31). Design v3 originally made
+// fallback terminal until a power cycle, for simplicity. Operationally that
+// was wrong: the Pi only has to go quiet for PING_TIMEOUT_MS (15 s) for the
+// module to latch, and an ordinary `systemctl restart rescue-mesh-auxbridge`
+// can exceed that. The module then beacons over LoRa forever and stays
+// BLE-dark, so a perfectly healthy drone looks DOWN to the whole fleet and
+// is invisible to the emergency app until someone power-cycles it by hand.
+//
+// So recovery is on, with hysteresis: the Pi must deliver
+// FALLBACK_RECOVERY_PINGS consecutive pings (5 s apart) before we trust it
+// again. 3 pings = 15 s of steady contact, deliberately the mirror of the
+// 15 s it takes to declare the Pi dead, so a flapping Pi cannot make the
+// module oscillate between modes.
+static const bool FALLBACK_IS_TERMINAL = false;
+static const uint8_t FALLBACK_RECOVERY_PINGS = 3;
 
 enum class Mode { NORMAL, FALLBACK };
 
@@ -146,6 +161,7 @@ bool firstPingSeen = false;
 uint32_t lastSensorSendMs = 0;
 uint32_t lastBeaconMs = 0;
 uint32_t lastGpsTimeSendMs = 0;
+uint8_t recoveryPings = 0;   // consecutive pings heard while in FALLBACK
 bool loraOk = false;
 bool inaOk = false;
 String serialLine;
@@ -356,6 +372,10 @@ static void handleLine(const String& line) {
   if (strcmp(type, "ping") == 0) {
     lastPingMs = millis();
     firstPingSeen = true;
+    // In FALLBACK these count toward recovery. Consecutive is the point:
+    // the counter resets on the timeout check below, so one stray ping
+    // from a Pi that is still flapping cannot pull us back to NORMAL.
+    if (mode == Mode::FALLBACK && recoveryPings < 255) recoveryPings++;
 
   } else if (strcmp(type, "last_msg") == 0) {
     cachedMsgId = doc["msg_id"] | "none";
@@ -526,6 +546,7 @@ void loop() {
     uint32_t timeout = firstPingSeen ? PING_TIMEOUT_MS : FIRST_PING_GRACE_MS;
     if (now - lastPingMs > timeout) {
       mode = Mode::FALLBACK;
+      recoveryPings = 0;
       bleStop();  // conserve Battery B (design v3)
       lastBeaconMs = 0;  // beacon immediately
       JsonDocument doc;
@@ -533,18 +554,26 @@ void loop() {
       sendJson(doc);
     }
   } else {  // FALLBACK
+    // Any gap longer than the dead-Pi timeout means the pings were not
+    // consecutive after all, so recovery progress is discarded.
+    if (now - lastPingMs > PING_TIMEOUT_MS) recoveryPings = 0;
+
+    if (!FALLBACK_IS_TERMINAL && recoveryPings >= FALLBACK_RECOVERY_PINGS) {
+      // The Pi is back and has stayed back. Stop beaconing, resume BLE and
+      // the sensor feed, and tell the Pi so it can log the recovery.
+      mode = Mode::NORMAL;
+      recoveryPings = 0;
+      lastSensorSendMs = 0;   // send fresh gps + battery immediately
+      bleStart();
+      JsonDocument doc;
+      doc["type"] = "fallback_exit";
+      sendJson(doc);
+      return;
+    }
+
     if (lastBeaconMs == 0 || now - lastBeaconMs >= FALLBACK_BEACON_MS) {
       lastBeaconMs = now;
       sendFallbackBeacon();
-    }
-    if (!FALLBACK_IS_TERMINAL && Serial) {
-      // Optional future path: a fresh ping could return us to NORMAL.
-      // Disabled by default (design v3: stay in fallback until power
-      // cycle). handleLine still updates lastPingMs if pings arrive.
-      if (now - lastPingMs < PING_TIMEOUT_MS) {
-        mode = Mode::NORMAL;
-        bleStart();
-      }
     }
   }
 }

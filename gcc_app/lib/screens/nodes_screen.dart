@@ -6,6 +6,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:rescue_mesh_shared/rescue_mesh_shared.dart' as shared;
 
 import '../state/data_store.dart';
 import '../widgets/battery_text.dart';
@@ -164,6 +165,26 @@ class _ConnectedNodeCard extends StatelessWidget {
 }
 
 class _PeersCard extends StatelessWidget {
+  /// "HH:mm:ss" from an ISO stamp; the raw string is too wide for a cell.
+  String _shortTime(String iso) {
+    final t = DateTime.tryParse(iso);
+    if (t == null) return iso;
+    final l = t.toLocal();
+    return '${l.hour.toString().padLeft(2, '0')}:'
+        '${l.minute.toString().padLeft(2, '0')}:'
+        '${l.second.toString().padLeft(2, '0')}';
+  }
+
+  /// How old the cached position/battery beside it actually is. "never"
+  /// means we have not managed to reach that peer's /health yet, which is
+  /// what an un-updated node looks like.
+  String _healthAge(shared.PeerInfo p) {
+    if (!p.hasHealth) return 'never';
+    final t = DateTime.tryParse(p.healthTs!);
+    if (t == null) return '-';
+    return formatAge(DateTime.now().difference(t));
+  }
+
   @override
   Widget build(BuildContext context) {
     final h = context.watch<DataStore>().health!;
@@ -181,16 +202,45 @@ class _PeersCard extends StatelessWidget {
                   'happens whenever nodes meet).')
             else
               DataTable(
+                columnSpacing: 20,
                 columns: const [
                   DataColumn(label: Text('Node')),
                   DataColumn(label: Text('DTN IP')),
-                  DataColumn(label: Text('Last seen')),
+                  DataColumn(label: Text('Beacon')),
+                  DataColumn(label: Text('Position')),
+                  DataColumn(label: Text('Battery A')),
+                  DataColumn(label: Text('Battery B')),
+                  DataColumn(label: Text('Info age')),
                 ],
                 rows: h.peers
                     .map((p) => DataRow(cells: [
                           DataCell(Text(p.nodeId)),
                           DataCell(Text(p.ip)),
-                          DataCell(Text(p.lastSeen)),
+                          DataCell(Text(_shortTime(p.lastSeen))),
+                          DataCell(Text(p.hasFix
+                              ? '${p.lat!.toStringAsFixed(5)}, '
+                                  '${p.lon!.toStringAsFixed(5)}'
+                              : (p.hasHealth ? 'no fix' : '-'))),
+                          DataCell(Row(children: [
+                            if (batteryFlowIcon(p.batAMa) != null) ...[
+                              Icon(batteryFlowIcon(p.batAMa),
+                                  size: 13, color: batteryFlowColor(p.batAMa)),
+                              const SizedBox(width: 3),
+                            ],
+                            Text(batteryLine(p.batAV, p.batAMa)),
+                          ])),
+                          DataCell(Row(children: [
+                            if (batteryFlowIcon(p.batBMa) != null) ...[
+                              Icon(batteryFlowIcon(p.batBMa),
+                                  size: 13, color: batteryFlowColor(p.batBMa)),
+                              const SizedBox(width: 3),
+                            ],
+                            Text(batteryLine(p.batBV, p.batBMa)),
+                          ])),
+                          // Separate from the beacon column on purpose: a peer
+                          // can be beaconing right now while the position and
+                          // battery beside it are minutes old.
+                          DataCell(Text(_healthAge(p))),
                         ]))
                     .toList(),
               ),
