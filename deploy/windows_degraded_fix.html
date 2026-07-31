@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Rolling out the DEGRADED and peer-info fixes</title>
+<title>Rolling out the DEGRADED, peer-info and GCC fixes</title>
 <style>
 @font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
 :root {
@@ -102,8 +102,8 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
 
   <header class="masthead">
     <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; bug-fix rollout &middot; 2026-07-28</div>
-    <h1 class="title">Rolling out the DEGRADED<br>and peer-info fixes</h1>
-    <p class="dek">Two field bugs are fixed: a healthy drone stuck showing as DEGRADED, and peers that showed only a last-seen time. This is what to do to the kit you already have running. Nothing is reformatted, nothing is reinstalled, and no data is lost.</p>
+    <h1 class="title">Rolling out the DEGRADED,<br>peer-info and GCC fixes</h1>
+    <p class="dek">Four field bugs are fixed: a healthy drone stuck showing as DEGRADED, peers that showed only a last-seen time, a GCC that never noticed internet, and garbled flight controller messages. This is what to do to the kit you already have running. Nothing is reformatted, nothing is reinstalled, and no data is lost.</p>
     <div class="meta-row">
       <span><b>Touches</b> all three Pis + both aux modules (A and B)</span>
       <span><b>Time</b> about 20 minutes total</span>
@@ -247,7 +247,7 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
 
   <section class="stage" id="s6">
     <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Rebuild the GCC</h2></div>
-    <p>The new peer columns are a GCC change, so the ground laptop needs a fresh build:</p>
+    <p>Several of these fixes are in the GCC itself, so the ground laptop needs a fresh build. New in this build: the peer Position and Battery columns, an <b>internet indicator</b>, and correctly joined <b>flight controller messages</b>.</p>
     <div class="term">
       <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell &middot; repo root</span><span class="where pc">LAPTOP</span></div>
       <pre><span class="prompt">PS&gt;</span> cd gcc_app
@@ -255,6 +255,12 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
 <span class="prompt">PS&gt;</span> flutter build windows</pre>
     </div>
     <div class="note"><b>The phone apps do NOT need rebuilding for this fix.</b> Nothing changed in them. Keep the <code class="inline">phone-apps-v2</code> APKs you already have.</div>
+    <div class="readout">
+      <div class="label">Check the new internet indicator</div>
+      <pre>bottom of the navigation rail, under the node badge</pre>
+      <p class="hint">Two rows now, because they are different questions. The top one is the drone node; the new bottom one is real internet, and you can click it to re-check immediately. On your home Wi-Fi it should read <b>internet</b> within a few seconds. Joined to a drone AP it should read <b>no internet (portal)</b>, which is the correct answer in the field, not a fault. It checks itself every 30 s, so walking back into range updates it without you doing anything.</p>
+    </div>
+    <div class="note"><b>Why it never worked before:</b> there was no internet detection code in the GCC at all. It only ever found out by failing a request, so joining a Wi-Fi with internet changed nothing you could see. It uses a captive-portal style probe (a URL that answers "204 No Content") rather than a ping, because ICMP ping needs raw sockets that a desktop app does not have.</div>
   </section>
 
   <section class="stage" id="s7">
@@ -267,6 +273,7 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
           <tr><td>Peers still show no position</td><td>The peer itself must be updated, not just the node you are looking at: the position comes from that peer's own /health. Check for <code class="inline">PEER_HEALTH_FAIL</code> in <code class="inline">~/rescue-mesh/backend/audit.log</code>, and allow one 30 s sync cycle.</td></tr>
           <tr><td>An aux module now reports as UNSET</td><td>Its flash was erased at some point. Reprovision: <code class="inline">python tools\aux_sim.py --port COMx</code>, then <code class="inline">n DRONE_A</code> or <code class="inline">n DRONE_B</code>, and check the ack.</td></tr>
           <tr><td>A drone keeps flipping in and out of fallback</td><td>Recovery deliberately needs 3 consecutive pings, so genuine flapping means the Pi itself is unstable. Check <code class="inline">journalctl -u rescue-mesh-auxbridge</code> for the bridge restarting in a loop, and check power.</td></tr>
+          <tr><td>Flight controller messages look like fragments, e.g. a lone "(xy diff:110 &gt; 100)"</td><td>Fixed in this GCC build: long ArduPilot messages are split across several MAVLink packets and the old build printed each piece as its own line. Rebuild the GCC (stage 6). The underlying PreArm messages are real FC configuration issues and still need fixing on the flight controller.</td></tr>
           <tr><td>The emergency app cannot see a drone over Bluetooth</td><td>BLE is switched off while a module is in fallback. If the drone is healthy, that module is stuck in old-firmware fallback: reflash (stage 2) or power-cycle it.</td></tr>
         </tbody>
       </table>
