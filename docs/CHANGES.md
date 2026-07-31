@@ -403,3 +403,53 @@ Phase 1 security docs) is flagged here, never silently drifted.
     table would grow without limit on the SD card.
 
     No schema or wire-format change. Backend suite 35 tests (7 new).
+
+## 2026-07-30 GCC internet detection, and garbled flight-controller messages
+
+32. The GCC never knew whether it had internet. There was no connectivity
+    code at all: the only way the app discovered the truth was by failing a
+    request, so joining a Wi-Fi with real internet changed nothing visible
+    and the online-only features (unit spec lookup, AI advisor) gave no
+    useful signal beforehand. New services/connectivity.dart probes it
+    properly and the nav rail now shows node status and internet status as
+    two separate rows, because they are unrelated facts: at a deployment
+    the correct state is node connected and internet absent.
+
+    Method, and why not ping: ICMP needs raw sockets (root) and Dart has no
+    ICMP client, so "ping google" is not available to us. The substitute is
+    the standard captive-portal probe, an HTTP GET of a URL whose only job
+    is to answer 204 No Content. A 204 with an empty body means real
+    internet; any other reply means something answered but is not the
+    internet, which is a captive portal and exactly what a drone AP looks
+    like, so that state is named rather than reported as "offline"; no
+    reply means offline. Three providers (Google, Cloudflare, gstatic) are
+    raced so one blocked provider cannot produce a false negative, all
+    time-boxed to 4 s and repeated every 30 s. Endpoints that signal
+    success as "200 plus a magic body" (Apple, Microsoft) are deliberately
+    NOT used: a portal also answers 200, so telling them apart means
+    trusting body text and a wrong guess reports the field as online.
+    Plain HTTP on purpose, since a portal can only be detected by letting
+    it intercept; nothing sensitive is sent.
+
+    Separately, the macOS build was missing com.apple.security.network.
+    client in both entitlement files, which blocks ALL outbound connections
+    under the sandbox. Fixed, but note this was NOT the cause of the
+    reported symptom: the GCC is a Windows delivery (docs/RELEASES.md) and
+    Windows has no sandbox entitlements, so on the tested platform the
+    cause was simply the total absence of detection code.
+
+33. Flight controller messages were displayed as garbled fragments, e.g. an
+    orphaned "(xy diff:110 > 100)" with no indication of which arming check
+    it belonged to. Cause: the MAVLink STATUSTEXT text field is 50
+    characters, and ArduPilot splits anything longer into several messages
+    sharing one id and numbered by chunk_seq, with a null terminating the
+    last. The GCC ignored both extension fields and emitted every chunk as
+    its own log line. It now reassembles them (mav_service.dart), keyed by
+    id and ordered by chunk_seq so out-of-order UDP delivery still joins
+    correctly, emitting only once the run from chunk 0 to the terminating
+    chunk is complete. A 3 s timeout flushes a partial message rather than
+    swallowing an arming failure whose tail never arrived. Four new tests.
+
+    The messages themselves were real and are FC-side configuration, not
+    app bugs: PreArm battery failsafe, logging failed, and compass field
+    checks all block arming until resolved on the flight controller.

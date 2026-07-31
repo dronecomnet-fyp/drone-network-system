@@ -8,7 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart' show showLoginDialog;
+import '../services/connectivity.dart';
 import '../state/app_state.dart';
+import '../state/data_store.dart' show formatAge;
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -253,6 +255,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Text('Product site (spec lookup, online)',
                     style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 6),
+                const _InternetStatusRow(),
                 const SizedBox(height: 8),
                 const Text(
                   'When online at HQ, the Mission tab fetches a unit\'s specs '
@@ -416,6 +420,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
             child: const Text('Save all'),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Live internet status with a manual re-check, sitting next to the online
+/// features that depend on it. The app cannot infer this from the drone
+/// link: joining a drone AP gives a working node connection and no
+/// internet, which is the normal field state rather than a fault.
+class _InternetStatusRow extends StatelessWidget {
+  const _InternetStatusRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final net = context.watch<ConnectivityService>();
+    final colour = switch (net.status) {
+      NetStatus.online => Colors.lightGreenAccent,
+      NetStatus.portal => Colors.amberAccent,
+      NetStatus.offline => Colors.orangeAccent,
+      NetStatus.unknown => Colors.white54,
+    };
+    final checked = net.lastChecked;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(net.isOnline ? Icons.public : Icons.public_off,
+            size: 18, color: colour),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(net.checking ? 'Checking...' : net.label,
+                  style: TextStyle(fontWeight: FontWeight.bold, color: colour)),
+              Text(net.detail, style: Theme.of(context).textTheme.bodySmall),
+              if (checked != null)
+                Text(
+                  'last checked ${formatAge(DateTime.now().difference(checked))}',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+            ],
+          ),
+        ),
+        TextButton.icon(
+          onPressed: net.checking ? null : net.check,
+          icon: const Icon(Icons.refresh, size: 16),
+          label: const Text('Check now'),
         ),
       ],
     );

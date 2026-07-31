@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gcc_app/main.dart';
+import 'package:gcc_app/services/connectivity.dart';
 import 'package:gcc_app/state/app_state.dart';
 import 'package:gcc_app/state/data_store.dart';
 import 'package:gcc_app/state/drone_controller.dart';
@@ -18,6 +19,9 @@ Widget _shell(AppState app) => MultiProvider(
         // DroneController not connected: no socket, no MAVLink.
         ChangeNotifierProvider(create: (_) => DroneController()),
         ChangeNotifierProvider(create: (_) => FleetState()),
+        // autoStart off: tests must never make real network probes.
+        ChangeNotifierProvider(
+            create: (_) => ConnectivityService(autoStart: false)),
       ],
       child: MaterialApp(
         theme: ThemeData(

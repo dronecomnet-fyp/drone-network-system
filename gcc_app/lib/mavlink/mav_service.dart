@@ -69,6 +69,29 @@ class MavStatusText {
   MavStatusText(this.severity, this.text) : at = DateTime.now();
 }
 
+/// Partially received chunks of one logical STATUSTEXT, keyed by their
+/// sequence number so out-of-order UDP delivery still joins correctly.
+class _StatusAssembly {
+  _StatusAssembly(this.severity) : touched = DateTime.now();
+  final MavSeverity severity;
+  final Map<int, String> chunks = {};
+
+  /// Sequence number of the chunk that carried the terminator, once seen.
+  /// Knowing WHICH chunk ends the message is what makes out-of-order
+  /// delivery safe: the tail can arrive first without us emitting it alone.
+  int? lastSeq;
+  DateTime touched;
+
+  bool get complete {
+    final last = lastSeq;
+    if (last == null) return false;
+    for (var i = 0; i <= last; i++) {
+      if (!chunks.containsKey(i)) return false;
+    }
+    return true;
+  }
+}
+
 class MavService {
   // GCS identity. 255 is the conventional ground-station system id.
   static const int gcsSystemId = 255;
@@ -94,6 +117,9 @@ class MavService {
   final _telemetryCtrl = StreamController<Telemetry>.broadcast();
   final _statusCtrl = StreamController<MavStatusText>.broadcast();
   final _ackCtrl = StreamController<CommandAck>.broadcast();
+
+  /// In-flight multi-chunk STATUSTEXT messages, keyed by their MAVLink id.
+  final Map<int, _StatusAssembly> _statusChunks = {};
 
   Stream<Telemetry> get onTelemetry => _telemetryCtrl.stream;
   Stream<MavStatusText> get onStatusText => _statusCtrl.stream;
@@ -195,11 +221,69 @@ class MavService {
       telemetry.yawDeg = m.yaw * 180 / 3.14159265;
       _emit();
     } else if (m is Statustext) {
-      final text = String.fromCharCodes(
-          m.text.takeWhile((c) => c != 0)).trim();
-      if (text.isNotEmpty) _statusCtrl.add(MavStatusText(m.severity, text));
+      _handleStatusText(m);
     } else if (m is CommandAck) {
       _ackCtrl.add(m);
+    }
+  }
+
+  /// Reassemble a STATUSTEXT that the flight controller split into chunks.
+  ///
+  /// The text field is only 50 characters. ArduPilot routinely says more
+  /// than that (a full PreArm explanation such as "PreArm: Check mag field
+  /// (xy diff:110 > 100)" plus its prefix runs over), so MAVLink 2 lets it
+  /// send several STATUSTEXTs sharing one `id`, numbered by `chunkSeq`,
+  /// with the final chunk terminated by a null. We were ignoring both
+  /// fields and printing every chunk as its own line, which is why the
+  /// Flight controller messages panel showed orphaned fragments like
+  /// "(xy diff:110> 100)" detached from the check they belonged to.
+  ///
+  /// id == 0 means "not chunked, emit now", per the MAVLink spec.
+  void _handleStatusText(Statustext m) {
+    final raw = m.text;
+    final hasTerminator = raw.any((c) => c == 0);
+    final piece = String.fromCharCodes(raw.takeWhile((c) => c != 0));
+
+    if (m.id == 0) {
+      final text = piece.trim();
+      if (text.isNotEmpty) _statusCtrl.add(MavStatusText(m.severity, text));
+      return;
+    }
+
+    // Chunks can arrive out of order over UDP, so key them by sequence
+    // rather than appending blindly.
+    final buf = _statusChunks.putIfAbsent(
+        m.id, () => _StatusAssembly(m.severity));
+    buf.chunks[m.chunkSeq] = piece;
+    buf.touched = DateTime.now();
+
+    // A null terminator marks the last chunk. A chunk shorter than the full
+    // 50 characters also means the end, because the FC would have filled it
+    // otherwise; without that fallback a dropped final chunk would strand
+    // the message forever.
+    if (hasTerminator || piece.length < 50) buf.lastSeq = m.chunkSeq;
+
+    // Only emit once every chunk from 0 up to the terminating one is here.
+    // Emitting as soon as the terminator arrives would re-create the
+    // original bug whenever UDP delivered the tail before the head.
+    if (buf.complete) _flushStatus(m.id);
+    _expireStaleStatusChunks();
+  }
+
+  void _flushStatus(int id) {
+    final buf = _statusChunks.remove(id);
+    if (buf == null) return;
+    final keys = buf.chunks.keys.toList()..sort();
+    final text = keys.map((k) => buf.chunks[k]).join().trim();
+    if (text.isNotEmpty) _statusCtrl.add(MavStatusText(buf.severity, text));
+  }
+
+  /// If the tail of a message never arrives, show what we have rather than
+  /// silently swallowing an arming failure the operator needs to read.
+  void _expireStaleStatusChunks() {
+    final cutoff = DateTime.now().subtract(const Duration(seconds: 3));
+    for (final id in _statusChunks.keys.toList()) {
+      if (_statusChunks[id]!.touched.isBefore(cutoff)) _flushStatus(id);
     }
   }
 

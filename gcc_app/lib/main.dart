@@ -20,6 +20,7 @@ import 'screens/mission_screen.dart';
 import 'screens/nodes_screen.dart';
 import 'screens/personnel_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/connectivity.dart';
 import 'services/distribution_server.dart';
 import 'state/app_state.dart';
 import 'state/data_store.dart';
@@ -51,6 +52,10 @@ class GccApp extends StatelessWidget {
         // Field Share (task E): held here, above the shell, so the local
         // download server keeps running while the operator uses other tabs.
         ChangeNotifierProvider(create: (_) => DistributionServer()),
+        // Is there real internet right now (CHANGES.md item 32)? Separate
+        // from "am I talking to a drone node": the two are unrelated, and
+        // at a deployment the healthy answer is node yes, internet no.
+        ChangeNotifierProvider(create: (_) => ConnectivityService(), lazy: false),
         ChangeNotifierProvider(
           create: (ctx) {
             final drone = ctx.read<DroneController>();
@@ -169,6 +174,10 @@ class _GccShellState extends State<GccShell> {
   }
 }
 
+/// Two INDEPENDENT facts, shown as two rows because operators kept reading
+/// one as the other: whether we are talking to a drone node, and whether
+/// this laptop has real internet. At a deployment the correct state is node
+/// connected and internet absent, so neither one alone means "working".
 class _ConnectionBadge extends StatelessWidget {
   const _ConnectionBadge();
 
@@ -176,27 +185,64 @@ class _ConnectionBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = context.watch<DataStore>();
     final app = context.watch<AppState>();
+    final net = context.watch<ConnectivityService>();
     final connected = data.isConnected;
-    return Tooltip(
-      message: connected
-          ? 'Connected to ${data.health?.nodeId ?? "node"} as ${app.operatorLabel}'
-          : (data.lastError ?? 'Not connected'),
-      child: Column(
-        children: [
-          Icon(
-            connected ? Icons.wifi : Icons.wifi_off,
-            color: connected ? Colors.greenAccent : Colors.redAccent,
-            size: 20,
+
+    final netColour = switch (net.status) {
+      NetStatus.online => Colors.lightBlueAccent,
+      NetStatus.portal => Colors.amberAccent,
+      NetStatus.offline => Colors.white38,
+      NetStatus.unknown => Colors.white24,
+    };
+
+    return Column(
+      children: [
+        Tooltip(
+          message: connected
+              ? 'Connected to ${data.health?.nodeId ?? "node"} as ${app.operatorLabel}'
+              : (data.lastError ?? 'Not connected to a drone node'),
+          child: Column(
+            children: [
+              Icon(
+                connected ? Icons.wifi : Icons.wifi_off,
+                color: connected ? Colors.greenAccent : Colors.redAccent,
+                size: 20,
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  connected ? (data.health?.nodeId ?? '') : 'no node',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              connected ? (data.health?.nodeId ?? '') : 'offline',
-              style: Theme.of(context).textTheme.labelSmall,
+        ),
+        const SizedBox(height: 6),
+        Tooltip(
+          message: '${net.detail}\n\nClick to re-check now.',
+          child: InkWell(
+            onTap: net.checking ? null : net.check,
+            child: Column(
+              children: [
+                Icon(
+                  net.isOnline ? Icons.public : Icons.public_off,
+                  color: netColour,
+                  size: 18,
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    net.checking ? '...' : net.label,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

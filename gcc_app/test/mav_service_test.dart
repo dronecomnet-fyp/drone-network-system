@@ -119,6 +119,88 @@ void main() {
     });
   });
 
+  group('STATUSTEXT chunk reassembly (field bug: garbled FC messages)', () {
+    /// The FC text field is 50 chars. ArduPilot splits anything longer into
+    /// chunks sharing one id, and we used to print each chunk as its own
+    /// line, so the Flight controller messages panel showed orphaned tails
+    /// like "(xy diff:110 > 100)" with no idea which check they came from.
+    List<int> pad(String t) {
+      final c = t.codeUnits.toList();
+      while (c.length < 50) {
+        c.add(0);
+      }
+      return c.take(50).toList();
+    }
+
+    /// A chunk that fills all 50 chars with no terminator: more is coming.
+    List<int> full(String t) {
+      assert(t.length == 50);
+      return t.codeUnits.toList();
+    }
+
+    Statustext st(String text, {int id = 0, int seq = 0, bool fill = false}) =>
+        Statustext(
+          severity: mavSeverityWarning,
+          text: fill ? full(text) : pad(text),
+          id: id,
+          chunkSeq: seq,
+        );
+
+    test('an unchunked message (id 0) is emitted as-is', () async {
+      final svc = MavService();
+      final seen = <String>[];
+      svc.onStatusText.listen((s) => seen.add(s.text));
+      svc.ingest(MavlinkFrame.v2(0, 1, 1, st('PreArm: Battery failsafe')));
+      await Future<void>.delayed(Duration.zero);
+      expect(seen, ['PreArm: Battery failsafe']);
+      svc.dispose();
+    });
+
+    test('a split message is joined into ONE line, not two fragments',
+        () async {
+      final svc = MavService();
+      final seen = <String>[];
+      svc.onStatusText.listen((s) => seen.add(s.text));
+      // 50 chars exactly, then the tail: the shape that produced the bug.
+      const head = 'PreArm: Check mag field for the primary compass an';
+      svc.ingest(
+          MavlinkFrame.v2(0, 1, 1, st(head, id: 7, seq: 0, fill: true)));
+      svc.ingest(
+          MavlinkFrame.v2(0, 1, 1, st('d (xy diff:110 > 100)', id: 7, seq: 1)));
+      await Future<void>.delayed(Duration.zero);
+      expect(seen.length, 1, reason: 'chunks must not appear as separate lines');
+      expect(seen.single, '${head}d (xy diff:110 > 100)');
+      svc.dispose();
+    });
+
+    test('chunks arriving out of order still join in sequence order',
+        () async {
+      final svc = MavService();
+      final seen = <String>[];
+      svc.onStatusText.listen((s) => seen.add(s.text));
+      const head = 'PreArm: Check mag field for the primary compass an';
+      // UDP: the tail overtakes the head.
+      svc.ingest(
+          MavlinkFrame.v2(0, 1, 1, st('d (xy diff:110 > 100)', id: 9, seq: 1)));
+      svc.ingest(
+          MavlinkFrame.v2(0, 1, 1, st(head, id: 9, seq: 0, fill: true)));
+      await Future<void>.delayed(Duration.zero);
+      expect(seen.single, '${head}d (xy diff:110 > 100)');
+      svc.dispose();
+    });
+
+    test('two interleaved messages stay separate, keyed by id', () async {
+      final svc = MavService();
+      final seen = <String>[];
+      svc.onStatusText.listen((s) => seen.add(s.text));
+      svc.ingest(MavlinkFrame.v2(0, 1, 1, st('AAAA', id: 1, seq: 0)));
+      svc.ingest(MavlinkFrame.v2(0, 1, 1, st('BBBB', id: 2, seq: 0)));
+      await Future<void>.delayed(Duration.zero);
+      expect(seen, ['AAAA', 'BBBB']);
+      svc.dispose();
+    });
+  });
+
   group('Telemetry decode + heartbeat gate', () {
     test('no heartbeat means the link is not fresh (commands disabled)', () {
       final svc = MavService();
