@@ -24,7 +24,7 @@ import ssl
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -203,6 +203,64 @@ class LocationInput(BaseModel):
         if v is not None and not 0 <= v <= 100:
             raise ValueError("battery_pct out of range")
         return v
+
+
+class SituationInput(BaseModel):
+    '''One tappable option on the victim portal.'''
+    id: str
+    label: str
+    urgent: bool = False
+
+    @field_validator("id")
+    @classmethod
+    def id_ok(cls, v):
+        v = (v or "").strip()
+        if not 1 <= len(v) <= 40:
+            raise ValueError("situation id must be 1-40 chars")
+        return v
+
+    @field_validator("label")
+    @classmethod
+    def label_ok(cls, v):
+        v = (v or "").strip()
+        if not 1 <= len(v) <= 120:
+            raise ValueError("situation label must be 1-120 chars")
+        return html.escape(v)
+
+
+class MissionConfigInput(BaseModel):
+    '''A versioned victim-portal config pushed from the GCC before a
+    deployment. The node rejects anything not strictly newer than what it
+    already holds, so a stale GCC cannot silently downgrade a node that
+    another operator already updated.'''
+    version: int
+    situations: List[SituationInput]
+    mission_name: str = ""
+    disaster_type: str = ""
+    headline: str = ""
+    updated_at: str = ""
+    show_rescuer_positions: bool = True
+
+    @field_validator("version")
+    @classmethod
+    def version_ok(cls, v):
+        if v < 1:
+            raise ValueError("version must be 1 or greater")
+        return v
+
+    @field_validator("situations")
+    @classmethod
+    def situations_ok(cls, v):
+        if not 1 <= len(v) <= 12:
+            raise ValueError("need between 1 and 12 situations")
+        if len({s.id for s in v}) != len(v):
+            raise ValueError("situation ids must be unique")
+        return v
+
+    @field_validator("mission_name", "disaster_type", "headline")
+    @classmethod
+    def text_ok(cls, v):
+        return html.escape((v or "").strip()[:200])
 
 
 class GSMessageInput(BaseModel):
@@ -576,6 +634,40 @@ def get_announcements(
         return JSONResponse(content=models.get_announcements())
     except Exception:
         raise HTTPException(status_code=500, detail="Internal error listing announcements")
+
+
+@app.get("/mission-config")
+def get_mission_config(
+    auth: Auth = Depends(require_roles({Role.HQ, Role.RESCUE_TEAM, Role.SYNC_NODE})),
+):
+    """What this node currently serves to victims. The GCC reads it back
+    after a push, so the operator sees the node's own answer instead of
+    assuming the push landed."""
+    return JSONResponse(content=mission_config.load())
+
+
+@app.post("/mission-config")
+def post_mission_config(
+    cfg: MissionConfigInput,
+    auth: Auth = Depends(require_roles({Role.HQ})),
+):
+    """Push a new victim-portal config to THIS node. HQ only, because it
+    changes what every victim in range is shown."""
+    try:
+        stored = mission_config.save(cfg.model_dump())
+    except ValueError as e:
+        # Usually "not newer than what is already here". The operator must
+        # SEE that rather than believing the push succeeded.
+        audit_logger.warning(f"MISSION_CONFIG_REJECT | reason={e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal error saving config")
+    audit_logger.info(
+        f"MISSION_CONFIG_PUSH | by={auth.personnel_id or 'api_key'} | "
+        f"version={stored['version']} | mission={stored.get('mission_name', '')}"
+    )
+    return {"version": stored["version"], "source": stored["source"],
+            "situation_count": len(stored.get("situations", []))}
 
 
 @app.post("/announcements")
