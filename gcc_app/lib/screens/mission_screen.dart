@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../services/ai_advisor.dart';
+import '../main.dart' show ShellNav;
 import '../services/connectivity.dart';
 import '../services/product_api.dart';
 import '../state/app_state.dart';
@@ -528,9 +529,24 @@ class _DeploymentsCard extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
-            if (m.deployments.isEmpty)
-              const Text('None yet. Draw placements on the Map tab, or use '
-                  'the AI advisor (Settings) while online.')
+            if (m.deployments.isEmpty) ...[
+              const Text('None yet. Place drones on the map, or use the AI '
+                  'advisor while online.'),
+              const SizedBox(height: 8),
+              // Was an instruction telling the operator to go and find
+              // another tab. It is now the action itself.
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.tonalIcon(
+                  icon: const Icon(Icons.add_location_alt, size: 16),
+                  label: const Text('Place drones on the map'),
+                  onPressed: () {
+                    m.setPlanningMode(true);
+                    context.read<ShellNav>().go(ShellNav.mapTab);
+                  },
+                ),
+              ),
+            ]
             else
               ...m.deployments.map((d) {
                 final active = d.name == m.activeDeploymentName;
@@ -670,8 +686,13 @@ class _DeploymentsCard extends StatelessWidget {
       return;
     }
     if (m.area.length < 3) {
+      // Do not just tell them where to go: take them, and turn the tool on.
+      m.setPlanningMode(true);
+      if (!m.areaDrawMode) m.toggleAreaDraw();
+      context.read<ShellNav>().go(ShellNav.mapTab);
       messenger.showSnackBar(const SnackBar(
-          content: Text('Draw the operation area on the Map tab first.')));
+          content: Text('Draw the operation area first: tap the map to add '
+              'corners, then run the AI advisor again.')));
       return;
     }
 

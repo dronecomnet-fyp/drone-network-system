@@ -22,6 +22,7 @@ Widget _shell(AppState app) => MultiProvider(
         // autoStart off: tests must never make real network probes.
         ChangeNotifierProvider(
             create: (_) => ConnectivityService(autoStart: false)),
+        ChangeNotifierProvider(create: (_) => ShellNav()),
       ],
       child: MaterialApp(
         theme: ThemeData(

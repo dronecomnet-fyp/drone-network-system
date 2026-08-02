@@ -56,6 +56,7 @@ class GccApp extends StatelessWidget {
         // from "am I talking to a drone node": the two are unrelated, and
         // at a deployment the healthy answer is node yes, internet no.
         ChangeNotifierProvider(create: (_) => ConnectivityService(), lazy: false),
+        ChangeNotifierProvider(create: (_) => ShellNav()),
         ChangeNotifierProvider(
           create: (ctx) {
             final drone = ctx.read<DroneController>();
@@ -78,6 +79,33 @@ class GccApp extends StatelessWidget {
         home: const GccShell(),
       ),
     );
+  }
+}
+
+/// Lets a screen send the operator to another tab.
+///
+/// Testers said planning "is not straightforward" because it is split: you
+/// name a mission on one tab and draw its area on another, with the Mission
+/// tab reduced to printing instructions like "draw the area on the Map
+/// tab". Rather than merge two large screens into one crowded one, the
+/// instructions become buttons that take you there and switch the map into
+/// the right mode, so the workflow is continuous even though the screens
+/// stay separate and each stays readable.
+class ShellNav extends ChangeNotifier {
+  static const int mapTab = 0;
+  static const int missionTab = 2;
+  static const int nodesTab = 4;
+
+  int? _requested;
+  int? takeRequest() {
+    final r = _requested;
+    _requested = null;
+    return r;
+  }
+
+  void go(int tabIndex) {
+    _requested = tabIndex;
+    notifyListeners();
   }
 }
 
@@ -149,6 +177,16 @@ class _GccShellState extends State<GccShell> {
 
   @override
   Widget build(BuildContext context) {
+    // A screen asked to move the operator elsewhere; honour it after this
+    // frame so we are not calling setState during a build.
+    final nav = context.watch<ShellNav>();
+    final requested = nav.takeRequest();
+    if (requested != null && requested != _index) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _index = requested);
+      });
+    }
+
     return Scaffold(
       body: Row(
         children: [

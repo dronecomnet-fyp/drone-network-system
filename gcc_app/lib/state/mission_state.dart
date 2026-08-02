@@ -262,6 +262,14 @@ class MissionState extends ChangeNotifier {
 
   // ---- area polygon ----
 
+  /// Turn planning on without toggling it off if it is already on, so a
+  /// button that means "take me to the map ready to plan" is idempotent.
+  void setPlanningMode(bool on) {
+    if (planningMode == on) return;
+    planningMode = on;
+    notifyListeners();
+  }
+
   void togglePlanning() {
     planningMode = !planningMode;
     if (!planningMode) areaDrawMode = false;
