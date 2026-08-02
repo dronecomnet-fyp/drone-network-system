@@ -113,6 +113,7 @@ path if the supervisor wants Start-menu integration):
 |----------------|------------|----------------------------------|-------|
 | phone-apps-v1  | 2026-07-15 | rescue 2.0.0, emergency 0.1.0    | first sideload test builds against DRONE_A |
 | phone-apps-v2  | 2026-07-28 | rescue 2.1.0, emergency 0.1.1    | rescue: location heartbeat + Share my location toggle, LoRa-fallback alert banner, ops map tab, field bug fixes. emergency: field bug fixes. Same debug signing key as v1, so both install over the top. |
+| phone-apps-v3  | 2026-08-03 | rescue 2.2.0, emergency 0.2.0    | emergency: conversation screen with three delivery states, area map, opens itself on a drone sighting, notification spam fix. rescue: reply to a victim with quick replies. Same signing key again. |
 
 ### GCC desktop
 
