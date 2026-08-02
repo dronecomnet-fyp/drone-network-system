@@ -511,3 +511,37 @@ Phase 1 security docs) is flagged here, never silently drifted.
     deleting a post), so the choice must be deliberate; and RESCUER
     positions are not the victim's consent to give, so they remain
     distance-and-direction unless HQ configures otherwise.
+
+36. The victim-portal config version counter is REMOVED, superseding the
+    counter described in item 34. Reviewing it surfaced the real problem:
+    the counter itself was the defect, not the places it was stored.
+
+    A counter has to live somewhere and be kept correct, and whoever holds
+    it can legitimately be wrong. A fresh GCC install, a second operator's
+    laptop, or cleared settings all rewind it, and the operator then gets
+    pushes rejected with no visible cause. Two rounds of fixes (moving it
+    from the mission file to prefs, then reconciling it against the node
+    with max(local, remote) + 1) each made it more robust while leaving the
+    underlying complexity in place.
+
+    A config now identifies itself by a SHA-256 fingerprint of its own
+    visible content, and ordering comes from updated_at. That gives both
+    things the counter was approximating, and gives them exactly:
+
+    - Comparing nodes is now content equality, not numeric ordering. Same
+      config_id means the same options, whoever pushed them and in whatever
+      order. The GCC computes the fingerprint locally and can say "this
+      node already matches" without pushing anything, so the Nodes chip
+      reads "matches this mission", "different options", or "stock".
+    - A stale push is refused because its timestamp is older, with an
+      explicit force override for the case where a laptop clock was wrong.
+      Re-pushing identical options is harmless and produces the same id.
+
+    Nothing stores a counter now: not the mission file, not prefs, not the
+    node. The fingerprint is a cross-language contract between Dart and
+    Python, so a test pins the Dart output against the value the node's own
+    content_id() produces; if they ever diverge the GCC would silently
+    report every node as mismatched forever.
+
+    Credit where due: the operator spotted that the max() reconciliation
+    was a symptom rather than a cure.

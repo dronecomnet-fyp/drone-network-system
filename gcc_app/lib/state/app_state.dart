@@ -35,17 +35,8 @@ class AppState extends ChangeNotifier {
   static const _kAiEndpoint = 'ai_endpoint';
   static const _kAiModel = 'ai_model';
   static const _kAiApiKey = 'ai_api_key';
-  // Highest victim-portal config version this GCC has ever pushed to any
-  // node. Lives in prefs rather than the mission file so it is persisted
-  // the instant it changes: a counter the operator had to remember to save
-  // would silently rewind on restart and make later pushes look stale.
-  static const _kPortalConfigVersion = 'portal_config_version';
 
   SharedPreferences? _prefs;
-
-  /// Highest victim-portal config version pushed from this GCC. Only ever
-  /// moves forward; see [claimPortalConfigVersion].
-  int portalConfigVersion = 0;
 
   String baseUrl = 'https://10.42.0.1:8443';
   String apiKey = '';
@@ -86,30 +77,6 @@ class AppState extends ChangeNotifier {
       ? '${session!.personnelId} (${session!.role})'
       : (apiKey.isNotEmpty ? 'break-glass key' : 'not logged in');
 
-  /// Reserve the next config version to push, given what the TARGET NODE
-  /// says it already holds.
-  ///
-  /// Taking the max of our counter and the node's own version is what makes
-  /// this correct rather than merely tidy. Our counter can legitimately be
-  /// behind reality in ordinary situations: a fresh GCC install, a second
-  /// operator's laptop, prefs cleared, or a node another machine already
-  /// pushed a higher version to. Deriving purely from our own counter would
-  /// produce a rejected push with no obvious cause; deriving purely from the
-  /// node would make version numbers incomparable between nodes, since each
-  /// would count independently. Taking the max gives a number that is both
-  /// accepted by this node and still globally meaningful.
-  ///
-  /// Persisted immediately, so nothing depends on the operator remembering
-  /// to save anything.
-  Future<int> claimPortalConfigVersion(int nodeVersion) async {
-    final next =
-        (portalConfigVersion > nodeVersion ? portalConfigVersion : nodeVersion) + 1;
-    portalConfigVersion = next;
-    await _prefs?.setInt(_kPortalConfigVersion, next);
-    notifyListeners();
-    return next;
-  }
-
   RescueMeshClient get client {
     _client ??= _buildClient();
     return _client!;
@@ -144,7 +111,6 @@ class AppState extends ChangeNotifier {
     aiEndpoint = p.getString(_kAiEndpoint) ?? aiEndpoint;
     aiModel = p.getString(_kAiModel) ?? aiModel;
     aiApiKey = p.getString(_kAiApiKey) ?? '';
-    portalConfigVersion = p.getInt(_kPortalConfigVersion) ?? 0;
     final sessionJson = p.getString(_kSession);
     if (sessionJson != null && sessionJson.isNotEmpty) {
       try {

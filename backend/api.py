@@ -229,24 +229,20 @@ class SituationInput(BaseModel):
 
 
 class MissionConfigInput(BaseModel):
-    '''A versioned victim-portal config pushed from the GCC before a
-    deployment. The node rejects anything not strictly newer than what it
-    already holds, so a stale GCC cannot silently downgrade a node that
-    another operator already updated.'''
-    version: int
+    '''A victim-portal config pushed from the GCC before a deployment.
+
+    There is no version number: the config is identified by a hash of its
+    own content and ordered by updated_at, so nothing has to keep a counter
+    correct across laptops and reinstalls.'''
     situations: List[SituationInput]
     mission_name: str = ""
     disaster_type: str = ""
     headline: str = ""
     updated_at: str = ""
     show_rescuer_positions: bool = True
-
-    @field_validator("version")
-    @classmethod
-    def version_ok(cls, v):
-        if v < 1:
-            raise ValueError("version must be 1 or greater")
-        return v
+    # Set when the operator has seen the "older than what is there" refusal
+    # and means to replace it anyway, typically a wrong laptop clock.
+    force: bool = False
 
     @field_validator("situations")
     @classmethod
@@ -653,8 +649,12 @@ def post_mission_config(
 ):
     """Push a new victim-portal config to THIS node. HQ only, because it
     changes what every victim in range is shown."""
+    body = cfg.model_dump()
+    force = bool(body.pop("force", False))
+    if not body.get("updated_at"):
+        body["updated_at"] = models.iso_now()
     try:
-        stored = mission_config.save(cfg.model_dump())
+        stored = mission_config.save(body, force=force)
     except ValueError as e:
         # Usually "not newer than what is already here". The operator must
         # SEE that rather than believing the push succeeded.
@@ -664,9 +664,10 @@ def post_mission_config(
         raise HTTPException(status_code=500, detail="Internal error saving config")
     audit_logger.info(
         f"MISSION_CONFIG_PUSH | by={auth.personnel_id or 'api_key'} | "
-        f"version={stored['version']} | mission={stored.get('mission_name', '')}"
+        f"config={stored['config_id']} | mission={stored.get('mission_name', '')}"
     )
-    return {"version": stored["version"], "source": stored["source"],
+    return {"config_id": stored["config_id"], "source": stored["source"],
+            "updated_at": stored.get("updated_at", ""),
             "situation_count": len(stored.get("situations", []))}
 
 

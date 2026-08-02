@@ -8,6 +8,10 @@
 /// for a disaster type, and pushing them one node at a time.
 library;
 
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+
 /// Suggested options per disaster type. These are a STARTING POINT the
 /// operator edits, not a fixed taxonomy: the whole reason the config is
 /// pushable is that the person running the mission knows the situation
@@ -69,24 +73,44 @@ List<Map<String, Object>> suggestedFor(String disasterType) =>
 
 /// Build the payload for POST /mission-config.
 ///
-/// [version] must be higher than anything already pushed this mission; the
-/// nodes reject a stale one. The GCC keeps the number in the mission file
-/// so it survives a restart, because a version counter that resets to 1
-/// would make every later push look stale to nodes that already advanced.
+/// No version number: the node fingerprints the content and orders pushes
+/// by updated_at, so nothing here has to keep a counter correct.
 Map<String, dynamic> buildPortalConfig({
-  required int version,
   required String missionName,
   required String disasterType,
   required List<Map<String, Object>> situations,
   String headline = 'Tap what you need. You can tap more than one.',
   bool showRescuerPositions = true,
+  bool force = false,
 }) =>
     {
-      'version': version,
       'mission_name': missionName,
       'disaster_type': disasterType,
       'headline': headline,
       'situations': situations,
       'show_rescuer_positions': showRescuerPositions,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
+      'force': force,
     };
+
+/// The id a node WILL report once it is serving these options. Mirrors the
+/// node's content_id (backend/mission_config.py) so the GCC can say
+/// "this node already matches" without pushing first.
+String portalConfigId({
+  required List<Map<String, Object>> situations,
+  String headline = 'Tap what you need. You can tap more than one.',
+  bool showRescuerPositions = true,
+}) {
+  final payload = jsonEncode({
+    'headline': headline,
+    'show_rescuer_positions': showRescuerPositions,
+    'situations': situations
+        .map((s) => {
+              'id': s['id'],
+              'label': s['label'],
+              'urgent': s['urgent'] == true,
+            })
+        .toList(),
+  });
+  return sha256.convert(utf8.encode(payload)).toString().substring(0, 12);
+}

@@ -4,7 +4,6 @@ import 'package:rescue_mesh_shared/rescue_mesh_shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  _portalVersionTests();
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('settings persist through SharedPreferences', () async {
@@ -79,72 +78,5 @@ void main() {
     final before = app.client;
     await app.updateSettings(newBaseUrl: 'https://10.42.0.2:8443');
     expect(identical(before, app.client), isFalse);
-  });
-}
-
-/// Version allocation for victim-portal config pushes.
-///
-/// The bug this prevents: the counter originally lived in the mission file,
-/// which the operator saves by hand. Push, forget to save, restart, and the
-/// counter rewinds. Every later push is then rejected as stale by nodes
-/// that already advanced, with no visible cause. It now lives in prefs
-/// (persisted the instant it changes) AND is reconciled against what the
-/// target node reports, so it self-heals even on a fresh install.
-void _portalVersionTests() {
-  group('portal config version allocation', () {
-    test('first push to a stock node is v1', () async {
-      SharedPreferences.setMockInitialValues({});
-      final app = AppState();
-      await app.load();
-      expect(await app.claimPortalConfigVersion(0), 1);
-    });
-
-    test('the counter persists immediately, with no manual save', () async {
-      SharedPreferences.setMockInitialValues({});
-      final a = AppState();
-      await a.load();
-      await a.claimPortalConfigVersion(0);
-      await a.claimPortalConfigVersion(0);
-
-      // A brand new instance, as after a restart.
-      final b = AppState();
-      await b.load();
-      expect(b.portalConfigVersion, 2,
-          reason: 'restart must not rewind the counter');
-      expect(await b.claimPortalConfigVersion(0), 3);
-    });
-
-    test('a node ahead of us pulls the counter forward', () async {
-      // Fresh install, or a second operator laptop, against a node another
-      // machine already pushed v7 to.
-      SharedPreferences.setMockInitialValues({});
-      final app = AppState();
-      await app.load();
-      expect(await app.claimPortalConfigVersion(7), 8,
-          reason: 'must beat the node, not restart from 1 and be rejected');
-    });
-
-    test('our counter wins when the node is behind', () async {
-      SharedPreferences.setMockInitialValues({'portal_config_version': 9});
-      final app = AppState();
-      await app.load();
-      // Pushing to a node still on stock must not reuse an old number,
-      // otherwise two different configs would both be called v1.
-      expect(await app.claimPortalConfigVersion(0), 10);
-    });
-
-    test('always strictly increases across mixed nodes', () async {
-      SharedPreferences.setMockInitialValues({});
-      final app = AppState();
-      await app.load();
-      var last = 0;
-      for (final nodeVersion in [0, 3, 0, 11, 2, 0]) {
-        final v = await app.claimPortalConfigVersion(nodeVersion);
-        expect(v, greaterThan(last));
-        expect(v, greaterThan(nodeVersion),
-            reason: 'the node must accept it');
-        last = v;
-      }
-    });
   });
 }

@@ -410,37 +410,45 @@ class DegradedNode {
 /// real and easy-to-miss state, so every node reports its own version and
 /// the GCC shows it per node rather than assuming a push reached everyone.
 class MissionConfigSummary {
-  final int version;
+  /// Hash of the option content this node is serving. There is no version
+  /// counter on purpose: comparing ids answers the question the operator
+  /// actually has ("does this node match what I have loaded?") exactly,
+  /// rather than approximately via a number that some laptop has to keep
+  /// correct.
+  final String configId;
 
   /// "stock" when nobody ever pushed to this node, "pushed" otherwise.
   /// Stock is a valid working state, not a fault.
   final String source;
   final String missionName;
   final String disasterType;
+  final String updatedAt;
   final int situationCount;
 
   const MissionConfigSummary({
-    this.version = 0,
+    this.configId = 'stock',
     this.source = 'stock',
     this.missionName = '',
     this.disasterType = '',
+    this.updatedAt = '',
     this.situationCount = 0,
   });
 
   bool get isStock => source != 'pushed';
 
-  /// "v3 (Flood 2026)" or "stock options", for a table cell.
-  String get label =>
-      isStock ? 'stock options' : 'v$version${missionName.isEmpty ? "" : " ($missionName)"}';
+  /// True when this node serves exactly the options [candidateId] describes.
+  bool matches(String candidateId) =>
+      !isStock && configId.isNotEmpty && configId == candidateId;
 
   factory MissionConfigSummary.fromJson(Map<String, dynamic>? json) =>
       json == null
           ? const MissionConfigSummary()
           : MissionConfigSummary(
-              version: _toInt(json['version']),
+              configId: (json['config_id'] ?? 'stock') as String,
               source: (json['source'] ?? 'stock') as String,
               missionName: (json['mission_name'] ?? '') as String,
               disasterType: (json['disaster_type'] ?? '') as String,
+              updatedAt: (json['updated_at'] ?? '') as String,
               situationCount: _toInt(json['situation_count']),
             );
 }

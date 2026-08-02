@@ -20,18 +20,29 @@ distributed systems:
      "I need water") rather than disaster-specific, so it is never wrong,
      only less tailored.
 
-  2. Every node reports WHICH version it holds, so the GCC can show
-     "config v3" or "stock" per node and the operator can see who is
-     actually updated before deploying. Silent partial rollout is the
-     failure mode that bites.
+  2. Every node reports WHICH config it holds, so the GCC can show per
+     node whether it matches what the operator has loaded, or is still on
+     stock. Silent partial rollout is the failure mode that bites.
 
-  3. Versions only ever move forward. A push carrying an older or equal
-     version is rejected, so a stale GCC replaying an old config cannot
-     downgrade a node that another operator already updated. Messages
-     record the version that produced them, so changing the options
-     mid-mission never makes older messages unreadable.
+  3. There is NO version counter. A counter has to be stored somewhere and
+     kept correct, and whoever holds it can be wrong: a fresh GCC install,
+     a second operator's laptop, or cleared settings all rewind it, and the
+     operator then gets pushes rejected with no visible cause. Instead a
+     config identifies itself by a HASH OF ITS OWN CONTENT, and ordering
+     comes from the timestamp it was created at.
+
+     That gives the two things a counter was only approximating. Comparing
+     nodes becomes exact rather than numeric: same config_id means the same
+     options, whoever pushed them and in whatever order. And a stale push
+     is refused because its timestamp is older, not because a number
+     somewhere was out of step.
+
+     Changing the options mid-mission never makes older messages
+     unreadable, because the option LABEL text is stored in the message
+     content, not a reference to the config.
 """
 
+import hashlib
 import json
 import os
 import threading
@@ -46,7 +57,7 @@ CONFIG_SCHEMA = "mission-config-v1"
 # point is that an un-pushed node is still helpful, not broken.
 STOCK_CONFIG = {
     "schema": CONFIG_SCHEMA,
-    "version": 0,
+    "config_id": "stock",
     "mission_name": "",
     "disaster_type": "",
     "source": "stock",
@@ -70,6 +81,29 @@ STOCK_CONFIG = {
     # Shown above the buttons. Kept short: people skim in an emergency.
     "headline": "Tap what you need. You can tap more than one.",
 }
+
+
+def content_id(cfg: dict) -> str:
+    """Short stable fingerprint of what a victim actually sees.
+
+    Deliberately covers ONLY the visible content, not the timestamp or the
+    mission name, so pushing the identical options twice produces the same
+    id and the GCC can say "this node already matches" instead of inventing
+    a difference that does not exist.
+    """
+    payload = json.dumps(
+        {
+            "situations": [
+                {"id": s.get("id"), "label": s.get("label"),
+                 "urgent": bool(s.get("urgent"))}
+                for s in cfg.get("situations", [])
+            ],
+            "headline": cfg.get("headline", ""),
+            "show_rescuer_positions": bool(cfg.get("show_rescuer_positions", True)),
+        },
+        sort_keys=True, separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode()).hexdigest()[:12]
 
 
 _lock = threading.Lock()
@@ -102,14 +136,19 @@ def load() -> dict:
         return dict(STOCK_CONFIG)
 
 
-def save(new_config: dict) -> dict:
-    """Accept a pushed config if it is strictly newer. Returns the config
-    now in force, so the caller can report what actually happened.
+def save(new_config: dict, force: bool = False) -> dict:
+    """Store a pushed config. Returns what is now in force, so the caller
+    reports the node's own answer rather than its own optimism.
 
-    Raises ValueError when the push is malformed or not an upgrade; the API
-    turns that into a 400 rather than silently doing nothing, because an
-    operator who thinks they pushed and did not is exactly the situation
-    property 2 above exists to prevent.
+    Ordering is by `updated_at`: a push older than what the node already
+    holds is refused, which stops a second laptop carrying a stale mission
+    file from silently undoing someone else's newer push. `force` overrides
+    that for the case where an operator knows their clock was wrong and
+    means it anyway.
+
+    Raises ValueError when the push is malformed or older; the API turns
+    that into a 400, because an operator who believes they pushed and did
+    not is the exact failure this design exists to prevent.
     """
     if not isinstance(new_config, dict):
         raise ValueError("config must be an object")
@@ -121,23 +160,23 @@ def save(new_config: dict) -> dict:
         if not isinstance(s, dict) or not s.get("id") or not s.get("label"):
             raise ValueError("each situation needs an id and a label")
 
-    try:
-        version = int(new_config.get("version", 0))
-    except (TypeError, ValueError):
-        raise ValueError("version must be a whole number")
+    incoming_at = str(new_config.get("updated_at", "") or "")
 
     with _lock:
         current = load()
-        if version <= int(current.get("version", 0)):
+        current_at = str(current.get("updated_at", "") or "")
+        # ISO 8601 UTC sorts correctly as plain text, so no parsing needed.
+        if not force and current_at and incoming_at and incoming_at < current_at:
             raise ValueError(
-                f"version {version} is not newer than the {current.get('version')} "
-                "already on this node"
+                f"this push was created at {incoming_at}, which is older than "
+                f"the config already on this node ({current_at}). Push again "
+                "with force if you mean to replace it."
             )
 
         stored = dict(STOCK_CONFIG)
         stored.update(new_config)
         stored["schema"] = CONFIG_SCHEMA
-        stored["version"] = version
+        stored["config_id"] = content_id(stored)
         stored["source"] = "pushed"
 
         # Write then rename: a power cut mid-write must not leave a
@@ -150,11 +189,11 @@ def save(new_config: dict) -> dict:
 
 
 def summary() -> dict:
-    """The small bit /health publishes, so the GCC can show a per-node
-    'config v3' or 'stock' column without shipping the whole thing."""
+    """The small bit /health publishes, so the GCC can tell per node
+    whether it matches, without shipping the whole config."""
     c = load()
     return {
-        "version": c.get("version", 0),
+        "config_id": c.get("config_id", "stock"),
         "source": c.get("source", "stock"),
         "mission_name": c.get("mission_name", ""),
         "disaster_type": c.get("disaster_type", ""),

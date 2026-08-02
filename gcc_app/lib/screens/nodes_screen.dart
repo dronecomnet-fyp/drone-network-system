@@ -377,28 +377,14 @@ class _PortalConfigCardState extends State<_PortalConfigCard> {
 
     setState(() => _busy = true);
     try {
-      // Ask the node what it already holds, then pick a version that beats
-      // both it and our own counter. Without this a fresh install, a second
-      // operator's laptop, or cleared prefs would produce a rejected push
-      // and no clue why.
-      var nodeVersion = 0;
-      try {
-        final current = await app.client.getMissionConfig();
-        nodeVersion = (current['version'] as num?)?.toInt() ?? 0;
-      } catch (_) {
-        // Older node without the endpoint: fall back to our own counter.
-      }
-      final version = await app.claimPortalConfigVersion(nodeVersion);
-
       final result = await app.client.pushMissionConfig(buildPortalConfig(
-        version: version,
         missionName: mission.missionName,
         disasterType: mission.disasterType,
         situations: situations,
       ));
       messenger.showSnackBar(SnackBar(
           content: Text('${data.health?.nodeId ?? "Node"} is now serving '
-              'config v${result['version']}.')));
+              'these options (${result['config_id']}).')));
     } catch (e) {
       // A push that did not land must never look like one that did.
       messenger.showSnackBar(SnackBar(
@@ -415,6 +401,19 @@ class _PortalConfigCardState extends State<_PortalConfigCard> {
     final cfg = data.health?.missionConfig;
     if (cfg == null) return const SizedBox.shrink();
 
+    // Compare CONTENT, not a version number. The question the operator has
+    // is "does this node serve what I have loaded?", and comparing
+    // fingerprints answers it exactly, with no counter to keep correct.
+    final mission = context.watch<MissionState>();
+    final wanted = portalConfigId(situations: suggestedFor(mission.disasterType));
+    final matches = cfg.matches(wanted);
+    final chipLabel = cfg.isStock
+        ? 'stock options'
+        : (matches ? 'matches this mission' : 'different options');
+    final chipColour = cfg.isStock
+        ? Colors.orange.shade900
+        : (matches ? Colors.green.shade900 : Colors.blue.shade900);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -426,10 +425,9 @@ class _PortalConfigCardState extends State<_PortalConfigCard> {
                   style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(width: 10),
               Chip(
-                label: Text(cfg.label),
+                label: Text(chipLabel),
                 visualDensity: VisualDensity.compact,
-                backgroundColor:
-                    cfg.isStock ? Colors.orange.shade900 : Colors.green.shade900,
+                backgroundColor: chipColour,
               ),
             ]),
             const SizedBox(height: 6),
@@ -437,8 +435,12 @@ class _PortalConfigCardState extends State<_PortalConfigCard> {
               cfg.isStock
                   ? 'This node serves the built-in need-based options. That '
                       'works, it is just not tailored to this mission.'
-                  : 'Serving ${cfg.situationCount} options for '
-                      '"${cfg.missionName}".',
+                  : matches
+                      ? 'Serving ${cfg.situationCount} options for '
+                          '"${cfg.missionName}". Nothing to do.'
+                      : 'Serving ${cfg.situationCount} options for '
+                          '"${cfg.missionName}", which are NOT the ones this '
+                          'mission would push. Pushing will replace them.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 10),
