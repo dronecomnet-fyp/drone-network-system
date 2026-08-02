@@ -224,6 +224,19 @@ class APIService {
     return _run((c) => c.getHealth());
   }
 
+  // --- victim conversations -------------------------------------------------
+
+  /// Reply to a victim's message. The reply replicates like any other
+  /// record, so it reaches whichever drone that victim next meets.
+  static Future<String> replyToMessage(String msgId, String body) {
+    return _run((c) => c.replyToMessage(msgId, body));
+  }
+
+  /// One victim's whole thread, for showing context before replying.
+  static Future<shared.Conversation> getConversation(String deviceId) {
+    return _run((c) => c.getConversation(deviceId));
+  }
+
   // --- ops map layers (task D) ----------------------------------------------
 
   /// Emergency-app checkins (SOS points and location pings) for the map.

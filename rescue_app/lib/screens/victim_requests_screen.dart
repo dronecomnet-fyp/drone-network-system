@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/api_error_model.dart';
 import '../models/message_model.dart';
 import '../providers/message_provider.dart';
+import '../services/api_service.dart';
 import 'settings_screen.dart';
 
 class VictimRequestsScreen extends StatelessWidget {
@@ -335,8 +336,118 @@ class VictimRequestsScreen extends StatelessWidget {
                   ),
                 ),
               ),
+              // Replying is only offered when the message came from the
+              // emergency app: a captive-portal victim has closed the page
+              // and has no way to read an answer, so a reply button there
+              // would promise a conversation that cannot happen.
+              if (message.victimDeviceId.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.reply, size: 18),
+                    label: const Text('REPLY TO THIS PERSON'),
+                    onPressed: () => _showReplySheet(context, message.msgId),
+                  ),
+                ),
+              ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Quick replies first, free text underneath. During a real event a
+  /// rescuer may have dozens of threads, and retyping "stay where you are"
+  /// forty times is how a good feature becomes an abandoned one.
+  static const List<String> _quickReplies = [
+    'We have your location. Stay where you are.',
+    'Help is being sent to you now.',
+    'Move to higher ground if you safely can.',
+    'Are you able to move? Reply if yes.',
+    'We cannot reach you yet. Keep this app on.',
+  ];
+
+  void _showReplySheet(BuildContext context, String msgId) {
+    final controller = TextEditingController();
+    var sending = false;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.only(
+          left: 16, right: 16, top: 16,
+          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 16,
+        ),
+        child: StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            Future<void> send(String body) async {
+              if (body.trim().isEmpty || sending) return;
+              setSheetState(() => sending = true);
+              final messenger = ScaffoldMessenger.of(context);
+              try {
+                await APIService.replyToMessage(msgId, body.trim());
+                if (ctx.mounted) Navigator.pop(ctx);
+                messenger.showSnackBar(const SnackBar(
+                    content: Text('Reply sent. It reaches them when their '
+                        'phone next meets a drone.')));
+              } catch (e) {
+                setSheetState(() => sending = false);
+                messenger.showSnackBar(
+                    SnackBar(content: Text('Could not send reply: $e')));
+              }
+            }
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Reply to this person',
+                    style: Theme.of(ctx).textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text(
+                  'They see this in their app. It may take a while to reach '
+                  'them, so avoid anything time-critical.',
+                  style: Theme.of(ctx).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _quickReplies
+                      .map((q) => ActionChip(
+                            label: Text(q, style: const TextStyle(fontSize: 12)),
+                            onPressed: sending ? null : () => send(q),
+                          ))
+                      .toList(),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  maxLines: 3,
+                  maxLength: 500,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    hintText: 'Or write your own reply',
+                  ),
+                ),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: sending
+                        ? const SizedBox(
+                            width: 14, height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.send, size: 18),
+                    label: Text(sending ? 'Sending...' : 'Send reply'),
+                    onPressed: sending ? null : () => send(controller.text),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
