@@ -101,6 +101,11 @@ PEER_EXPIRY = _int("PEER_EXPIRY", 35)
 # enough to ride out a couple of lost packets, short enough that a node
 # that recovered (or flew out of range) stops being asserted as DOWN.
 FALLBACK_EXPIRY = _int("FALLBACK_EXPIRY", 120)
+
+# Per-mission victim-portal config pushed by the GCC (mission_config.py).
+# Absent file means the node serves the stock options, which is a valid
+# state, not an error.
+MISSION_CONFIG_FILE = os.getenv("MISSION_CONFIG_FILE", "")
 SYNC_INTERVAL = _int("SYNC_INTERVAL", 30)
 SYNC_SCHEME = os.getenv("SYNC_SCHEME", "https")
 SYNC_VERIFY_TLS = _bool("SYNC_VERIFY_TLS", "false")

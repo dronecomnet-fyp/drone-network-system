@@ -34,6 +34,7 @@ import audit
 import aux_state
 import config
 import crypto_keys
+import mission_config
 import models
 import ratelimit
 
@@ -708,6 +709,9 @@ def health_check():
         "battery": state.get("battery"),
         "uptime_s": _uptime_s(),
         "clock_source": state.get("clock_source", "relative"),
+        # Which victim-portal config this node holds, so the GCC can show
+        # "config v3" or "stock" per node BEFORE deploying.
+        "mission_config": mission_config.summary(),
         "message_counts": models.message_counts(),
         "table_counts": models.table_counts(),
         # Peers carry their last known position and battery, not just a
