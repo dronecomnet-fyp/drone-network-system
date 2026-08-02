@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 
 import '../models/stored_point.dart';
 import '../state/app_controller.dart';
+import 'area_map_screen.dart';
 import 'connected_screen.dart';
 import 'conversation_screen.dart';
 import 'settings_screen.dart';
@@ -70,6 +71,13 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.red.shade600,
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            tooltip: 'Map of drones, rescuers and people needing help',
+            icon: const Icon(Icons.map),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AreaMapScreen()),
+            ),
+          ),
           IconButton(
             tooltip: 'Messages with the rescue team',
             icon: const Icon(Icons.forum),

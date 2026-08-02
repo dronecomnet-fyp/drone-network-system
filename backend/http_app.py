@@ -593,6 +593,29 @@ def windows_probe_alt():
     return PlainTextResponse(content="Rescue Network Portal", status_code=200)
 
 
+@app.get("/area-map")
+def area_map(request: Request):
+    """Positions for the victim app's map: drones, other people who need
+    help, and rescuers.
+
+    Sharing this openly is a deliberate decision recorded in CHANGES.md
+    item 38, made on the ground that people in Sri Lankan floods already
+    publish their location publicly to seek help and that neighbours reach
+    them before responders can. Whether rescuer positions are included is a
+    mission-config flag, since that is the organisation's call rather than
+    any individual victim's.
+
+    Carries positions only: never message content, never device ids.
+    """
+    _ip_limiter.check(_client_ip(request))
+    cfg = mission_config.load()
+    try:
+        return JSONResponse(content=models.area_map_snapshot(
+            include_rescuers=bool(cfg.get("show_rescuer_positions", True))))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal error")
+
+
 @app.get("/my-conversation/{device_id}")
 def my_conversation(device_id: str, request: Request):
     """A victim reading their OWN thread: what they sent, its delivery

@@ -349,6 +349,13 @@ class RescueMeshClient {
     return Conversation.fromJson(data as Map<String, dynamic>);
   }
 
+  /// Positions to draw on the victim app's map: drones, other people who
+  /// need help, and rescuers. Positions only, never content or ids.
+  Future<Map<String, dynamic>> getAreaMap() async {
+    final data = await _get('/area-map');
+    return data as Map<String, dynamic>;
+  }
+
   Future<NodeHealth> getHealth() async {
     final data = await _get('/health');
     return NodeHealth.fromJson(data as Map<String, dynamic>);

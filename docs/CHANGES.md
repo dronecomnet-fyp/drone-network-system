@@ -585,3 +585,36 @@ Phase 1 security docs) is flagged here, never silently drifted.
     overhead sees nothing happening and concludes they were ignored, when
     the system is working exactly as designed. "Seen" never implies anyone
     is on the way, because at that moment nobody is.
+
+38. Victim map, and victims visible to each other. Recorded as a decision
+    rather than a default, because it trades privacy for reach.
+
+    The operator's argument, which changed the design: in Sri Lankan floods
+    people already post their location publicly on social media to seek
+    help, and in most disasters neighbours pull people out long before
+    responders arrive. That is evidence about what people in this context
+    actually want, and it outweighs abstract privacy reasoning. A system
+    that hid survivors from each other would discard the mutual-aid benefit
+    and push people back to social media, which reaches a larger and far
+    less relevant audience than the few hundred metres around a drone.
+
+    Rescuer positions are included too. Responders here are typically army,
+    publicly deployed and announced, so the operator judged their positions
+    appropriate to share. It remains a mission-config flag, since that is
+    the organisation's call rather than any individual victim's.
+
+    What the decision explicitly does NOT extend to, and the tests enforce:
+    the feed carries POSITIONS ONLY. No message content, no device ids. A
+    person reading the map learns that someone nearby needs help and
+    whether anyone has picked it up; they cannot read that person's medical
+    details, and they cannot link two positions to the same individual over
+    time. That keeps the whole stated benefit and drops most of the harm.
+
+    Also noted honestly: the mesh cannot un-share. Store-and-forward has no
+    recall, unlike deleting a social media post, so what is published stays
+    published. The operator accepted this.
+
+    The victim map ships no tiles, like the rescue app map: markers on a
+    plain background, since there is no internet at a site. It shows the
+    distance to the nearest rescue team, which is the single most
+    reassuring number available.

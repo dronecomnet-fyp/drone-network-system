@@ -23,6 +23,11 @@ dependencies:
   flutter_foreground_task: ^8.10.0
   workmanager: ^0.9.0+3
   app_settings: ^5.1.1
+  # Area map (task: victim map). Same engine as the other apps, and
+  # like the rescue app it ships NO tiles: markers render on a plain
+  # background because there is no internet at a disaster site.
+  flutter_map: ^8.1.1
+  latlong2: ^0.9.1
   rescue_mesh_shared:
     path: ../shared_dart
 

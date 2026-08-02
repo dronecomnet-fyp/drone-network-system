@@ -860,6 +860,68 @@ def get_conversation(victim_device_id: str) -> dict:
     }
 
 
+def area_map_snapshot(include_rescuers: bool = True,
+                      victim_hours: float = 24.0) -> dict:
+    """Positions to draw on the victim app's map.
+
+    The operator decided this is shared openly: in Sri Lankan floods people
+    already publish their location publicly to seek help, and neighbours
+    reach them faster than responders can. Rescuers here are typically army
+    who are publicly deployed and announced, so their positions are shared
+    too, behind a mission-config flag in case a deployment decides
+    otherwise (CHANGES.md item 38).
+
+    What is deliberately NOT included, even under that decision: message
+    CONTENT and device ids. Someone looking at this map needs to know that
+    a person nearby needs help and roughly how urgently. They do not need
+    to read that person's medical details or be able to link two positions
+    to the same individual over time. Positions only keeps the whole
+    benefit and drops most of the harm.
+    """
+    conn = get_conn()
+    since = (datetime.now(timezone.utc)
+             - timedelta(hours=victim_hours)).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    drones = conn.execute("""
+        SELECT nh.node_id, nh.lat, nh.lon, nh.gps_fix
+          FROM node_health nh
+          JOIN (SELECT node_id, MAX(ts) AS mts FROM node_health GROUP BY node_id) m
+            ON nh.node_id = m.node_id AND nh.ts = m.mts
+         WHERE nh.lat IS NOT NULL AND nh.lon IS NOT NULL
+    """).fetchall()
+
+    victims = conn.execute("""
+        SELECT user_lat AS lat, user_lon AS lon, status
+          FROM messages
+         WHERE user_lat IS NOT NULL AND user_lon IS NOT NULL
+           AND timestamp > ?
+    """, (since,)).fetchall()
+
+    rescuers = []
+    if include_rescuers:
+        rescuers = conn.execute("""
+            SELECT lat, lon FROM personnel_locations
+             WHERE lat IS NOT NULL AND lon IS NOT NULL
+               AND updated_at > ?
+        """, (since,)).fetchall()
+    conn.close()
+
+    return {
+        "drones": [
+            {"node_id": d["node_id"], "lat": d["lat"], "lon": d["lon"]}
+            for d in drones
+        ],
+        # No content, no ids: just "someone here needs help", and whether
+        # anyone has picked it up yet.
+        "victims": [
+            {"lat": v["lat"], "lon": v["lon"],
+             "helped": v["status"] == "CLAIMED"}
+            for v in victims
+        ],
+        "rescuers": [{"lat": r["lat"], "lon": r["lon"]} for r in rescuers],
+    }
+
+
 def latest_node_health():
     """Latest health row per node_id."""
     conn = get_conn()
