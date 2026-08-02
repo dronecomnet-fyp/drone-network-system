@@ -403,6 +403,48 @@ class DegradedNode {
 /// GET /health payload (file 02 task 2.5). The GCC Nodes screen renders
 /// this per node with a last-updated age, never pretending remote nodes
 /// are live (file 04 connectivity model).
+/// Which victim-portal config a node is serving.
+///
+/// The operator needs this BEFORE deploying: a fleet where one node still
+/// shows stock options while the others show mission-specific ones is a
+/// real and easy-to-miss state, so every node reports its own version and
+/// the GCC shows it per node rather than assuming a push reached everyone.
+class MissionConfigSummary {
+  final int version;
+
+  /// "stock" when nobody ever pushed to this node, "pushed" otherwise.
+  /// Stock is a valid working state, not a fault.
+  final String source;
+  final String missionName;
+  final String disasterType;
+  final int situationCount;
+
+  const MissionConfigSummary({
+    this.version = 0,
+    this.source = 'stock',
+    this.missionName = '',
+    this.disasterType = '',
+    this.situationCount = 0,
+  });
+
+  bool get isStock => source != 'pushed';
+
+  /// "v3 (Flood 2026)" or "stock options", for a table cell.
+  String get label =>
+      isStock ? 'stock options' : 'v$version${missionName.isEmpty ? "" : " ($missionName)"}';
+
+  factory MissionConfigSummary.fromJson(Map<String, dynamic>? json) =>
+      json == null
+          ? const MissionConfigSummary()
+          : MissionConfigSummary(
+              version: _toInt(json['version']),
+              source: (json['source'] ?? 'stock') as String,
+              missionName: (json['mission_name'] ?? '') as String,
+              disasterType: (json['disaster_type'] ?? '') as String,
+              situationCount: _toInt(json['situation_count']),
+            );
+}
+
 class NodeHealth {
   final String nodeId;
   final String aux; // "present" | "absent"
@@ -414,6 +456,7 @@ class NodeHealth {
   final Map<String, int> tableCounts;
   final List<PeerInfo> peers;
   final List<DegradedNode> degradedNodes;
+  final MissionConfigSummary missionConfig;
 
   const NodeHealth({
     required this.nodeId,
@@ -426,6 +469,7 @@ class NodeHealth {
     required this.tableCounts,
     required this.peers,
     required this.degradedNodes,
+    this.missionConfig = const MissionConfigSummary(),
   });
 
   factory NodeHealth.fromJson(Map<String, dynamic> json) => NodeHealth(
@@ -445,6 +489,8 @@ class NodeHealth {
         degradedNodes: (json['degraded_nodes'] as List<dynamic>? ?? [])
             .map((d) => DegradedNode.fromJson(d as Map<String, dynamic>))
             .toList(),
+        missionConfig: MissionConfigSummary.fromJson(
+            json['mission_config'] as Map<String, dynamic>?),
       );
 }
 

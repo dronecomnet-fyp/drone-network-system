@@ -310,6 +310,22 @@ class RescueMeshClient {
         .toList();
   }
 
+  /// Push a victim-portal config to THIS node (HQ only). Returns the
+  /// version the node reports as now in force, which is not necessarily
+  /// the one we sent: a node already holding a newer config rejects the
+  /// push, and the caller must surface that rather than assume success.
+  Future<Map<String, dynamic>> pushMissionConfig(
+      Map<String, dynamic> cfg) async {
+    final data = await _post('/mission-config', cfg);
+    return data as Map<String, dynamic>;
+  }
+
+  /// What this node is actually serving to victims right now.
+  Future<Map<String, dynamic>> getMissionConfig() async {
+    final data = await _get('/mission-config');
+    return data as Map<String, dynamic>;
+  }
+
   Future<NodeHealth> getHealth() async {
     final data = await _get('/health');
     return NodeHealth.fromJson(data as Map<String, dynamic>);

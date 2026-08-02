@@ -8,7 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:rescue_mesh_shared/rescue_mesh_shared.dart' as shared;
 
+import '../services/portal_config.dart';
+import '../state/app_state.dart';
 import '../state/data_store.dart';
+import '../state/mission_state.dart';
 import '../widgets/battery_text.dart';
 
 class NodesScreen extends StatelessWidget {
@@ -52,6 +55,8 @@ class NodesScreen extends StatelessWidget {
           )
         else ...[
           _ConnectedNodeCard(healthUpdated: data.healthUpdated),
+          const SizedBox(height: 8),
+          const _PortalConfigCard(),
           const SizedBox(height: 8),
           _PeersCard(),
           const SizedBox(height: 8),
@@ -283,6 +288,161 @@ class _DegradedCard extends StatelessWidget {
                     if (d.batBV != null) 'bat B ${d.batBV!.toStringAsFixed(2)} V',
                   ].join('  |  ')),
                 )),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// What the connected node is showing victims, and a way to change it.
+///
+/// This is deliberately on the Nodes tab rather than buried in Mission:
+/// the question it answers is "is THIS node actually updated", and the
+/// honest answer differs per node during a rollout. A fleet where one node
+/// still serves stock options while the others are mission-specific is an
+/// easy state to end up in and a hard one to notice from anywhere else.
+class _PortalConfigCard extends StatefulWidget {
+  const _PortalConfigCard();
+
+  @override
+  State<_PortalConfigCard> createState() => _PortalConfigCardState();
+}
+
+class _PortalConfigCardState extends State<_PortalConfigCard> {
+  bool _busy = false;
+
+  Future<void> _push(BuildContext context) async {
+    final app = context.read<AppState>();
+    final mission = context.read<MissionState>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (mission.missionName.trim().isEmpty) {
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Name the mission first, on the Mission tab.')));
+      return;
+    }
+
+    final situations = suggestedFor(mission.disasterType);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Push these options to this node?'),
+        content: SizedBox(
+          width: 460,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Every victim who connects to this drone will see these '
+                  'as tappable buttons, for a ${mission.disasterType} '
+                  'mission.'),
+              const SizedBox(height: 10),
+              ...situations.map((s) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(children: [
+                      Icon(
+                          s['urgent'] == true
+                              ? Icons.priority_high
+                              : Icons.circle_outlined,
+                          size: 14,
+                          color: s['urgent'] == true
+                              ? Colors.redAccent
+                              : Colors.white54),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text('${s['label']}')),
+                    ]),
+                  )),
+              const SizedBox(height: 10),
+              Text(
+                'This pushes to the CONNECTED node only. Join each drone in '
+                'turn and push again; the version column shows who is done.',
+                style: Theme.of(ctx).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Push')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _busy = true);
+    try {
+      final version = mission.nextPortalConfigVersion();
+      final result = await app.client.pushMissionConfig(buildPortalConfig(
+        version: version,
+        missionName: mission.missionName,
+        disasterType: mission.disasterType,
+        situations: situations,
+      ));
+      messenger.showSnackBar(SnackBar(
+          content: Text('Node now serving config v${result['version']}. '
+              'Save the mission file so the version survives a restart.')));
+    } catch (e) {
+      // Most likely a rejected stale version, which the operator MUST see:
+      // believing a push landed when it did not is the whole failure mode.
+      messenger.showSnackBar(SnackBar(
+          content: Text('Push failed: $e'), duration: const Duration(seconds: 8)));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = context.watch<DataStore>();
+    final app = context.watch<AppState>();
+    final cfg = data.health?.missionConfig;
+    if (cfg == null) return const SizedBox.shrink();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Text('Victim portal options',
+                  style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(width: 10),
+              Chip(
+                label: Text(cfg.label),
+                visualDensity: VisualDensity.compact,
+                backgroundColor:
+                    cfg.isStock ? Colors.orange.shade900 : Colors.green.shade900,
+              ),
+            ]),
+            const SizedBox(height: 6),
+            Text(
+              cfg.isStock
+                  ? 'This node serves the built-in need-based options. That '
+                      'works, it is just not tailored to this mission.'
+                  : 'Serving ${cfg.situationCount} options for '
+                      '"${cfg.missionName}".',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 10),
+            if (!app.isHq)
+              Text('HQ login required to change what victims are shown.',
+                  style: Theme.of(context).textTheme.bodySmall)
+            else
+              FilledButton.icon(
+                onPressed: _busy ? null : () => _push(context),
+                icon: _busy
+                    ? const SizedBox(
+                        width: 14, height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.upload, size: 16),
+                label: Text(_busy ? 'Pushing...' : 'Push mission options'),
+              ),
           ],
         ),
       ),

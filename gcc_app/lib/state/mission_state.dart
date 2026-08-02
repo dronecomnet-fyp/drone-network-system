@@ -215,6 +215,22 @@ class ProductInfo {
 class MissionState extends ChangeNotifier {
   String missionName = 'unnamed mission';
   String disasterType = 'flood';
+
+  /// Highest victim-portal config version pushed for this mission. Kept in
+  /// the mission file so it survives a GCC restart: a counter that reset
+  /// to 1 would make every later push look stale to nodes that had already
+  /// advanced past it, and the operator would see confusing rejections.
+  int portalConfigVersion = 0;
+
+  /// Take the next version number for a push. The mission file is saved
+  /// explicitly by the operator, so remind them: if they push and never
+  /// save, a restart rewinds the counter and later pushes look stale to
+  /// nodes that already advanced.
+  int nextPortalConfigVersion() {
+    portalConfigVersion += 1;
+    notifyListeners();
+    return portalConfigVersion;
+  }
   String createdAt = DateTime.now().toUtc().toIso8601String();
   final List<String> challenges = [];
   final List<GeoPoint> area = [];
@@ -466,6 +482,7 @@ class MissionState extends ChangeNotifier {
         'schema': 'mission-v1',
         'mission_name': missionName,
         'disaster_type': disasterType,
+        'portal_config_version': portalConfigVersion,
         'created_at': createdAt,
         'saved_at': DateTime.now().toUtc().toIso8601String(),
         'challenges': challenges,
@@ -489,6 +506,8 @@ class MissionState extends ChangeNotifier {
     if (data['schema'] == 'mission-v1') {
       missionName = (data['mission_name'] ?? 'unnamed mission') as String;
       disasterType = (data['disaster_type'] ?? 'flood') as String;
+      portalConfigVersion =
+          (data['portal_config_version'] as num?)?.toInt() ?? 0;
       createdAt = (data['created_at'] ?? createdAt) as String;
       challenges.addAll((data['challenges'] as List<dynamic>? ?? [])
           .map((c) => c as String));
@@ -532,6 +551,7 @@ class MissionState extends ChangeNotifier {
   void _reset() {
     missionName = 'unnamed mission';
     disasterType = 'flood';
+    portalConfigVersion = 0;
     challenges.clear();
     area.clear();
     personnelCount = 0;
