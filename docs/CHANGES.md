@@ -619,32 +619,67 @@ Phase 1 security docs) is flagged here, never silently drifted.
     distance to the nearest rescue team, which is the single most
     reassuring number available.
 
-39. FIELD FAILURE, and a regression I introduced: two nodes stopped
-    replicating messages entirely, which is the headline feature of the
-    whole system.
+39. A latent defect in the sync loop, found while chasing a field problem
+    that turned out to be unrelated (item 40). Recorded honestly: this was
+    NOT the cause of anything observed in the field.
 
-    Cause: the peer-health cache added in item 31 ran BEFORE the per-table
-    sync loop and outside any guard. Its internal try only covered the HTTP
-    request and only caught RequestException, JSONDecodeError and
-    ValueError. The database write sat outside that try, and a missing CA
-    file raises OSError rather than a RequestException. Anything escaping
-    propagated to sync_with_peer, then to sync_loop's catch-all, aborting
-    the ENTIRE cycle for every peer and every table. A convenience feature
-    could therefore silently stop victims' messages crossing the mesh.
+    The peer-health cache added in item 31 ran BEFORE the per-table sync
+    loop and was called with no guard. Its internal try covered only the
+    HTTP request and caught only RequestException, JSONDecodeError and
+    ValueError; the database write sat outside it, and a missing CA file
+    raises OSError rather than a RequestException. Anything escaping would
+    have propagated to sync_with_peer, then to sync_loop's catch-all,
+    aborting the entire cycle for every peer and every table. So a
+    convenience feature was one exception away from silently stopping
+    victims' messages crossing the mesh.
 
-    Fixed in three layers, because one guard is what failed:
-    fetch_peer_health now catches Exception around both the request and the
-    store; the call site guards it again, since it runs before the loop;
-    and each table's sync catches Exception too, so a sqlite error mid
-    ingest is isolated to that table instead of taking the rest with it.
+    Fixed in three layers: fetch_peer_health catches Exception around both
+    the request and the store; the call site guards it too, since it reads
+    the peer dict before its first try and runs ahead of the loop; and each
+    table's sync catches Exception, so a sqlite error mid-ingest is
+    isolated rather than taking the remaining tables down.
 
     The rule now written into the code: replicating a victim's message is
-    the product. Everything else, including health caching, is optional and
-    must fail quietly. 5 tests enforce it, including the exact regression
-    (health fetch raising must not stop messages syncing) and a non-request
-    exception class, which is what escaped the original narrow catch.
+    the product, and everything else, health caching included, is optional
+    and must fail quietly. 5 tests enforce it.
 
     Also fixed while here: the test suite shares one process and therefore
     one rate-limit budget, so a module that posts a lot left later modules
-    getting 429s and failing for unrelated reasons. An autouse fixture now
+    getting 429s and failing for unrelated reasons. An autouse fixture
     resets the limiters per test.
+
+## 2026-08-02 Field finding: USB power, not software (rule 5)
+
+40. Two nodes stopped syncing during field testing. The investigated cause
+    was NOT software: DRONE_B's AR9271 had disappeared from the operating
+    system entirely (`iw dev wlan1 info` returning ENODEV, no such device),
+    so there was no interface to form the IBSS cell with, dtn-net could not
+    start, and the nodes silently diverged. Every downstream symptom
+    followed from that single fact, including "the whole message list
+    changes when I switch nodes", which was simply the two databases having
+    drifted apart while the link was down.
+
+    Root cause: insufficient USB power. Running the Pi from batteries could
+    not sustain the AR9271 (roughly 400 to 500 mA) alongside the aux module
+    on the same USB budget; the adapter browned out and dropped off the bus
+    after running for a while. Swapping to a phone charger fixed it
+    immediately and completely.
+
+    Consequences worth carrying into the design and the thesis:
+
+    - The battery arrangement as tested CANNOT reliably power a node. Any
+      figure that assumes it can is optimistic. A node needs a 3 A class
+      supply, or the AR9271 needs a powered hub. Confidence: High, it
+      reproduced and the fix was decisive.
+    - The failure is SILENT from the application's point of view. Sync kept
+      logging SYNC_OK with imported=0, which reads as healthy, because a
+      node with no peers has nothing to import and cannot tell the
+      difference between "nobody has anything new" and "I cannot see
+      anybody". The GCC does show peers as empty, which is the honest
+      signal, but nothing raises an alarm.
+    - Diagnostic order that actually worked, now in the runbook: check
+      whether the INTERFACE EXISTS before investigating sync logic. Two
+      plausible software theories (a regression in the health cache, then a
+      clock jump moving the sync cursor past the data) were both disproved
+      by the node's own logs and cursor values before the missing interface
+      was found.

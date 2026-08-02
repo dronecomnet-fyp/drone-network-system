@@ -1,12 +1,13 @@
 """
 Sync must not be stoppable by anything optional (CHANGES.md item 39).
 
-Field failure this pins down: two nodes stopped replicating messages
-entirely. The cause was the peer-health cache, a convenience feature added
-in front of the sync loop, being able to raise. It ran BEFORE the per-table
-loop and outside any guard, so one error there aborted the whole cycle for
-every peer and every table. The headline feature of the system was taken
-down by a nice-to-have.
+Latent defect this pins down, found while investigating a field problem
+that turned out to be unrelated (see CHANGES.md item 40, a USB power
+brownout): the peer-health cache added in front of the sync loop could
+raise. It ran BEFORE the per-table loop and outside any guard, so one error
+there would have aborted the whole cycle for every peer and every table.
+Never observed in the field, but the headline feature of the system was one
+exception away from being taken down by a nice-to-have.
 
 The rule these tests enforce: replicating a victim's message is the point
 of the product; everything else is optional and must fail quietly.

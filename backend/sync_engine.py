@@ -323,11 +323,11 @@ def sync_with_peer(peer: dict) -> bool:
     table so one bad table does not stop the rest."""
     peer_node_id = peer["node_id"]
     audit_logger.info(f"SYNC_START | peer={peer_node_id} | ip={peer['ip']}")
-    # Belt and braces: fetch_peer_health already swallows everything, but it
-    # runs BEFORE the table loop, so anything escaping it would abort the
-    # whole cycle for every peer and every table. That regression stopped
-    # two nodes syncing at all in field testing, so the guard stays even
-    # though the callee is also defensive.
+    # fetch_peer_health swallows its own errors, but it reads peer["ip"] and
+    # peer["node_id"] before its first try block, so a malformed peer dict
+    # still raises here. It runs BEFORE the table loop, so anything escaping
+    # would abort the cycle for every peer and every table: an optional
+    # cache must never be able to stop messages replicating.
     try:
         fetch_peer_health(peer)
     except Exception as e:  # noqa: BLE001
