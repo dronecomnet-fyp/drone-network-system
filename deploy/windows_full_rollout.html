@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>What to update, and what is still coming</title>
+<style>
+@font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
+:root {
+  --ink: #1b2028; --paper: #f6f4ef; --paper-raised: #eeebe3; --line: #d8d3c6;
+  --wire: #5b6b7a; --accent: #d9711c; --accent-strong: #b85c14;
+  --pass: #1f8f5b; --pass-bg: #e4f4ec; --stop: #c23a3a; --stop-bg: #fbe9e7;
+  --term-bg: #14181e; --term-fg: #e6e2d6; --term-dim: #8a93a3; --code-fg: #2a2f38;
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+  --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+  --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+  --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+  --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+    --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+    --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+    --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+body { font-family: var(--sans); font-size: 16px; line-height: 1.6; padding: 0 0 6rem; }
+::selection { background: var(--accent); color: #14181e; }
+a { color: var(--accent-strong); }
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; }
+.masthead { border-bottom: 1px solid var(--line); padding: 2.6rem 0 1.8rem; margin-bottom: 2.2rem; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--wire); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+h1.title { font-family: var(--mono); font-size: 1.9rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6rem; }
+.dek { max-width: 48ch; color: var(--wire); font-size: 1.02rem; margin: 0; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1.4rem; font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+.meta-row b { color: var(--ink); font-weight: 600; }
+.loop { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1.5rem; padding: 0.9rem 1rem; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; font-family: var(--mono); font-size: 0.76rem; }
+.loop .n { padding: 0.2rem 0.55rem; border-radius: 5px; background: var(--paper); border: 1px solid var(--line); white-space: nowrap; }
+.loop .n.hi { border-color: var(--accent); color: var(--accent-strong); }
+.loop .ar { color: var(--wire); }
+.index { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin-bottom: 2.6rem; }
+.index-title { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--wire); margin: 0 0 0.7rem; }
+.index ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.25rem 1rem; }
+.index li a { display: flex; gap: 0.55rem; align-items: baseline; text-decoration: none; color: var(--ink); font-size: 0.88rem; padding: 0.2rem 0; }
+.index li a:hover { color: var(--accent-strong); }
+.index .n { font-family: var(--mono); color: var(--wire); font-size: 0.78rem; min-width: 1.4em; }
+.stage { border-left: 3px solid var(--line); padding: 0 0 0 1.3rem; margin-bottom: 2.9rem; scroll-margin-top: 1.5rem; }
+.stage.gate { border-left-color: var(--stop); }
+.stage.crit { border-left-color: var(--accent); }
+.stage-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 0.85rem; }
+.stage-num { font-family: var(--mono); font-size: 0.85rem; color: var(--wire); background: var(--paper-raised); border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.6rem; flex-shrink: 0; }
+h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+.stage ul, .stage ol.steps { margin: 0 0 1rem; padding-left: 1.25rem; max-width: 60ch; }
+.stage li { margin-bottom: 0.4rem; }
+.stage li:last-child { margin-bottom: 0; }
+.term { background: var(--term-bg); border-radius: 8px; margin: 0 0 1rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000); }
+.term-bar { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.term-bar .cap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--term-dim); margin-left: 0.3rem; }
+.term-bar .where { margin-left: auto; font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.08rem 0.5rem; border-radius: 999px; }
+.term-bar .where.a { color: #a7e8c6; background: rgba(31,143,91,0.2); }
+.term-bar .where.b { color: #ffcfa3; background: rgba(217,113,28,0.2); }
+.term-bar .where.pc { color: #a9c9ff; background: rgba(59,110,180,0.22); }
+.term-bar .where.s { color: #d8c2ff; background: rgba(124,92,190,0.24); }
+.term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
+.term-bar .led.r { background: #e5645c; } .term-bar .led.y { background: #e5b84f; } .term-bar .led.g { background: #57c273; }
+.term pre { margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg); }
+.term .prompt { color: var(--term-dim); }
+.term .comment { color: var(--term-dim); font-style: italic; }
+code.inline { font-family: var(--mono); font-size: 0.88em; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 4px; padding: 0.05rem 0.35rem; color: var(--code-fg); }
+.readout { background: var(--pass-bg); border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line)); border-radius: 8px; padding: 0.9rem 1.1rem 1rem; margin: 0 0 1rem; }
+.readout .label { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pass); margin-bottom: 0.55rem; }
+.readout pre, .readout code { font-family: var(--mono); font-size: 0.85rem; color: var(--code-fg); white-space: pre-wrap; word-break: break-word; margin: 0; }
+.readout .hint { font-family: var(--sans); font-size: 0.85rem; color: var(--wire); margin-top: 0.55rem; white-space: normal; }
+.gatebox { background: var(--stop-bg); border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line)); border-radius: 8px; padding: 0.95rem 1.1rem 1.05rem; margin: 0 0 0.4rem; }
+.gatebox .label { font-family: var(--mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.gatebox p { margin: 0; max-width: 58ch; font-size: 0.95rem; }
+.critbox { background: color-mix(in srgb, var(--accent) 12%, var(--paper)); border: 2px solid var(--accent); border-radius: 10px; padding: 1rem 1.2rem; margin: 0 0 1rem; }
+.critbox .label { font-family: var(--mono); font-weight: 700; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem; }
+.critbox p { margin: 0 0 0.6rem; }
+.critbox p:last-child { margin: 0; }
+.note { border: 1px dashed var(--line); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.88rem; color: var(--wire); margin: 0 0 1rem; max-width: 60ch; }
+.note b { color: var(--ink); }
+.fieldtable-wrap { overflow-x: auto; margin-bottom: 1rem; }
+table.fieldtable { border-collapse: collapse; width: 100%; font-size: 0.85rem; min-width: 30rem; }
+table.fieldtable th, table.fieldtable td { text-align: left; padding: 0.45rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.fieldtable th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wire); font-weight: 600; }
+footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+@media (max-width: 640px) { h1.title { font-size: 1.55rem; } .index ol { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; everything to roll out &middot; 2026-08-02</div>
+    <h1 class="title">What to update,<br>and what is still coming</h1>
+    <p class="dek">One list covering every change since your last deployment: the two node fixes, the four GCC and app fixes, and the emergency-UX work now landing. Nothing here needs a reformat, a flash erase, or a database edit.</p>
+    <div class="meta-row">
+      <span><b>Touches</b> 3 Pis, 2 aux modules, GCC, phone APKs</span>
+      <span><b>Time</b> about 30 minutes</span>
+      <span><b>Status</b> some items still in progress, marked below</span>
+    </div>
+  </header>
+
+  <div class="critbox">
+    <div class="label">The one-line answer</div>
+    <p><b>No formatting. No SD reimaging. No <code class="inline">erase_flash</code>. No re-provisioning. No SQL.</b> Pis take a pull and a restart; aux modules take a normal upload that preserves their identity; the GCC and phone apps are rebuilds.</p>
+    <p>Read stage 0 first: some of this is not finished yet, and I would rather you know which parts before you plan a session around it.</p>
+  </div>
+
+  <nav class="index">
+    <p class="index-title">Stages</p>
+    <ol>
+      <li><a href="#s0"><span class="n">0</span>What is ready and what is not</a></li>
+      <li><a href="#s1"><span class="n">1</span>Update the three Pis</a></li>
+      <li><a href="#s2"><span class="n">2</span>Reflash aux A and B</a></li>
+      <li><a href="#s3"><span class="n">3</span>Rebuild the GCC</a></li>
+      <li><a href="#s4"><span class="n">4</span>Rebuild and publish the APKs</a></li>
+      <li><a href="#s5"><span class="n">5</span>Check the new victim portal</a></li>
+      <li><a href="#s6"><span class="n">6</span>Gates before you call it done</a></li>
+      <li><a href="#s7"><span class="n">7</span>Troubleshooting</a></li>
+    </ol>
+  </nav>
+
+  <section class="stage" id="s0">
+    <div class="stage-head"><span class="stage-num">00</span><h2 class="stage-title">What is ready, and what is not</h2></div>
+    <p><b>Ready to roll out now:</b></p>
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <thead><tr><th>Fix</th><th>Where</th></tr></thead>
+        <tbody>
+          <tr><td>Stale DEGRADED node clears itself</td><td>Pi + aux firmware</td></tr>
+          <tr><td>Peers show position, battery, info age</td><td>Pi + GCC</td></tr>
+          <tr><td>GCC knows whether it has internet</td><td>GCC</td></tr>
+          <tr><td>Flight controller messages no longer fragmented</td><td>GCC</td></tr>
+          <tr><td>Drone-found notification stops spamming</td><td>emergency APK</td></tr>
+          <tr><td>Victim portal: tap instead of type, location on by default</td><td>Pi</td></tr>
+          <tr><td>Versioned per-node portal config, visible in /health</td><td>Pi</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="gatebox">
+      <div class="label">Not built yet, do not look for these</div>
+      <p>The GCC <b>push config to node</b> button (the node side is ready and reports its version, but the GCC has no UI to push yet, so every node will read <code class="inline">stock</code>). Map focus on the mission area. AI errors in a dialog and a test-connection button. Planning merged into one tab. Victim chat threads, read receipts and replies. The victim map. Auto-open on drone found.</p>
+    </div>
+    <div class="note"><b>Consequence for this rollout:</b> the new portal works and is a big improvement, but it serves the <b>stock</b> need-based options on every node until the GCC push UI exists. That is a designed, valid state, not a failure.</div>
+  </section>
+
+  <section class="stage" id="s1">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">Update the three Pis</h2></div>
+    <p>Same on each in turn: <b>DRONE_A</b>, <b>DRONE_B</b>, then <b>DRONE_S</b>.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">each Pi in turn</span><span class="where a">A, B, S</span></div>
+      <pre><span class="prompt">$</span> cd ~/rescue-mesh
+<span class="prompt">$</span> git pull
+<span class="prompt">$</span> sudo systemctl restart rescue-mesh-api rescue-mesh-sync rescue-portal rescue-mesh-auxbridge</pre>
+    </div>
+    <p>On <b>DRONE_S</b> only, also restart the gateway, with the flight controller <b>disarmed and props off</b>:</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-s shell</span><span class="where s">DRONE_S</span></div>
+      <pre><span class="prompt">$</span> sudo systemctl restart rescue-mesh-mavgw</pre>
+    </div>
+    <div class="note"><b>Expect a brief false DEGRADED alert during this.</b> Restarting the aux bridge is exactly what trips the OLD firmware into permanent fallback. It stops being permanent once stage 2 is done.</div>
+  </section>
+
+  <section class="stage crit" id="s2">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">Reflash aux modules A and B</h2></div>
+    <p>This is the real fix for the stuck DEGRADED alert. <b>DRONE_S has no aux module</b>, so there are only two.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell &middot; firmware\aux1</span><span class="where pc">LAPTOP</span></div>
+      <pre><span class="prompt">PS&gt;</span> cd firmware\aux1
+<span class="prompt">PS&gt;</span> git pull
+<span class="prompt">PS&gt;</span> pio run                <span class="comment"># build only, catches errors first</span>
+<span class="prompt">PS&gt;</span> pio run -t upload      <span class="comment"># then flash. repeat for module B</span></pre>
+    </div>
+    <div class="critbox">
+      <div class="label">Never erase the flash</div>
+      <p><code class="inline">pio run -t upload</code> replaces only the program; the module keeps its DRONE_A or DRONE_B identity from NVS. <code class="inline">pio run -t erase</code> or <code class="inline">esptool erase_flash</code> would wipe that and the module returns as <code class="inline">UNSET</code>. If that happens: <code class="inline">python tools\aux_sim.py --port COMx</code> then <code class="inline">n DRONE_A</code>.</p>
+    </div>
+    <p>Same binary for both. Nothing to edit between them.</p>
+  </section>
+
+  <section class="stage" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Rebuild the GCC</h2></div>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell &middot; repo root</span><span class="where pc">LAPTOP</span></div>
+      <pre><span class="prompt">PS&gt;</span> cd gcc_app
+<span class="prompt">PS&gt;</span> git pull
+<span class="prompt">PS&gt;</span> flutter build windows</pre>
+    </div>
+    <p>New in this build: peer <b>Position</b> and <b>Battery</b> columns, an <b>internet indicator</b> under the node badge, and flight controller messages joined into whole sentences.</p>
+    <div class="readout">
+      <div class="label">The internet indicator, and how to read it</div>
+      <pre>bottom of the navigation rail, two rows now</pre>
+      <p class="hint">Top row is the drone node. New bottom row is real internet, clickable to re-check. On home Wi-Fi it should say <b>internet</b> within a few seconds. On a drone AP it should say <b>no internet (portal)</b>, which is the CORRECT answer in the field and not a fault. It never worked before because the GCC had no detection code at all; it now uses a captive-portal probe, since a real ICMP ping needs privileges a desktop app does not have.</p>
+    </div>
+  </section>
+
+  <section class="stage" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Rebuild and publish the APKs</h2></div>
+    <p>The emergency app changed (notification spam fix), so it needs a new release. Bump the version first, then build, then publish, per <code class="inline">docs/RELEASES.md</code>.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell &middot; repo root</span><span class="where pc">LAPTOP</span></div>
+      <pre><span class="prompt">PS&gt;</span> cd emergency_app ; flutter test ; flutter build apk --release
+<span class="prompt">PS&gt;</span> gh release create phone-apps-v3 --title "..." --notes "..." ^
+       emergency-app-vX.Y.Z.apk rescue-app-vX.Y.apk</pre>
+    </div>
+    <div class="note"><b>Build on the SAME machine as last time.</b> Release builds are signed with the per-machine debug keystore, so an APK built elsewhere will not install over the existing app. Check with <code class="inline">apksigner verify --print-certs</code> before publishing.</div>
+  </section>
+
+  <section class="stage gate" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Check the new victim portal</h2></div>
+    <p>Join <code class="inline">RESCUE_A</code> from a phone and open the portal. This is the change testers asked for, so it is worth looking at properly.</p>
+    <ol class="steps">
+      <li>You should see <b>large tappable options</b> (I am trapped, Someone is injured, ...) with the urgent ones first. No typing is required anywhere.</li>
+      <li>The phone should ask for <b>location straight away</b>, without you pressing anything. Allow it: the box turns green and states the accuracy.</li>
+      <li>Deny it instead, and the page should tell you to describe a landmark rather than just failing.</li>
+      <li>Tap one option and press SEND. The confirmation should say the drone HAS your message and that carrying it back can take a while.</li>
+    </ol>
+    <div class="gatebox">
+      <div class="label">Stop here</div>
+      <p>Confirm you can send a usable message <b>without typing a single character</b>, and that the message arrives in the GCC Live Feed with the option text as its content. If the options look generic, that is correct for now: every node serves the stock list until the GCC push UI is built.</p>
+    </div>
+  </section>
+
+  <section class="stage gate" id="s6">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Gates before you call it done</h2></div>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">drone-a shell</span><span class="where a">DRONE_A</span></div>
+      <pre><span class="prompt">$</span> curl -sk https://10.42.0.1:8443/health | python3 -m json.tool | grep -A8 -E "peers|degraded|mission_config"</pre>
+    </div>
+    <div class="readout">
+      <div class="label">Expected</div>
+      <pre>"mission_config": { "version": 0, "source": "stock", ... }
+"degraded_nodes": []
+"peers": [ { "node_id": "DRONE_B", "lat": ..., "bat_a_v": ..., "health_ts": ... } ]</pre>
+      <p class="hint"><code class="inline">"source": "stock"</code> is expected until the GCC can push. <code class="inline">degraded_nodes</code> empty while B is healthy is the stuck-alert fix. Peers carrying lat and battery is the peer-info fix.</p>
+    </div>
+    <ul>
+      <li>Emergency app: stand in range of a drone for a few minutes. You should get <b>one</b> notification, not a stream.</li>
+      <li>GCC: internet row reads <b>internet</b> on home Wi-Fi.</li>
+      <li>GCC Drone tab: flight controller messages read as whole sentences.</li>
+    </ul>
+  </section>
+
+  <section class="stage" id="s7">
+    <div class="stage-head"><span class="stage-num">07</span><h2 class="stage-title">Troubleshooting</h2></div>
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <thead><tr><th>Symptom</th><th>Try this</th></tr></thead>
+        <tbody>
+          <tr><td>Portal still shows the old typing form</td><td><code class="inline">rescue-portal</code> did not restart, or the pull did not land. Check <code class="inline">git -C ~/rescue-mesh log -1 --oneline</code>, then restart it. Hard-refresh the phone browser: captive portal pages cache aggressively.</td></tr>
+          <tr><td>Portal options look generic for the disaster</td><td>Correct for now. Every node serves the stock need-based list until the GCC push UI is built. <code class="inline">/health</code> will say <code class="inline">"source": "stock"</code>.</td></tr>
+          <tr><td>A drone still shows DEGRADED</td><td>If it is listed under <code class="inline">peers</code> the alert cannot persist, so a lasting alert means the mesh link to it is genuinely down. If it is not a peer and not really down, its aux is still on old firmware: finish stage 2 or power-cycle that module.</td></tr>
+          <tr><td>Peers show no position</td><td>The PEER must be updated, not just the node you are looking at. Check for <code class="inline">PEER_HEALTH_FAIL</code> in <code class="inline">backend/audit.log</code> and allow one 30 s sync cycle.</td></tr>
+          <tr><td>GCC internet row says no internet on a Wi-Fi that works</td><td>Corporate or campus networks sometimes block the probe endpoints. Click the row to re-check. If a browser on the same laptop reaches the internet but the GCC does not, tell me and I will add a configurable probe URL.</td></tr>
+          <tr><td>Emergency APK will not install over the old one</td><td>It was built on a different machine, so the debug signing key differs. Either build on the original machine or uninstall the old app first (which loses its local data).</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><b>Reference:</b> <code class="inline">docs/CHANGES.md</code> items 31 to 34, <code class="inline">docs/RELEASES.md</code> for the APK process, and <code class="inline">firmware/aux1/TESTS.md</code> tests 3 and 3b for the fallback recovery drill.</div>
+  </section>
+
+  <footer class="rb">deploy &middot; full rollout &middot; nodes + GCC + phone apps &middot; rescue mesh phase 2</footer>
+
+</div>
+
+</body>
+</html>
