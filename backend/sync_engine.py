@@ -274,7 +274,12 @@ def fetch_peer_health(peer: dict) -> bool:
         resp = requests.get(url, verify=verify, timeout=10)
         resp.raise_for_status()
         h = resp.json()
-    except (requests.exceptions.RequestException, json.JSONDecodeError, ValueError) as e:
+    except Exception as e:  # noqa: BLE001
+        # Broad ON PURPOSE. This is a nice-to-have cache sitting in front of
+        # the DTN sync that the whole system exists for, so NOTHING it can
+        # do may prevent messages replicating. A missing CA file raises
+        # OSError rather than a RequestException, which is exactly the kind
+        # of thing that used to escape a narrower catch and kill the cycle.
         audit_logger.warning(
             f"PEER_HEALTH_FAIL | peer={peer_node_id} | reason={type(e).__name__}"
         )
@@ -288,19 +293,28 @@ def fetch_peer_health(peer: dict) -> bool:
         )
         return False
 
-    gps = h.get("gps") or {}
-    bat = h.get("battery") or {}
-    models.save_node_health(
-        node_id=peer_node_id,
-        lat=gps.get("lat"),
-        lon=gps.get("lon"),
-        gps_fix=1 if gps.get("fix") else 0,
-        bat_a_v=bat.get("a_v"), bat_a_ma=bat.get("a_ma"),
-        bat_b_v=bat.get("b_v"), bat_b_ma=bat.get("b_ma"),
-        uptime_s=h.get("uptime_s"),
-        clock_source=h.get("clock_source", "relative"),
-        degraded=0,   # we just spoke to its Pi over HTTP: it is not down
-    )
+    try:
+        gps = h.get("gps") or {}
+        bat = h.get("battery") or {}
+        models.save_node_health(
+            node_id=peer_node_id,
+            lat=gps.get("lat"),
+            lon=gps.get("lon"),
+            gps_fix=1 if gps.get("fix") else 0,
+            bat_a_v=bat.get("a_v"), bat_a_ma=bat.get("a_ma"),
+            bat_b_v=bat.get("b_v"), bat_b_ma=bat.get("b_ma"),
+            uptime_s=h.get("uptime_s"),
+            clock_source=h.get("clock_source", "relative"),
+            degraded=0,   # we just spoke to its Pi over HTTP: it is not down
+        )
+    except Exception as e:  # noqa: BLE001
+        # A locked database or an unexpected field type here must not stop
+        # messages syncing. Caching health is strictly optional; replicating
+        # a victim's plea for help is not.
+        audit_logger.warning(
+            f"PEER_HEALTH_STORE_FAIL | peer={peer_node_id} | reason={type(e).__name__}"
+        )
+        return False
     return True
 
 
@@ -309,7 +323,17 @@ def sync_with_peer(peer: dict) -> bool:
     table so one bad table does not stop the rest."""
     peer_node_id = peer["node_id"]
     audit_logger.info(f"SYNC_START | peer={peer_node_id} | ip={peer['ip']}")
-    fetch_peer_health(peer)
+    # Belt and braces: fetch_peer_health already swallows everything, but it
+    # runs BEFORE the table loop, so anything escaping it would abort the
+    # whole cycle for every peer and every table. That regression stopped
+    # two nodes syncing at all in field testing, so the guard stays even
+    # though the callee is also defensive.
+    try:
+        fetch_peer_health(peer)
+    except Exception as e:  # noqa: BLE001
+        audit_logger.warning(
+            f"PEER_HEALTH_FAIL | peer={peer_node_id} | reason={type(e).__name__}")
+
     any_fail = False
     for table in models.REPLICATED_TABLES:
         try:
@@ -328,5 +352,14 @@ def sync_with_peer(peer: dict) -> bool:
             any_fail = True
             audit_logger.warning(
                 f"SYNC_FAIL | peer={peer_node_id} | table={table} | reason=bad_response_{type(e).__name__}"
+            )
+        except Exception as e:  # noqa: BLE001
+            # Anything else (a sqlite error mid-ingest, a malformed record
+            # type) is isolated to THIS table. Previously it escaped and
+            # took every remaining table with it, so one bad row could stop
+            # messages replicating entirely.
+            any_fail = True
+            audit_logger.warning(
+                f"SYNC_FAIL | peer={peer_node_id} | table={table} | reason={type(e).__name__}"
             )
     return not any_fail

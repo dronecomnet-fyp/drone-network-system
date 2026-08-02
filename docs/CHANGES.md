@@ -618,3 +618,33 @@ Phase 1 security docs) is flagged here, never silently drifted.
     plain background, since there is no internet at a site. It shows the
     distance to the nearest rescue team, which is the single most
     reassuring number available.
+
+39. FIELD FAILURE, and a regression I introduced: two nodes stopped
+    replicating messages entirely, which is the headline feature of the
+    whole system.
+
+    Cause: the peer-health cache added in item 31 ran BEFORE the per-table
+    sync loop and outside any guard. Its internal try only covered the HTTP
+    request and only caught RequestException, JSONDecodeError and
+    ValueError. The database write sat outside that try, and a missing CA
+    file raises OSError rather than a RequestException. Anything escaping
+    propagated to sync_with_peer, then to sync_loop's catch-all, aborting
+    the ENTIRE cycle for every peer and every table. A convenience feature
+    could therefore silently stop victims' messages crossing the mesh.
+
+    Fixed in three layers, because one guard is what failed:
+    fetch_peer_health now catches Exception around both the request and the
+    store; the call site guards it again, since it runs before the loop;
+    and each table's sync catches Exception too, so a sqlite error mid
+    ingest is isolated to that table instead of taking the rest with it.
+
+    The rule now written into the code: replicating a victim's message is
+    the product. Everything else, including health caching, is optional and
+    must fail quietly. 5 tests enforce it, including the exact regression
+    (health fetch raising must not stop messages syncing) and a non-request
+    exception class, which is what escaped the original narrow catch.
+
+    Also fixed while here: the test suite shares one process and therefore
+    one rate-limit budget, so a module that posts a lot left later modules
+    getting 429s and failing for unrelated reasons. An autouse fixture now
+    resets the limiters per test.

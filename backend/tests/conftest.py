@@ -29,3 +29,29 @@ os.environ["RATE_LIMIT_COUNT"] = "30"
 os.environ["GLOBAL_WRITE_LIMIT_COUNT"] = "100"
 os.environ["LOGIN_RATE_LIMIT_COUNT"] = "5"
 os.environ["LOGIN_RATE_LIMIT_WINDOW_SECONDS"] = "300"
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiters():
+    """Give every test a fresh rate-limit budget.
+
+    The limiters are process-global and the suite shares one process, so
+    without this the tests silently compete for one budget: a module that
+    posts a lot leaves later modules getting 429s and failing for reasons
+    that have nothing to do with what they are testing. That is exactly
+    what happened when the area-map tests were added, and the failure
+    surfaced in an unrelated file, which is the worst kind of test debt.
+
+    The 429 behaviour itself is still tested deliberately, against the
+    limiter class directly and on /auth/login which keeps a small limit.
+    """
+    import http_app
+    import api
+    for limiter in (http_app._ip_limiter, http_app._global_limiter,
+                    api._login_ip_limiter, api._login_id_limiter,
+                    api._location_limiter):
+        limiter._events = {}
+    yield
