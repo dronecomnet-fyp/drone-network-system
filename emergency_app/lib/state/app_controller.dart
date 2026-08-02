@@ -19,6 +19,15 @@ class AppController extends ChangeNotifier {
   late final UploadService uploader;
 
   String deviceId = '';
+
+  /// Whether a drone sighting should bring the app to the front by itself.
+  /// null means never asked; see [setAutoOpenOnDrone].
+  bool? autoOpenOnDrone;
+
+  /// Raised when a sighting arrives and auto-open is on, so the app can
+  /// navigate. Kept as a callback rather than done in here because
+  /// navigation belongs to the widget layer.
+  void Function(DroneSighting)? onAutoOpen;
   bool armed = false;
   bool loggingEnabled = true;
   bool emergencyMode = false;
@@ -45,6 +54,7 @@ class AppController extends ChangeNotifier {
     loggingEnabled = await storage.loggingEnabled();
     emergencyMode = await storage.emergencyMode();
     onboarded = await storage.onboarded();
+    autoOpenOnDrone = await storage.autoOpenOnDrone();
     armed = watch.isArmed;
     points = await storage.points();
     notifyListeners();
@@ -73,7 +83,21 @@ class AppController extends ChangeNotifier {
   }
 
   void _onSighting(DroneSighting sighting) {
+    final isNew = lastSighting?.nodeLabel != sighting.nodeLabel;
     lastSighting = sighting;
+    notifyListeners();
+
+    // Only jump the user to the drone screen for a NEW drone, and only if
+    // they agreed to it. Doing it on every advertisement would yank the
+    // screen out from under someone mid-sentence, several times a second.
+    if (isNew && autoOpenOnDrone == true) {
+      onAutoOpen?.call(sighting);
+    }
+  }
+
+  Future<void> setAutoOpenOnDrone(bool value) async {
+    await storage.setAutoOpenOnDrone(value);
+    autoOpenOnDrone = value;
     notifyListeners();
   }
 

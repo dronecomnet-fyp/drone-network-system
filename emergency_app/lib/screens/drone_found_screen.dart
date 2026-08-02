@@ -33,6 +33,45 @@ class DroneFoundScreen extends StatefulWidget {
 class _DroneFoundScreenState extends State<DroneFoundScreen> {
   bool _checking = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // Ask about auto-open HERE, the first time a drone is actually found,
+    // rather than during onboarding. At onboarding "open automatically when
+    // a drone is found" is an abstraction; standing here having just been
+    // found, the person knows exactly what it means. Asked once ever.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAskAutoOpen());
+  }
+
+  Future<void> _maybeAskAutoOpen() async {
+    final c = context.read<AppController>();
+    if (c.autoOpenOnDrone != null) return; // already answered, never nag
+    if (!mounted) return;
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Open automatically next time?'),
+        content: const Text(
+          'When a rescue drone comes into range, this app can open by '
+          'itself so you do not have to notice the notification.\n\n'
+          'You can change this later in Settings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('No, just notify me'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Yes, open it'),
+          ),
+        ],
+      ),
+    );
+    if (yes == null || !mounted) return;
+    await c.setAutoOpenOnDrone(yes);
+  }
+
   Future<void> _openWifiSettings() async {
     await Clipboard.setData(ClipboardData(text: widget.ssid));
     await AppSettings.openAppSettings(type: AppSettingsType.wifi);

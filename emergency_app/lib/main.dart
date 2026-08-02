@@ -60,13 +60,50 @@ void _handleNotificationTap(String payload) {
   );
 }
 
-class EmergencyApp extends StatelessWidget {
+class EmergencyApp extends StatefulWidget {
   final AppController controller;
 
   const EmergencyApp({super.key, required this.controller});
 
   @override
+  State<EmergencyApp> createState() => _EmergencyAppState();
+}
+
+class _EmergencyAppState extends State<EmergencyApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Auto-open lives here rather than in the controller because it is
+    // navigation. Only fires for a NEW drone and only with consent; see
+    // AppController._onSighting.
+    widget.controller.onAutoOpen = _openDroneFound;
+  }
+
+  @override
+  void dispose() {
+    widget.controller.onAutoOpen = null;
+    super.dispose();
+  }
+
+  void _openDroneFound(DroneSighting s) {
+    final nav = navigatorKey.currentState;
+    if (nav == null) return;
+    // Do not stack a second copy if they are already looking at it.
+    if (_droneScreenOpen) return;
+    _droneScreenOpen = true;
+    nav
+        .push(MaterialPageRoute(
+          builder: (_) =>
+              DroneFoundScreen(nodeLabel: s.nodeLabel, ssid: s.ssid),
+        ))
+        .then((_) => _droneScreenOpen = false);
+  }
+
+  bool _droneScreenOpen = false;
+
+  @override
   Widget build(BuildContext context) {
+    final controller = widget.controller;
     return ChangeNotifierProvider.value(
       value: controller,
       child: MaterialApp(

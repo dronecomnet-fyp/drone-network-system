@@ -31,6 +31,11 @@ class StorageService {
   static const _kEmergencyMode = 'emergency_mode';
   static const _kArmed = 'watch_armed';
   static const _kOnboarded = 'onboarded';
+  // Auto-open on a drone sighting. Deliberately tri-state: null means we
+  // have not asked yet, which is different from the user saying no. An
+  // emergency app must not quietly assume consent to take over the
+  // screen, nor keep asking someone who already declined.
+  static const _kAutoOpen = 'auto_open_on_drone';
 
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
@@ -110,6 +115,12 @@ class StorageService {
 
   Future<void> setEmergencyMode(bool value) async =>
       (await _prefs).setBool(_kEmergencyMode, value);
+
+  /// null when the user has never been asked.
+  Future<bool?> autoOpenOnDrone() async => (await _prefs).getBool(_kAutoOpen);
+
+  Future<void> setAutoOpenOnDrone(bool value) async =>
+      (await _prefs).setBool(_kAutoOpen, value);
 
   Future<bool> armed() async => (await _prefs).getBool(_kArmed) ?? false;
 

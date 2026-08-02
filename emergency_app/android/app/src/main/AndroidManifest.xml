@@ -9,6 +9,13 @@
          where 10.42.0.1 has no route, and it would fail. -->
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Lets the "drone nearby" alert open the app over the lock screen,
+         the way an incoming call does. Without this, fullScreenIntent on
+         the notification silently degrades to an ordinary heads-up and
+         nothing auto-opens. Android 14+ additionally gates this behind a
+         user grant for non-calling apps, so the app must still work when
+         it is refused. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
 
     <!-- Location: while-in-use, plus background for twice-daily logging. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>

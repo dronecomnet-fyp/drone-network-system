@@ -34,6 +34,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               children: [
                 SwitchListTile(
+                  title: const Text('Open the app when a drone is found'),
+                  subtitle: const Text(
+                      'Brings this app to the front by itself instead of '
+                      'only showing a notification.'),
+                  value: c.autoOpenOnDrone ?? false,
+                  onChanged: (v) => c.setAutoOpenOnDrone(v),
+                ),
+                SwitchListTile(
                   title: const Text('Log my location twice a day'),
                   subtitle: const Text(
                       'Stored on this phone only. Turn off to stop logging.'),
