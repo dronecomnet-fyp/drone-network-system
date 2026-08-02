@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import '../models/stored_point.dart';
 import '../state/app_controller.dart';
 import 'connected_screen.dart';
+import 'conversation_screen.dart';
 import 'settings_screen.dart';
 import 'your_data_screen.dart';
 
@@ -69,6 +70,13 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.red.shade600,
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            tooltip: 'Messages with the rescue team',
+            icon: const Icon(Icons.forum),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ConversationScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () => Navigator.of(context).push(

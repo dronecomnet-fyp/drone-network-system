@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 
 import '../services/upload_service.dart';
 import '../state/app_controller.dart';
+import 'conversation_screen.dart';
 
 class ConnectedScreen extends StatefulWidget {
   const ConnectedScreen({super.key});
@@ -110,16 +111,28 @@ class _ConnectedScreenState extends State<ConnectedScreen> {
           if (_sosSent)
             Card(
               color: Colors.red.shade50,
-              child: const Padding(
-                padding: EdgeInsets.all(16),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    Icon(Icons.check_circle, color: Colors.red, size: 40),
-                    SizedBox(height: 8),
-                    Text(
-                      'SOS sent. The rescue team has your location and '
-                      'message. Stay where you are and keep this Wi-Fi.',
+                    const Icon(Icons.check_circle, color: Colors.red, size: 40),
+                    const SizedBox(height: 8),
+                    // Says the DRONE has it, not "the rescue team has it":
+                    // at this moment nobody has read it yet, and implying
+                    // otherwise is the one thing these screens must not do.
+                    const Text(
+                      'SOS sent. The drone has your location and message. '
+                      'Stay where you are and keep this Wi-Fi on.',
                       textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      icon: const Icon(Icons.forum, size: 18),
+                      label: const Text('See if the team has replied'),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => const ConversationScreen()),
+                      ),
                     ),
                   ],
                 ),

@@ -579,3 +579,107 @@ class PersonnelLocation {
         updatedAt: (json['updated_at'] ?? '') as String,
       );
 }
+
+/// How far one of a victim's own messages has actually got.
+///
+/// Modelled on the tick idiom people already know, with one state the
+/// familiar apps do not have. Their ticks imply seconds; this network is
+/// delay tolerant and a message can genuinely sit for hours waiting for a
+/// drone to come back overhead. Without [waiting] as a distinct, visible
+/// state, a victim with no drone in range sees nothing happening and
+/// concludes they were ignored, when the system is working as designed.
+enum DeliveryState {
+  /// On the phone. No drone in range yet, so nobody has it.
+  waiting,
+
+  /// Stored and signed on a drone. It exists outside the victim's phone.
+  onDrone,
+
+  /// A rescuer has claimed it. Someone has actually read it.
+  ///
+  /// This must never be presented as "help is coming": claiming means
+  /// seen, not dispatched, and a victim who stops seeking other help
+  /// because of a tick would be badly served.
+  seen,
+}
+
+/// One entry in a victim's own conversation: either something they sent or
+/// something the rescue team replied.
+class ConversationEntry {
+  final String id;
+  final String body;
+  final String at;
+
+  /// True when the victim wrote it, false when the rescue team did.
+  final bool fromVictim;
+
+  /// Only meaningful for victim messages.
+  final DeliveryState state;
+
+  /// Who replied, for rescue entries.
+  final String sender;
+  final double? lat;
+  final double? lon;
+
+  const ConversationEntry({
+    required this.id,
+    required this.body,
+    required this.at,
+    required this.fromVictim,
+    this.state = DeliveryState.onDrone,
+    this.sender = '',
+    this.lat,
+    this.lon,
+  });
+
+  bool get hasLocation => lat != null && lon != null;
+}
+
+/// A victim's whole thread, oldest first, ready to render as a chat.
+class Conversation {
+  final List<ConversationEntry> entries;
+
+  const Conversation(this.entries);
+
+  bool get isEmpty => entries.isEmpty;
+
+  /// Newest state among the victim's own messages, for a summary line.
+  DeliveryState? get latestOwnState {
+    for (final e in entries.reversed) {
+      if (e.fromVictim) return e.state;
+    }
+    return null;
+  }
+
+  factory Conversation.fromJson(Map<String, dynamic> json) {
+    final out = <ConversationEntry>[];
+    for (final m in (json['messages'] as List<dynamic>? ?? [])) {
+      final row = m as Map<String, dynamic>;
+      out.add(ConversationEntry(
+        id: (row['msg_id'] ?? '') as String,
+        body: (row['content'] ?? '') as String,
+        at: (row['timestamp'] ?? '') as String,
+        fromVictim: true,
+        // Anything the node can tell us about is at least on a drone; the
+        // waiting state is tracked by the phone, not the node.
+        state: (row['status'] ?? 'NEW') == 'CLAIMED'
+            ? DeliveryState.seen
+            : DeliveryState.onDrone,
+        lat: _toDouble(row['user_lat']),
+        lon: _toDouble(row['user_lon']),
+      ));
+    }
+    for (final r in (json['replies'] as List<dynamic>? ?? [])) {
+      final row = r as Map<String, dynamic>;
+      out.add(ConversationEntry(
+        id: (row['id'] ?? '') as String,
+        body: (row['body'] ?? '') as String,
+        at: (row['created_at'] ?? '') as String,
+        fromVictim: false,
+        sender: (row['sender'] ?? 'Rescue team') as String,
+      ));
+    }
+    out.sort((a, b) => a.at.compareTo(b.at));
+    return Conversation(out);
+  }
+}

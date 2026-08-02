@@ -326,6 +326,29 @@ class RescueMeshClient {
     return data as Map<String, dynamic>;
   }
 
+  /// A victim reading their OWN thread. Scoped to their device id; there
+  /// is no way to reach anyone else's, by design (see the endpoint docs in
+  /// backend/http_app.py). Public plane, so no auth.
+  Future<Conversation> getMyConversation(String deviceId) async {
+    final data = await _get('/my-conversation/$deviceId');
+    return Conversation.fromJson(data as Map<String, dynamic>);
+  }
+
+  /// Rescue or HQ replying to a victim message (authenticated plane).
+  Future<String> replyToMessage(String msgId, String body) async {
+    final data = await _post('/messages/$msgId/reply', {
+      'msg_id': msgId,
+      'body': body,
+    });
+    return ((data as Map<String, dynamic>)['id'] ?? '') as String;
+  }
+
+  /// One victim's whole thread, for the rescue side.
+  Future<Conversation> getConversation(String deviceId) async {
+    final data = await _get('/conversations/$deviceId');
+    return Conversation.fromJson(data as Map<String, dynamic>);
+  }
+
   Future<NodeHealth> getHealth() async {
     final data = await _get('/health');
     return NodeHealth.fromJson(data as Map<String, dynamic>);
