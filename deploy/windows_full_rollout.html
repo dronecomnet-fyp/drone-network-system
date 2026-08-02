@@ -101,9 +101,9 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
 <div class="wrap">
 
   <header class="masthead">
-    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; everything to roll out &middot; 2026-08-02</div>
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; everything to roll out &middot; 2026-08-03</div>
     <h1 class="title">What to update,<br>and what is still coming</h1>
-    <p class="dek">One list covering every change since your last deployment: the two node fixes, the four GCC and app fixes, and the emergency-UX work now landing. Nothing here needs a reformat, a flash erase, or a database edit.</p>
+    <p class="dek">One list covering every change since your last deployment: the node fixes, the GCC fixes, and the whole emergency-UX pass from tester feedback. Nothing here needs a reformat, a flash erase, or a database edit.</p>
     <div class="meta-row">
       <span><b>Touches</b> 3 Pis, 2 aux modules, GCC, phone APKs</span>
       <span><b>Time</b> about 30 minutes</span>
@@ -144,15 +144,21 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
           <tr><td>Flight controller messages no longer fragmented</td><td>GCC</td></tr>
           <tr><td>Drone-found notification stops spamming</td><td>emergency APK</td></tr>
           <tr><td>Victim portal: tap instead of type, location on by default</td><td>Pi</td></tr>
-          <tr><td>Versioned per-node portal config, visible in /health</td><td>Pi</td></tr>
+          <tr><td>Per-mission portal options, pushed from the GCC per node</td><td>Pi + GCC</td></tr>
+          <tr><td>Map focuses the operation area when you draw it</td><td>GCC</td></tr>
+          <tr><td>AI failures explain themselves in a dialog</td><td>GCC</td></tr>
+          <tr><td>Planning takes you to the map instead of instructing you</td><td>GCC</td></tr>
+          <tr><td>Victim conversations: replies and read state</td><td>Pi + both APKs</td></tr>
+          <tr><td>Victim area map: drones, rescuers, people needing help</td><td>Pi + emergency APK</td></tr>
+          <tr><td>App opens itself when a drone arrives, if the user agrees</td><td>emergency APK</td></tr>
         </tbody>
       </table>
     </div>
     <div class="gatebox">
-      <div class="label">Not built yet, do not look for these</div>
-      <p>The GCC <b>push config to node</b> button (the node side is ready and reports its version, but the GCC has no UI to push yet, so every node will read <code class="inline">stock</code>). Map focus on the mission area. AI errors in a dialog and a test-connection button. Planning merged into one tab. Victim chat threads, read receipts and replies. The victim map. Auto-open on drone found.</p>
+      <div class="label">Not built, so do not look for it</div>
+      <p>Signup on a national emergency server. The apps are designed to work fully without it and treat it as optional enrichment, so nothing here depends on it.</p>
     </div>
-    <div class="note"><b>Consequence for this rollout:</b> the new portal works and is a big improvement, but it serves the <b>stock</b> need-based options on every node until the GCC push UI exists. That is a designed, valid state, not a failure.</div>
+    <div class="note"><b>Everything on the tester list is now in.</b> The portal serves mission-specific options once you push them from the GCC Nodes tab (stage 3); until you do, each node serves the built-in need-based list, which is a valid working state rather than a failure.</div>
   </section>
 
   <section class="stage" id="s1">
@@ -197,7 +203,14 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
 <span class="prompt">PS&gt;</span> git pull
 <span class="prompt">PS&gt;</span> flutter build windows</pre>
     </div>
-    <p>New in this build: peer <b>Position</b> and <b>Battery</b> columns, an <b>internet indicator</b> under the node badge, and flight controller messages joined into whole sentences.</p>
+    <p>New in this build: peer <b>Position</b> and <b>Battery</b> columns, an <b>internet indicator</b> under the node badge, flight controller messages joined into whole sentences, the map framing your operation area when you draw it, AI failures explaining themselves, and the <b>Victim portal options</b> card on the Nodes tab.</p>
+    <div class="readout">
+      <div class="label">Push the mission options to each node</div>
+      <pre>Mission tab: name the mission and set the disaster type
+Nodes tab:   "Victim portal options" card -> Push mission options
+             repeat on each drone: join RESCUE_A, push, then B, then S</pre>
+      <p class="hint">The chip on that card tells you where each node stands: <b>stock options</b> (never pushed), <b>matches this mission</b> (done), or <b>different options</b> (pushed, but not what this mission would send). It compares the actual content, so re-pushing the same options is harmless and there is no version number to keep track of. HQ login required, since it changes what every victim in range is shown.</p>
+    </div>
     <div class="readout">
       <div class="label">The internet indicator, and how to read it</div>
       <pre>bottom of the navigation rail, two rows now</pre>
@@ -228,8 +241,14 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
     </ol>
     <div class="gatebox">
       <div class="label">Stop here</div>
-      <p>Confirm you can send a usable message <b>without typing a single character</b>, and that the message arrives in the GCC Live Feed with the option text as its content. If the options look generic, that is correct for now: every node serves the stock list until the GCC push UI is built.</p>
+      <p>Confirm you can send a usable message <b>without typing a single character</b>, and that it arrives in the GCC Live Feed with the option text as its content. Generic options mean that node has not been pushed to yet (stage 3).</p>
     </div>
+    <p style="margin-top:1.2rem"><b>Then the emergency app, which is the victim's app and got the most work:</b></p>
+    <ol class="steps">
+      <li><b>Conversation.</b> Send an SOS, then tap "See if the team has replied". You should see your message with a single tick and "The drone has your message". Claim it in the rescue app and the tick should turn into a green double tick reading "A rescue team member has read this". Reply from the rescue app (REPLY TO THIS PERSON, or a quick reply chip) and it should appear as a bubble.</li>
+      <li><b>Area map.</b> The map icon in the app bar shows drones, rescue teams and other people needing help, plus the distance to the nearest rescue team. Blank background is correct: no tiles offline.</li>
+      <li><b>Auto-open.</b> First time a drone is found it asks whether to open automatically in future. Say yes, walk out of range and back, and it should come to the front by itself. Also confirm you get <b>one</b> notification rather than a stream.</li>
+    </ol>
   </section>
 
   <section class="stage gate" id="s6">
