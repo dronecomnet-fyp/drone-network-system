@@ -13,6 +13,7 @@ import api
 import aux_state
 import config
 import crypto_keys
+import mission_config
 import models
 import ratelimit
 from http_app import app as victim_app
@@ -33,7 +34,25 @@ NODE = {"X-Node-Auth": crypto_keys.NODE_AUTH_VALUE}
 def test_victim_form_served():
     r = victim.get("/")
     assert r.status_code == 200
-    assert "Send Emergency Message" in r.text or "SEND MESSAGE" in r.text
+    assert r.headers["content-type"].startswith("text/html")
+    # The portal is now rendered from the node's mission config, so assert
+    # on the SHAPE (tappable options + a send control), not on wording that
+    # legitimately changes per mission.
+    assert 'class="opt' in r.text, "portal must offer tappable options"
+    assert 'id="sendBtn"' in r.text
+
+
+def test_victim_form_serves_stock_options_when_never_pushed():
+    """A node the GCC never reached must still be useful, not broken."""
+    r = victim.get("/")
+    for stock in mission_config.STOCK_CONFIG["situations"]:
+        assert stock["label"] in r.text
+
+
+def test_victim_form_needs_no_typing():
+    """The whole point of the redesign: nothing is a required text input."""
+    r = victim.get("/")
+    assert "required" not in r.text
 
 
 def test_captive_probes():
@@ -90,8 +109,13 @@ def test_checkin_with_sos_creates_message():
 def test_victim_plane_has_no_read_endpoints():
     # file 09 plane 1: no read-back on the open plane
     assert victim.post("/message", json={"content": ""}).status_code in {400, 422}
+    # The catch-all serves the FORM, never data. Assert that rather than
+    # grepping for "msg_id", which now appears legitimately in the page's
+    # own JavaScript when it reads back its confirmation reference.
     r = victim.get("/messages")
-    assert "msg_id" not in r.text  # catch-all serves the form, not data
+    assert r.headers["content-type"].startswith("text/html")
+    assert 'id="sendBtn"' in r.text, "should be the form page"
+    assert '"status"' not in r.text and "[{" not in r.text
 
 
 # ---------------------------------------------------------------------------

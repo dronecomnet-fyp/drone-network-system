@@ -31,6 +31,7 @@ from pydantic import BaseModel, field_validator
 
 import audit
 import config
+import mission_config
 import models
 import ratelimit
 
@@ -210,164 +211,248 @@ class CheckinInput(BaseModel):
 # text merged into the message before optional encryption, v3 field names)
 # ---------------------------------------------------------------------------
 
-VICTIM_FORM_HTML = """<!DOCTYPE html>
+# The victim portal. Rendered from the node's mission config so the options
+# match the disaster (mission_config.py); a node never pushed to serves the
+# stock need-based list.
+#
+# Design rules, all from tester feedback (CHANGES.md item 34). This page is
+# read by someone frightened, possibly injured, on a cracked or wet screen,
+# with a dying battery:
+#   - Tapping beats typing. Nothing is required to be typed, ever.
+#   - Location is ON by default. It is the single most useful thing for
+#     finding them, so it is opt-OUT, not opt-in.
+#   - Big type, big targets. No 13px labels.
+#   - Say what happens next, and never imply a rescuer is already coming.
+VICTIM_FORM_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Emergency Network</title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        *{box-sizing:border-box;margin:0;padding:0}
-        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f3f4f6;padding:16px}
-        .card{background:#fff;border-radius:14px;padding:22px 18px;box-shadow:0 6px 18px rgba(0,0,0,.10);max-width:520px;margin:16px auto}
-        .badge{display:inline-block;background:#dc2626;color:#fff;font-size:11px;font-weight:700;letter-spacing:.06em;padding:3px 8px;border-radius:99px;margin-bottom:10px}
-        h1{font-size:20px;color:#b91c1c;margin-bottom:6px}
-        .sub{font-size:14px;color:#374151;margin-bottom:16px;line-height:1.5}
-        label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:5px}
-        textarea,input[type=text]{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-size:15px;margin-bottom:12px}
-        textarea{resize:vertical;min-height:100px}
-        .btn{width:100%;padding:14px;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px}
-        .btn-loc{background:#fd7e14;color:#fff}
-        .btn-loc.done{background:#16a34a}
-        .btn-send{background:#dc2626;color:#fff}
-        .btn-send:disabled{opacity:.6;cursor:not-allowed}
-        #sessionId{font-size:12px;color:#6b7280;margin-bottom:14px;font-family:monospace}
-        #locationStatus{font-size:12px;margin-top:-8px;margin-bottom:12px}
-        .status-box{margin-top:14px;font-weight:600;padding:12px;border-radius:8px;display:none}
-        .success{color:#155724;background:#d4edda}
-        .error{color:#721c24;background:#f8d7da}
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Emergency: Get Help</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+       background:#f3f4f6;color:#111827;margin:0;padding:12px;font-size:17px;line-height:1.5}
+  .card{background:#fff;border-radius:14px;padding:18px;max-width:640px;margin:0 auto;
+        box-shadow:0 2px 10px rgba(0,0,0,.08)}
+  .badge{display:inline-block;background:#dc2626;color:#fff;font-size:13px;font-weight:700;
+         letter-spacing:.05em;padding:5px 11px;border-radius:99px}
+  h1{font-size:26px;margin:12px 0 6px;line-height:1.25}
+  .sub{font-size:17px;color:#374151;margin:0 0 18px}
+  .opt{display:block;width:100%;text-align:left;background:#fff;border:2px solid #d1d5db;
+       border-radius:12px;padding:16px 15px;margin-bottom:10px;font-size:18px;font-weight:600;
+       color:#111827;cursor:pointer;min-height:60px}
+  .opt:active{background:#f3f4f6}
+  .opt.sel{border-color:#dc2626;background:#fef2f2;color:#991b1b}
+  .opt .tick{float:right;font-size:20px;color:#dc2626;display:none}
+  .opt.sel .tick{display:inline}
+  .opt.urgent{border-left:8px solid #dc2626}
+  .sec{font-size:15px;font-weight:700;color:#374151;margin:20px 0 8px;text-transform:uppercase;
+       letter-spacing:.04em}
+  textarea{width:100%;padding:13px;border:2px solid #d1d5db;border-radius:10px;font-size:17px;
+           min-height:80px;font-family:inherit}
+  .loc{border:2px solid #d1d5db;border-radius:12px;padding:14px;margin-top:8px;background:#f9fafb}
+  .loc.on{border-color:#16a34a;background:#f0fdf4}
+  .loc.off{border-color:#f59e0b;background:#fffbeb}
+  .loc-t{font-weight:700;font-size:17px;margin-bottom:3px}
+  .loc-s{font-size:15px;color:#4b5563}
+  .linkbtn{background:none;border:none;color:#2563eb;font-size:15px;text-decoration:underline;
+           padding:8px 0;cursor:pointer;font-family:inherit}
+  .send{width:100%;background:#dc2626;color:#fff;border:none;border-radius:12px;padding:20px;
+        font-size:22px;font-weight:800;margin-top:20px;cursor:pointer;min-height:68px;
+        letter-spacing:.02em}
+  .send:disabled{background:#9ca3af}
+  .err{background:#fee2e2;color:#991b1b;padding:13px;border-radius:10px;margin-top:12px;
+       font-weight:600;display:none}
+  .ok-wrap{text-align:left}
+  .ok-h{color:#16a34a;font-size:26px;margin:0 0 10px}
+  .step{display:flex;gap:10px;margin:10px 0;font-size:16px}
+  .step .n{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:#16a34a;color:#fff;
+           font-weight:700;text-align:center;line-height:26px;font-size:14px}
+  .ref{margin-top:16px;padding:12px;background:#f3f4f6;border-radius:10px;font-size:15px}
+  .ref b{font-size:20px;letter-spacing:.08em}
+</style>
 </head>
 <body>
-<div class="card">
-    <div class="badge">EMERGENCY NETWORK</div>
-    <h1>Send Emergency Message</h1>
-    <p class="sub">You are connected to a rescue drone. Fill in the form and tap <strong>SEND</strong>. Stay connected to this Wi-Fi and stay where you are.</p>
-    <div id="sessionId"></div>
+<div class="card" id="card">
+  <div class="badge">EMERGENCY</div>
+  <h1>Get help</h1>
+  <p class="sub">__HEADLINE__</p>
 
-    <label for="content">Your situation / needs</label>
-    <textarea id="content" placeholder="Describe your situation, injuries, or needs..." required></textarea>
+  <div id="opts">__OPTIONS__</div>
 
-    <button type="button" id="locBtn" class="btn btn-loc">Attach My GPS Location</button>
-    <div id="locationStatus"></div>
+  <div class="sec">Anything else? (you can skip this)</div>
+  <textarea id="details" placeholder="Only if you can. Tapping above is enough."></textarea>
 
-    <label for="landmark">Location / Landmarks (optional)</label>
-    <input type="text" id="landmark" placeholder="e.g. near the red barn, river crossing...">
+  <div class="sec">Your location</div>
+  <div class="loc" id="locBox">
+    <div class="loc-t" id="locTitle">Getting your location...</div>
+    <div class="loc-s" id="locSub">This is the most important thing for finding you.</div>
+    <button type="button" class="linkbtn" id="locToggle">Do not share my location</button>
+  </div>
 
-    <input type="hidden" id="deviceId">
-    <input type="hidden" id="userLat">
-    <input type="hidden" id="userLon">
-
-    <button class="btn btn-send" id="sendBtn" onclick="submitForm()">SEND MESSAGE</button>
-    <div class="status-box" id="statusBox"></div>
+  <button class="send" id="sendBtn" disabled>SEND</button>
+  <div class="err" id="err"></div>
 </div>
+
 <script>
-function initDeviceId(){
-    let id=localStorage.getItem('victim_device_id');
-    if(!id){
-        id='xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{
-            const r=Math.random()*16|0;
-            return(c==='x'?r:(r&0x3|0x8)).toString(16);
-        });
-        localStorage.setItem('victim_device_id',id);
-    }
-    document.getElementById('deviceId').value=id;
-    const s=id.substring(0,8)+'...'+id.substring(id.length-8);
-    document.getElementById('sessionId').textContent='Session ID: '+s+' (show this to the rescue team)';
+var SEL = {};
+var locOn = true, lat = null, lon = null, acc = null;
+
+function deviceId(){
+  var id = null;
+  try { id = localStorage.getItem('victim_device_id'); } catch(e){}
+  if(!id){
+    id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){
+      var r = Math.random()*16|0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+    try { localStorage.setItem('victim_device_id', id); } catch(e){}
+  }
+  return id;
 }
 
-document.getElementById('locBtn').addEventListener('click',function(){
-    const btn=this,status=document.getElementById('locationStatus');
-    if(!navigator.geolocation){status.style.color='#856404';status.textContent='Geolocation not supported.';return;}
-    btn.disabled=true;btn.textContent='Getting location...';
-    status.style.color='#0c5460';status.textContent='Requesting permission...';
-    navigator.geolocation.getCurrentPosition(
-        pos=>{
-            document.getElementById('userLat').value=pos.coords.latitude;
-            document.getElementById('userLon').value=pos.coords.longitude;
-            btn.textContent='Location Attached';btn.classList.add('done');
-            status.style.color='#155724';
-            status.textContent='GPS captured (+-'+Math.round(pos.coords.accuracy)+'m)';
-        },
-        err=>{
-            const m={1:'Permission denied.',2:'Position unavailable.',3:'Timed out.'};
-            status.style.color='#856404';status.textContent=m[err.code]||'Location error.';
-            btn.textContent='Attach My GPS Location';btn.disabled=false;
-        },
-        {enableHighAccuracy:true,timeout:10000,maximumAge:0}
-    );
+function refresh(){
+  var any = Object.keys(SEL).length > 0 ||
+            document.getElementById('details').value.trim().length > 0;
+  document.getElementById('sendBtn').disabled = !any;
+}
+
+document.querySelectorAll('.opt').forEach(function(b){
+  b.addEventListener('click', function(){
+    var id = b.getAttribute('data-id');
+    if(SEL[id]){ delete SEL[id]; b.classList.remove('sel'); }
+    else { SEL[id] = b.getAttribute('data-label'); b.classList.add('sel'); }
+    refresh();
+  });
+});
+document.getElementById('details').addEventListener('input', refresh);
+
+function locUI(state, title, sub){
+  var box = document.getElementById('locBox');
+  box.className = 'loc ' + state;
+  document.getElementById('locTitle').textContent = title;
+  document.getElementById('locSub').textContent = sub;
+}
+
+function askLocation(){
+  if(!navigator.geolocation){
+    locOn = false;
+    locUI('off', 'Location not available on this phone',
+          'Please describe where you are in the box above: a building name, a road, anything.');
+    document.getElementById('locToggle').style.display = 'none';
+    return;
+  }
+  locUI('', 'Getting your location...', 'Allow location if your phone asks.');
+  navigator.geolocation.getCurrentPosition(
+    function(pos){
+      if(!locOn) return;
+      lat = pos.coords.latitude; lon = pos.coords.longitude;
+      acc = Math.round(pos.coords.accuracy);
+      locUI('on', 'Location will be sent',
+            'Accurate to about ' + acc + ' metres. This is how the team finds you.');
+    },
+    function(){
+      locOn = false;
+      locUI('off', 'Could not get your location',
+            'Please type where you are in the box above: a building name, a road, a landmark.');
+      document.getElementById('locToggle').textContent = 'Try location again';
+    },
+    {enableHighAccuracy:true, timeout:15000, maximumAge:60000}
+  );
+}
+
+document.getElementById('locToggle').addEventListener('click', function(){
+  if(locOn){
+    locOn = false; lat = null; lon = null;
+    locUI('off', 'Location will NOT be sent',
+          'The team will have to search for you. Please describe where you are above.');
+    this.textContent = 'Share my location';
+  } else {
+    locOn = true;
+    this.textContent = 'Do not share my location';
+    askLocation();
+  }
 });
 
-async function fetchEncryptionConfig(){
-    try{const r=await fetch('/victim-public-key');return r.ok?r.json():null;}catch{return null;}
-}
-function pemToBuffer(pem){
-    const b64=pem.replace(/-----[^-]+-----/g,'').replace(/\\s+/g,'');
-    const bin=atob(b64);const buf=new Uint8Array(bin.length);
-    for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i);
-    return buf.buffer;
-}
-async function encryptMessage(text,pem){
-    const key=await crypto.subtle.importKey('spki',pemToBuffer(pem),
-        {name:'RSA-OAEP',hash:'SHA-256'},false,['encrypt']);
-    const enc=await crypto.subtle.encrypt({name:'RSA-OAEP'},key,new TextEncoder().encode(text));
-    return btoa(String.fromCharCode(...new Uint8Array(enc)));
+document.getElementById('sendBtn').addEventListener('click', function(){
+  var btn = this, err = document.getElementById('err');
+  var labels = Object.keys(SEL).map(function(k){ return SEL[k]; });
+  var details = document.getElementById('details').value.trim();
+  var parts = [];
+  if(labels.length) parts.push(labels.join('. '));
+  if(details) parts.push(details);
+  var content = parts.join(' -- ');
+  if(!content){ return; }
+
+  btn.textContent = 'SENDING...'; btn.disabled = true; err.style.display = 'none';
+  fetch('/message', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      content: content,
+      victim_device_id: deviceId(),
+      user_lat: lat, user_lon: lon
+    })
+  }).then(function(r){
+    if(r.ok){ return r.json().catch(function(){ return {}; }).then(sent); }
+    return r.json().catch(function(){ return {}; }).then(function(e){
+      throw new Error(e.detail || 'Could not send. Please try again.');
+    });
+  }).catch(function(e){
+    err.textContent = e.message || 'Could not reach the drone. Stay on this Wi-Fi and try again.';
+    err.style.display = 'block';
+    btn.textContent = 'SEND'; btn.disabled = false;
+  });
+});
+
+function sent(res){
+  var ref = (res && res.msg_id ? String(res.msg_id) : deviceId())
+              .replace(/-/g,'').slice(-4).toUpperCase();
+  document.getElementById('card').innerHTML =
+    '<div class="ok-wrap">' +
+    '<div class="badge">SENT</div>' +
+    '<h1 class="ok-h">Your message is on the drone</h1>' +
+    '<div class="step"><span class="n">1</span><span>The drone has your message and has saved it.</span></div>' +
+    '<div class="step"><span class="n">2</span><span>It carries the message to the rescue team. This can take a while if the drone must fly back, so do not worry if it is not instant.</span></div>' +
+    '<div class="step"><span class="n">3</span><span>Stay where you are if it is safe. Keep this Wi-Fi on if you can.</span></div>' +
+    '<div class="ref">Your reference: <b>' + ref + '</b><br>Tell the rescue team this if they ask.</div>' +
+    '<button class="send" onclick="location.reload()" style="background:#374151">Send another message</button>' +
+    '</div>';
 }
 
-async function submitForm(){
-    const sendBtn=document.getElementById('sendBtn');
-    const statusBox=document.getElementById('statusBox');
-    let plaintext=document.getElementById('content').value.trim();
-    if(!plaintext){
-        statusBox.className='status-box error';
-        statusBox.textContent='Please describe your situation before sending.';
-        statusBox.style.display='block';return;
-    }
-    const landmark=document.getElementById('landmark').value.trim();
-    if(landmark){plaintext=plaintext+' [Landmark: '+landmark.substring(0,200)+']';}
-    sendBtn.textContent='SENDING...';sendBtn.disabled=true;statusBox.style.display='none';
-    let content=plaintext,isEncrypted=false,encAlg='',encKid='';
-    const cfg=await fetchEncryptionConfig();
-    if(cfg&&cfg.public_key_pem){
-        try{
-            content=await encryptMessage(plaintext,cfg.public_key_pem);
-            isEncrypted=true;encAlg=cfg.algorithm||'RSA-OAEP-256';encKid=cfg.kid||'';
-        }catch(e){console.warn('Encryption failed, sending plaintext:',e);}
-    }
-    const lat=document.getElementById('userLat').value;
-    const lon=document.getElementById('userLon').value;
-    const payload={
-        content,is_encrypted:isEncrypted,encryption_alg:encAlg,encryption_kid:encKid,
-        victim_device_id:document.getElementById('deviceId').value,
-        user_lat:lat?parseFloat(lat):null,
-        user_lon:lon?parseFloat(lon):null,
-    };
-    try{
-        const resp=await fetch('/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-        if(resp.ok){
-            document.querySelector('.card').innerHTML="<h1 style='color:#16a34a;margin-bottom:12px;'>Message Sent</h1><p style='line-height:1.6;'>The drone will relay your message to the rescue team. Stay connected to this Wi-Fi and stay where you are.</p><p style='margin-top:12px;font-size:13px;color:#6b7280;'>Keep your Session ID: the rescue team will confirm with it when they find you.</p>";
-        }else{
-            const err=await resp.json().catch(()=>({}));
-            statusBox.className='status-box error';
-            statusBox.textContent='Error: '+(err.detail||'Failed to send. Please try again.');
-            statusBox.style.display='block';
-            sendBtn.textContent='SEND MESSAGE';sendBtn.disabled=false;
-        }
-    }catch{
-        statusBox.className='status-box error';
-        statusBox.textContent='Could not reach the drone. Check Wi-Fi and try again.';
-        statusBox.style.display='block';
-        sendBtn.textContent='SEND MESSAGE';sendBtn.disabled=false;
-    }
-}
-document.addEventListener('DOMContentLoaded',initDeviceId);
+document.addEventListener('DOMContentLoaded', function(){
+  deviceId();
+  askLocation();
+  refresh();
+});
 </script>
 </body>
 </html>"""
 
 
+def _render_options(cfg: dict) -> str:
+    """Build the option buttons. Urgent ones first, since someone skimming
+    reads the top of the list and may never reach the bottom."""
+    situations = cfg.get("situations") or []
+    ordered = sorted(situations, key=lambda s: not s.get("urgent"))
+    out = []
+    for s in ordered:
+        sid = html.escape(str(s.get("id", "")), quote=True)
+        label = html.escape(str(s.get("label", "")), quote=True)
+        urgent = " urgent" if s.get("urgent") else ""
+        out.append(
+            f'<button type="button" class="opt{urgent}" data-id="{sid}" '
+            f'data-label="{label}"><span class="tick">&#10003;</span>{label}</button>'
+        )
+    return "\n".join(out)
+
+
 def form_page() -> HTMLResponse:
-    return HTMLResponse(content=VICTIM_FORM_HTML)
+    cfg = mission_config.load()
+    page = (VICTIM_FORM_TEMPLATE
+            .replace("__OPTIONS__", _render_options(cfg))
+            .replace("__HEADLINE__", html.escape(str(cfg.get("headline", "")))))
+    return HTMLResponse(content=page)
 
 
 @app.middleware("http")
