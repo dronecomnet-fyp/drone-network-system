@@ -315,6 +315,7 @@ class _PortalConfigCardState extends State<_PortalConfigCard> {
   Future<void> _push(BuildContext context) async {
     final app = context.read<AppState>();
     final mission = context.read<MissionState>();
+    final data = context.read<DataStore>();
     final messenger = ScaffoldMessenger.of(context);
 
     if (mission.missionName.trim().isEmpty) {
@@ -376,7 +377,19 @@ class _PortalConfigCardState extends State<_PortalConfigCard> {
 
     setState(() => _busy = true);
     try {
-      final version = mission.nextPortalConfigVersion();
+      // Ask the node what it already holds, then pick a version that beats
+      // both it and our own counter. Without this a fresh install, a second
+      // operator's laptop, or cleared prefs would produce a rejected push
+      // and no clue why.
+      var nodeVersion = 0;
+      try {
+        final current = await app.client.getMissionConfig();
+        nodeVersion = (current['version'] as num?)?.toInt() ?? 0;
+      } catch (_) {
+        // Older node without the endpoint: fall back to our own counter.
+      }
+      final version = await app.claimPortalConfigVersion(nodeVersion);
+
       final result = await app.client.pushMissionConfig(buildPortalConfig(
         version: version,
         missionName: mission.missionName,
@@ -384,11 +397,10 @@ class _PortalConfigCardState extends State<_PortalConfigCard> {
         situations: situations,
       ));
       messenger.showSnackBar(SnackBar(
-          content: Text('Node now serving config v${result['version']}. '
-              'Save the mission file so the version survives a restart.')));
+          content: Text('${data.health?.nodeId ?? "Node"} is now serving '
+              'config v${result['version']}.')));
     } catch (e) {
-      // Most likely a rejected stale version, which the operator MUST see:
-      // believing a push landed when it did not is the whole failure mode.
+      // A push that did not land must never look like one that did.
       messenger.showSnackBar(SnackBar(
           content: Text('Push failed: $e'), duration: const Duration(seconds: 8)));
     } finally {
