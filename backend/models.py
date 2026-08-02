@@ -52,6 +52,7 @@ REPLICATED_TABLES = {
     "gs_messages": "id",
     "checkins": "id",
     "personnel_locations": "personnel_id",
+    "message_replies": "id",
 }
 
 
@@ -133,6 +134,14 @@ def _personnel_location_payload(r: dict) -> str:
     )
 
 
+def _message_reply_payload(r: dict) -> str:
+    return _canon(
+        r.get("id"), r.get("msg_id"), r.get("victim_device_id"),
+        r.get("body"), r.get("sender"), r.get("sender_role"),
+        r.get("created_at"), r.get("node_id"),
+    )
+
+
 _PAYLOAD_FN = {
     "messages": _message_payload,
     "personnel": _personnel_payload,
@@ -140,6 +149,7 @@ _PAYLOAD_FN = {
     "gs_messages": _gs_message_payload,
     "checkins": _checkin_payload,
     "personnel_locations": _personnel_location_payload,
+    "message_replies": _message_reply_payload,
 }
 
 
@@ -264,6 +274,28 @@ def init_db():
             local_ts TEXT
         )
     """)
+    # Replies to a victim's message, from rescue or HQ. Replicated like any
+    # other record so a reply written at one node reaches the drone the
+    # victim actually meets. Keyed by victim_device_id as well as msg_id so
+    # a whole conversation can be fetched by device without joining.
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS message_replies (
+            id TEXT PRIMARY KEY,
+            msg_id TEXT,
+            victim_device_id TEXT,
+            body TEXT,
+            sender TEXT,
+            sender_role TEXT DEFAULT 'RESCUE_TEAM',
+            created_at TEXT,
+            node_id TEXT,
+            signature TEXT,
+            local_ts TEXT
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_replies_device "
+              "ON message_replies(victim_device_id, created_at)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_messages_device "
+              "ON messages(victim_device_id, timestamp)")
     c.execute("""
         CREATE TABLE IF NOT EXISTS node_health (
             node_id TEXT,
@@ -769,6 +801,63 @@ def save_node_health(node_id, lat=None, lon=None, gps_fix=0, bat_a_v=None,
     """, (node_id, node_id, NODE_HEALTH_KEEP_ROWS))
     conn.commit()
     conn.close()
+
+
+def save_message_reply(msg_id, victim_device_id, body, sender, sender_role):
+    """A rescuer or HQ replying to a victim. Signed like every other
+    replicated record so it survives the trip across the mesh."""
+    rid = str(uuid.uuid4())
+    record = {
+        "id": rid,
+        "msg_id": msg_id,
+        "victim_device_id": victim_device_id,
+        "body": body,
+        "sender": sender,
+        "sender_role": sender_role,
+        "created_at": iso_now(),
+        "node_id": config.NODE_ID,
+    }
+    record["signature"] = sign_record("message_replies", record)
+    conn = get_conn()
+    conn.execute("""
+        INSERT INTO message_replies (id, msg_id, victim_device_id, body,
+                                     sender, sender_role, created_at,
+                                     node_id, signature, local_ts)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (rid, msg_id, victim_device_id, body, sender, sender_role,
+          record["created_at"], config.NODE_ID, record["signature"], iso_now()))
+    conn.commit()
+    conn.close()
+    return record
+
+
+def get_conversation(victim_device_id: str) -> dict:
+    """Everything one victim device has sent and been told, oldest first.
+
+    Scoped strictly to the caller's own device id. The victim plane has no
+    other read endpoint, and this one must never become a way to enumerate
+    other people's emergencies, so there is no "list all conversations"
+    variant here by design.
+    """
+    conn = get_conn()
+    msgs = conn.execute("""
+        SELECT msg_id, content, timestamp, time_source, status, claimed_at,
+               user_lat, user_lon, node_id, is_encrypted
+          FROM messages
+         WHERE victim_device_id = ?
+         ORDER BY timestamp ASC
+    """, (victim_device_id,)).fetchall()
+    replies = conn.execute("""
+        SELECT id, msg_id, body, sender, sender_role, created_at, node_id
+          FROM message_replies
+         WHERE victim_device_id = ?
+         ORDER BY created_at ASC
+    """, (victim_device_id,)).fetchall()
+    conn.close()
+    return {
+        "messages": [dict(m) for m in msgs],
+        "replies": [dict(r) for r in replies],
+    }
 
 
 def latest_node_health():

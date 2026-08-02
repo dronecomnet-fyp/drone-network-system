@@ -545,3 +545,43 @@ Phase 1 security docs) is flagged here, never silently drifted.
 
     Credit where due: the operator spotted that the max() reconciliation
     was a symptom rather than a cure.
+
+37. Victim conversations: replies, and a device-scoped read on the victim
+    plane. This REVERSES file 09's rule that the open victim plane carries
+    no read endpoints, deliberately and with the reasoning recorded.
+
+    Why reverse it: the emergency app is the VICTIM's app, and a victim who
+    has asked for help cannot tell whether anyone received it. Testers
+    asked for the familiar messaging idiom, where a tick means delivered
+    and a second tick means seen, because it has zero learning curve at the
+    worst moment of someone's life.
+
+    New replicated table message_replies (signed with K_MSG, append-only on
+    ingest, synced like every other record) so a reply written at one node
+    reaches whichever drone the victim next meets, not just the node the
+    rescuer happened to stand beside. POST /messages/{id}/reply is
+    authenticated-plane, rescue or HQ only.
+
+    The read, GET /my-conversation/{device_id}, keeps the property the
+    original rule protected rather than abandoning it. The only key is the
+    caller's own 122-bit random device id; there is no listing endpoint, no
+    search, and no path from one id to another. An unknown id returns an
+    empty thread identical to a real but silent device, so it cannot be
+    used as an oracle. Tests assert the cross-device isolation and the
+    absence of enumeration, not just the happy path.
+
+    Residual risk, stated rather than buried: the victim plane is plaintext
+    by design (file 09 F3), so someone sniffing the same AP could capture a
+    device id in flight and read that thread. That is the same exposure the
+    message CONTENT already has on this plane, so it is not a new class of
+    risk, but it is real and belongs in the thesis.
+
+    Tick semantics are deliberately honest about a delay-tolerant network,
+    which is where the familiar idiom would otherwise mislead. WhatsApp's
+    ticks imply seconds; ours can mean hours. So there are THREE states,
+    including one WhatsApp does not have: waiting on the phone with no
+    drone in range, stored on a drone, and seen by a rescuer (the existing
+    CLAIMED status). Without the first state a victim with no drone
+    overhead sees nothing happening and concludes they were ignored, when
+    the system is working exactly as designed. "Seen" never implies anyone
+    is on the way, because at that moment nobody is.

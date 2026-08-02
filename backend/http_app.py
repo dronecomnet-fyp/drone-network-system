@@ -593,6 +593,45 @@ def windows_probe_alt():
     return PlainTextResponse(content="Rescue Network Portal", status_code=200)
 
 
+@app.get("/my-conversation/{device_id}")
+def my_conversation(device_id: str, request: Request):
+    """A victim reading their OWN thread: what they sent, its delivery
+    state, and any replies.
+
+    This REVERSES file 09's rule that the open victim plane carries no read
+    endpoints (CHANGES.md item 37). The rule existed to stop the open plane
+    becoming a way to enumerate other people's emergencies, and that
+    property is preserved rather than abandoned:
+
+      - The only key is the caller's own device id, a 122-bit random UUID
+        the app generated locally. There is no listing endpoint, no search,
+        and no way to walk from one id to another.
+      - An unknown id returns an empty thread, exactly like a real device
+        that has not sent anything, so this cannot be used as an oracle to
+        test whether an id exists.
+      - Nothing about any other device is reachable through it.
+
+    Residual risk, stated plainly: the victim plane is plaintext by design
+    (file 09 F3), so somebody sniffing the same AP could capture a device
+    id from a message being sent and then read that person's thread. That
+    is the same exposure the message CONTENT already has on this plane, so
+    it adds no new class of risk, but it is a real limitation and belongs
+    in the thesis rather than in a footnote.
+
+    Rate limited per IP. Deliberately NOT through the global WRITE limiter:
+    a victim refreshing their own thread must never eat into the budget
+    that lets other people send new messages.
+    """
+    _ip_limiter.check(_client_ip(request))
+    device_id = (device_id or "").strip()[:64]
+    if not device_id:
+        return JSONResponse(content={"messages": [], "replies": []})
+    try:
+        return JSONResponse(content=models.get_conversation(device_id))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal error")
+
+
 @app.get("/{path:path}", response_class=HTMLResponse)
 def catch_all(path: str):
     api_paths = {"message", "checkin", "victim-public-key"}

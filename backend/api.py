@@ -259,6 +259,28 @@ class MissionConfigInput(BaseModel):
         return html.escape((v or "").strip()[:200])
 
 
+class ReplyInput(BaseModel):
+    '''A rescuer or HQ replying to a victim's message.'''
+    msg_id: str
+    body: str
+
+    @field_validator("msg_id")
+    @classmethod
+    def id_ok(cls, v):
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("msg_id is required")
+        return v[:64]
+
+    @field_validator("body")
+    @classmethod
+    def body_ok(cls, v):
+        v = (v or "").strip()
+        if not 1 <= len(v) <= 500:
+            raise ValueError("reply must be 1-500 chars")
+        return html.escape(v)
+
+
 class GSMessageInput(BaseModel):
     content: str
     sender: str = "FIELD_TEAM"
@@ -632,6 +654,46 @@ def get_announcements(
         raise HTTPException(status_code=500, detail="Internal error listing announcements")
 
 
+@app.post("/messages/{msg_id}/reply")
+def post_reply(
+    msg_id: str,
+    r: ReplyInput,
+    auth: Auth = Depends(require_roles({Role.RESCUE_TEAM, Role.HQ})),
+):
+    """Reply to a victim. The reply replicates like any other record, so it
+    reaches whichever drone that victim next meets rather than only the node
+    the rescuer happened to be standing next to."""
+    msg = models.get_message_by_id(msg_id)
+    if msg is None:
+        raise HTTPException(status_code=404, detail="No such message")
+    device_id = msg["victim_device_id"] or ""
+    if not device_id:
+        # Pre-device-id messages cannot be threaded back to anyone.
+        raise HTTPException(
+            status_code=400,
+            detail="That message has no device to reply to")
+    try:
+        rec = models.save_message_reply(
+            msg_id=msg_id, victim_device_id=device_id, body=r.body,
+            sender=auth.personnel_id or "RESCUE TEAM",
+            sender_role=auth.role.value,
+        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal error saving reply")
+    audit_logger.info(
+        f"REPLY_CREATE | by={auth.personnel_id or 'api_key'} | msg={msg_id}")
+    return {"id": rec["id"], "created_at": rec["created_at"]}
+
+
+@app.get("/conversations/{device_id}")
+def get_conversation_authed(
+    device_id: str,
+    auth: Auth = Depends(require_roles({Role.RESCUE_TEAM, Role.HQ})),
+):
+    """One victim's whole thread, for the rescue side."""
+    return JSONResponse(content=models.get_conversation(device_id[:64]))
+
+
 @app.get("/mission-config")
 def get_mission_config(
     auth: Auth = Depends(require_roles({Role.HQ, Role.RESCUE_TEAM, Role.SYNC_NODE})),
@@ -864,6 +926,7 @@ app.get("/sync/announcements")(_sync_endpoint("announcements"))
 app.get("/sync/gs-messages")(_sync_endpoint("gs_messages"))
 app.get("/sync/checkins")(_sync_endpoint("checkins"))
 app.get("/sync/personnel-locations")(_sync_endpoint("personnel_locations"))
+app.get("/sync/message-replies")(_sync_endpoint("message_replies"))
 
 
 if __name__ == "__main__":

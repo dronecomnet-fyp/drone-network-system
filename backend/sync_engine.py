@@ -36,6 +36,7 @@ SYNC_PATHS = {
     "gs_messages": "gs-messages",
     "checkins": "checkins",
     "personnel_locations": "personnel-locations",
+    "message_replies": "message-replies",
 }
 
 
@@ -164,6 +165,16 @@ def ingest_checkin(record, peer_node_id):
     )
 
 
+def ingest_message_reply(record, peer_node_id):
+    # Append-only, like checkins: a reply is an immutable utterance, so
+    # there is no conflict to resolve, only a duplicate to ignore.
+    return _ingest_append_only(
+        "message_replies", record,
+        ["id", "msg_id", "victim_device_id", "body", "sender", "sender_role",
+         "created_at", "node_id", "signature"],
+    )
+
+
 def ingest_personnel_location(record, peer_node_id):
     # Latest-per-rescuer: newest signed origin updated_at wins (same shape as
     # ingest_personnel, minus the REVOKED override which does not apply).
@@ -186,6 +197,7 @@ INGEST_FN = {
     "gs_messages": ingest_gs_message,
     "checkins": ingest_checkin,
     "personnel_locations": ingest_personnel_location,
+    "message_replies": ingest_message_reply,
 }
 
 
