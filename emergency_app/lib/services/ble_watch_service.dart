@@ -18,6 +18,7 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
@@ -138,18 +139,52 @@ class BleWatchService {
       await FlutterForegroundTask.stopService();
     } catch (_) {}
     _armed = false;
+    // Re-arming should alert immediately rather than sitting inside a
+    // cooldown left over from the previous session.
+    _lastNotified.clear();
   }
+
+  /// How long before the SAME drone may raise another notification.
+  /// A BLE scan re-reports an advertiser continuously (the aux module
+  /// advertises every 0.5 to 1 s), so without this the phone fires a
+  /// high-priority alert several times a second for as long as the victim
+  /// stays in range. That is unusable, and worse, it trains people to
+  /// dismiss the one notification that matters.
+  static const Duration renotifyAfter = Duration(minutes: 5);
+
+  /// Last time we alerted for each node id.
+  final Map<String, DateTime> _lastNotified = {};
 
   void _handleResults(List<ScanResult> results) {
     for (final r in results) {
       final sighting = parseSighting(r);
-      if (sighting != null) {
-        NotificationService.showDroneFound(
-            sighting.nodeLabel, sighting.ssid);
-        onSighting?.call(sighting);
-      }
+      if (sighting == null) continue;
+
+      // The sighting itself is always reported to the app: the UI should
+      // update live. Only the NOTIFICATION is rate limited.
+      onSighting?.call(sighting);
+
+      if (!shouldNotify(sighting.nodeLabel, DateTime.now())) continue;
+      NotificationService.showDroneFound(sighting.nodeLabel, sighting.ssid);
     }
   }
+
+  /// Should this sighting raise a notification? Records the decision, so
+  /// calling it twice in quick succession answers true then false.
+  ///
+  /// Pure apart from its own bookkeeping, and public, so the anti-spam rule
+  /// can be unit tested without a radio (same approach as parseSighting).
+  bool shouldNotify(String nodeLabel, DateTime now) {
+    final last = _lastNotified[nodeLabel];
+    if (last != null && now.difference(last) < renotifyAfter) return false;
+    _lastNotified[nodeLabel] = now;
+    return true;
+  }
+
+  /// Forget the notification history, so disarming and re-arming alerts
+  /// again immediately rather than staying silent for the cooldown.
+  @visibleForTesting
+  void resetNotificationHistory() => _lastNotified.clear();
 
   /// Extract `nodeId|ssid` from the aux module's service data, else null.
   /// Public and pure so it can be unit tested without a radio.
