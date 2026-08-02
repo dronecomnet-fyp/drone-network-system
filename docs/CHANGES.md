@@ -453,3 +453,61 @@ Phase 1 security docs) is flagged here, never silently drifted.
     The messages themselves were real and are FC-side configuration, not
     app bugs: PreArm battery failsafe, logging failed, and compass field
     checks all block arming until resolved on the flight controller.
+
+## 2026-08-02 Emergency-first UX pass, from tester feedback
+
+34. The captive portal was built as a form, not as something a frightened
+    person uses. It REQUIRED free text before anyone could ask for help,
+    and it hid the most useful field of all, their location, behind a
+    button most people never pressed. Rebuilt: tappable options (urgent
+    ones first, since people skim the top), nothing required to be typed,
+    location requested automatically and opt-OUT rather than opt-in, 17px
+    base type with 60px tap targets, a GPS failure path that asks for a
+    landmark instead of dead-ending, and a confirmation that is honest
+    about delay-tolerant delivery so slowness does not read as being
+    ignored. It never implies a rescuer is coming, because at that moment
+    nobody has seen the message.
+
+    Options come from a versioned per-mission config the GCC pushes to
+    each node (mission_config.py). A node never pushed to serves a stock
+    NEED-based list, so it is less tailored but never wrong. /health
+    reports the version and whether it is stock or pushed, so partial
+    rollout is visible before deploying rather than discovered later.
+    Versions only move forward. The option LABEL text is embedded in the
+    message content, so changing the config later never orphans older
+    messages.
+
+    Not shipped: the "let people nearby see I need help" consent
+    checkbox. The feature it gates does not exist yet and an inert consent
+    control in an emergency app misleads the user. It ships with the
+    feature.
+
+35. Three GCC usability faults behind "the AI does not work, I don't know
+    why" and "the UI is not straightforward":
+
+    - AI failures were reported in a SnackBar: four seconds, bottom of
+      the screen, truncated. The reason WAS being given, invisibly. Now a
+      dialog that must be dismissed, and it names the likely cause
+      (offline, empty model name, 401, 429, 404) rather than only echoing
+      the raw error.
+    - The map had no MapController at all, so the camera was set once from
+      initialCenter and then frozen: drawing an operation area left the
+      operator looking wherever the map happened to open. It now frames
+      the area when it first appears or is redrawn, with a button to
+      return there, and does not fight the operator while they pan.
+    - The drone-found notification in the emergency app fired on EVERY
+      matching BLE advertisement, and the aux module advertises every 0.5
+      to 1 s, so standing near a drone produced several high-priority
+      alerts per second. Rate limited per node to one per five minutes,
+      while the sighting itself still reaches the UI on every hit.
+
+    Position on sharing locations between victims, after discussion: in
+    Sri Lankan floods people already post their location publicly on
+    social media to seek help, which is real evidence of what users
+    actually want and outweighs abstract privacy reasoning. Peer
+    visibility will therefore be built, gated on explicit disclosure and
+    an opt-in at the moment of sending. Two things stay true regardless:
+    the mesh cannot un-share (store-and-forward has no recall, unlike
+    deleting a post), so the choice must be deliberate; and RESCUER
+    positions are not the victim's consent to give, so they remain
+    distance-and-direction unless HQ configures otherwise.

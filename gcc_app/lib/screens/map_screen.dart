@@ -38,6 +38,17 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
+  /// The map had no controller at all, which is why nothing could ever
+  /// re-centre it: the camera was set once from initialCenter and then
+  /// frozen. Drawing an operation area left the operator looking at
+  /// whatever the map happened to open on (CHANGES.md item 35).
+  final MapController _map = MapController();
+
+  /// Area polygon we have already auto-focused, so we do it when the area
+  /// first appears or changes, and never fight the operator afterwards
+  /// while they are panning around.
+  int _focusedAreaHash = 0;
+
   MbTiles? _mbtiles;
   String _openedPath = '';
   String? _tileError;
@@ -95,6 +106,36 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  /// Frame the operation area once it exists, and again if it is redrawn.
+  /// Deferred to after the frame because the camera cannot be moved while
+  /// the map is still being laid out.
+  void _autoFocusArea(MissionState mission) {
+    if (mission.area.length < 3) return;
+    final hash = Object.hashAll(
+        mission.area.map((p) => '${p.lat},${p.lon}'));
+    if (hash == _focusedAreaHash) return;
+    _focusedAreaHash = hash;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) focusArea(mission);
+    });
+  }
+
+  /// Fit the camera to the operation area. Also wired to a button, because
+  /// an operator who has panned away wants one obvious way back.
+  void focusArea(MissionState mission) {
+    if (mission.area.length < 3) return;
+    final pts = mission.area.map((p) => LatLng(p.lat, p.lon)).toList();
+    try {
+      _map.fitCamera(CameraFit.bounds(
+        bounds: LatLngBounds.fromPoints(pts),
+        padding: const EdgeInsets.all(64),
+        maxZoom: 16,
+      ));
+    } catch (_) {
+      // Map not attached yet; the next area change or button press retries.
+    }
+  }
+
   LatLng _initialCenter(DataStore data) {
     final meta = _mbtiles?.getMetadata();
     final center = meta?.defaultCenter;
@@ -114,10 +155,12 @@ class _MapScreenState extends State<MapScreen> {
     _syncTiles(app.mbtilesPath);
 
     final active = mission.activeDeployment;
+    _autoFocusArea(mission);
 
     return Stack(
       children: [
         FlutterMap(
+          mapController: _map,
           options: MapOptions(
             initialCenter: _initialCenter(data),
             initialZoom: 13,
@@ -198,6 +241,7 @@ class _MapScreenState extends State<MapScreen> {
             onSelect: (p) => setState(() => _selected = p),
             onSave: () => _saveMission(context),
             onLoad: () => _loadMission(context),
+            onFocusArea: () => focusArea(mission),
           ),
         ),
       ],
@@ -558,12 +602,14 @@ class _MissionPanel extends StatelessWidget {
   final ValueChanged<DronePlacement?> onSelect;
   final VoidCallback onSave;
   final VoidCallback onLoad;
+  final VoidCallback onFocusArea;
 
   const _MissionPanel({
     required this.selected,
     required this.onSelect,
     required this.onSave,
     required this.onLoad,
+    required this.onFocusArea,
   });
 
   @override
@@ -614,6 +660,12 @@ class _MissionPanel extends StatelessWidget {
                         icon: const Icon(Icons.undo, size: 18),
                         tooltip: 'undo vertex',
                         onPressed: () => mission.undoAreaVertex(),
+                      ),
+                    if (mission.area.length >= 3)
+                      IconButton(
+                        icon: const Icon(Icons.center_focus_strong, size: 18),
+                        tooltip: 'focus the operation area',
+                        onPressed: onFocusArea,
                       ),
                   ],
                 ),

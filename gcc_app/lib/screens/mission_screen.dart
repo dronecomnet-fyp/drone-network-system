@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../services/ai_advisor.dart';
+import '../services/connectivity.dart';
 import '../services/product_api.dart';
 import '../state/app_state.dart';
 import '../state/mission_state.dart';
@@ -587,6 +588,79 @@ class _DeploymentsCard extends StatelessWidget {
     );
   }
 
+  /// AI failures used to flash past in a SnackBar, which is why testers
+  /// reported the feature as simply "not working": the reason WAS being
+  /// given, for four seconds, at the bottom of the screen, truncated. It
+  /// is now a dialog you have to dismiss, and it names the likely cause
+  /// instead of only echoing the raw error (CHANGES.md item 35).
+  Future<void> _showAiError(BuildContext context, String message) async {
+    final net = context.read<ConnectivityService>();
+    final app = context.read<AppState>();
+    final hints = <String>[];
+    if (!net.isOnline) {
+      hints.add('This laptop has no internet right now (${net.label}). The '
+          'AI advisor is an HQ-phase feature and needs a real connection; '
+          'plan manually in the field.');
+    }
+    if (app.aiModel.trim().isEmpty) {
+      hints.add('No model name is set in Settings. Most providers reject a '
+          'request with an empty model.');
+    }
+    final low = message.toLowerCase();
+    if (low.contains('401') || low.contains('unauthor')) {
+      hints.add('401 means the API key was rejected. Check it in Settings.');
+    }
+    if (low.contains('429')) {
+      hints.add('429 is the provider rate limiting you. Free tiers do this; '
+          'wait a minute and try again.');
+    }
+    if (low.contains('404')) {
+      hints.add('404 usually means the model name does not exist on this '
+          'provider, or the endpoint URL has the wrong path.');
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(children: [
+          Icon(Icons.error_outline, color: Colors.orangeAccent),
+          SizedBox(width: 8),
+          Text('AI planning failed'),
+        ]),
+        content: SizedBox(
+          width: 460,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (hints.isNotEmpty) ...[
+                ...hints.map((h) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(h),
+                    )),
+                const Divider(),
+              ],
+              Text('Details', style: Theme.of(ctx).textTheme.labelLarge),
+              const SizedBox(height: 4),
+              SelectableText(message,
+                  style: Theme.of(ctx).textTheme.bodySmall),
+              const SizedBox(height: 12),
+              Text(
+                'Nothing was changed. Manual planning always works offline.',
+                style: Theme.of(ctx).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
   Future<void> _runAiAdvisor(BuildContext context, MissionState m) async {
     final app = context.read<AppState>();
     final messenger = ScaffoldMessenger.of(context);
@@ -680,10 +754,10 @@ class _DeploymentsCard extends StatelessWidget {
       );
     } on AiAdvisorException catch (e) {
       if (context.mounted) Navigator.of(context).pop();
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      if (context.mounted) await _showAiError(context, e.message);
     } catch (e) {
       if (context.mounted) Navigator.of(context).pop();
-      messenger.showSnackBar(SnackBar(content: Text('AI planning failed: $e')));
+      if (context.mounted) await _showAiError(context, '$e');
     } finally {
       advisor.close();
     }
