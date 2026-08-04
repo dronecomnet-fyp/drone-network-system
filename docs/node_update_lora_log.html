@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Node Update: LoRa Log and Portal Options</title>
+<style>
+@font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
+
+:root {
+  --ink: #1b2028; --paper: #f6f4ef; --paper-raised: #eeebe3; --line: #d8d3c6;
+  --wire: #5b6b7a; --accent: #d9711c; --accent-strong: #b85c14;
+  --pass: #1f8f5b; --pass-bg: #e4f4ec; --stop: #c23a3a; --stop-bg: #fbe9e7;
+  --term-bg: #14181e; --term-fg: #e6e2d6; --term-dim: #8a93a3; --code-fg: #2a2f38;
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+  --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+  --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+  --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+  --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+    --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+    --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+    --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+body { font-family: var(--sans); font-size: 16px; line-height: 1.6; padding: 0 0 6rem; }
+::selection { background: var(--accent); color: #14181e; }
+a { color: var(--accent-strong); }
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; }
+
+.masthead { border-bottom: 1px solid var(--line); padding: 2.6rem 0 1.8rem; margin-bottom: 2.2rem; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--wire); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+h1.title { font-family: var(--mono); font-size: 1.9rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6rem; }
+.dek { max-width: 46ch; color: var(--wire); font-size: 1.02rem; margin: 0; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1.4rem; font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+.meta-row b { color: var(--ink); font-weight: 600; }
+
+/* the loop diagram */
+.loop { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1.5rem; padding: 0.9rem 1rem; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; font-family: var(--mono); font-size: 0.76rem; }
+.loop .n { padding: 0.2rem 0.55rem; border-radius: 5px; background: var(--paper); border: 1px solid var(--line); white-space: nowrap; }
+.loop .n.hi { border-color: var(--accent); color: var(--accent-strong); }
+.loop .ar { color: var(--wire); }
+
+.index { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin-bottom: 2.6rem; }
+.index-title { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--wire); margin: 0 0 0.7rem; }
+.index ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.25rem 1rem; }
+.index li a { display: flex; gap: 0.55rem; align-items: baseline; text-decoration: none; color: var(--ink); font-size: 0.88rem; padding: 0.2rem 0; }
+.index li a:hover { color: var(--accent-strong); }
+.index .n { font-family: var(--mono); color: var(--wire); font-size: 0.78rem; min-width: 1.4em; }
+
+.part { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-strong); border-top: 1px solid var(--line); padding-top: 1.4rem; margin: 0 0 1.6rem; }
+
+.stage { border-left: 3px solid var(--line); padding: 0 0 0 1.3rem; margin-bottom: 2.9rem; scroll-margin-top: 1.5rem; }
+.stage.gate { border-left-color: var(--stop); }
+.stage-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 0.85rem; }
+.stage-num { font-family: var(--mono); font-size: 0.85rem; color: var(--wire); background: var(--paper-raised); border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.6rem; flex-shrink: 0; }
+h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+.stage ul, .stage ol.steps { margin: 0 0 1rem; padding-left: 1.25rem; max-width: 60ch; }
+.stage li { margin-bottom: 0.4rem; }
+.stage li:last-child { margin-bottom: 0; }
+
+.term { background: var(--term-bg); border-radius: 8px; margin: 0 0 1rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000); }
+.term-bar { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.term-bar .cap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--term-dim); margin-left: 0.3rem; }
+.term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
+.term-bar .led.r { background: #e5645c; } .term-bar .led.y { background: #e5b84f; } .term-bar .led.g { background: #57c273; }
+.term pre { margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg); }
+.term .prompt { color: var(--term-dim); }
+.term .comment { color: var(--term-dim); font-style: italic; }
+
+code.inline { font-family: var(--mono); font-size: 0.88em; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 4px; padding: 0.05rem 0.35rem; color: var(--code-fg); }
+
+.readout { background: var(--pass-bg); border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line)); border-radius: 8px; padding: 0.9rem 1.1rem 1rem; margin: 0 0 1rem; }
+.readout .label { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pass); margin-bottom: 0.55rem; }
+.readout pre, .readout code { font-family: var(--mono); font-size: 0.85rem; color: var(--code-fg); white-space: pre-wrap; word-break: break-word; margin: 0; }
+.readout .hint { font-family: var(--sans); font-size: 0.85rem; color: var(--wire); margin-top: 0.55rem; white-space: normal; }
+
+.gatebox { background: var(--stop-bg); border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line)); border-radius: 8px; padding: 0.95rem 1.1rem 1.05rem; margin: 0 0 0.4rem; }
+.gatebox .label { font-family: var(--mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.gatebox p { margin: 0; max-width: 58ch; font-size: 0.95rem; }
+
+.ui { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px; padding: 0.9rem 1.1rem; margin: 0 0 1rem; }
+.ui .label { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 0.5rem; }
+.ui dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 0.9rem; font-size: 0.9rem; }
+.ui dt { font-family: var(--mono); font-size: 0.82rem; color: var(--wire); }
+.ui dd { margin: 0; }
+
+.note { border: 1px dashed var(--line); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.88rem; color: var(--wire); margin: 0 0 1rem; max-width: 60ch; }
+.note b { color: var(--ink); }
+.note.warn { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+.fieldtable-wrap { overflow-x: auto; margin-bottom: 1rem; }
+table.fieldtable { border-collapse: collapse; width: 100%; font-size: 0.85rem; min-width: 30rem; }
+table.fieldtable th, table.fieldtable td { text-align: left; padding: 0.45rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.fieldtable th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wire); font-weight: 600; }
+
+footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+
+@media (max-width: 640px) {
+  h1.title { font-size: 1.55rem; }
+  .index ol { grid-template-columns: 1fr; }
+  .ui dl { grid-template-columns: 1fr; gap: 0.1rem 0; }
+  .ui dt { margin-top: 0.5rem; }
+}
+</style>
+</head>
+<body>
+<div class="wrap-outer">
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; Field backlog rollout &middot; 5 August 2026</div>
+    <h1 class="title">Update Every Node<br>for the LoRa Log</h1>
+    <p class="dek">Eighteen tester findings are fixed. Two of them need new code on the drones: the LoRa event log that feeds the new Degraded tab, and the option list the emergency app now reads from the node instead of carrying its own copy. Roughly six minutes per node.</p>
+    <div class="meta-row">
+      <span><b>Nodes</b> DRONE_A, DRONE_B, DRONE_S</span>
+      <span><b>Database</b> new table, created automatically</span>
+      <span><b>Firmware</b> no reflash needed</span>
+      <span><b>Downtime</b> about 10 s per node</span>
+    </div>
+    <div class="loop">
+      <span class="n">git pull</span><span class="ar">&rarr;</span>
+      <span class="n hi">restart 3 services</span><span class="ar">&rarr;</span>
+      <span class="n">check the new table</span><span class="ar">&rarr;</span>
+      <span class="n">check the options endpoint</span><span class="ar">&rarr;</span>
+      <span class="n hi">repeat on B and S</span>
+    </div>
+  </header>
+
+  <div class="note warn" style="max-width:none;">
+    <b>Do the nodes before the phones.</b> The emergency app now asks the node which SOS
+    options to show. Against a node running the old code that request fails, the app quietly
+    falls back to its built-in list, and you will be testing the fallback path without knowing
+    it. Nothing breaks, but nothing proves anything either.
+  </div>
+
+  <nav class="index">
+    <p class="index-title">Stages</p>
+    <ol>
+      <li><a href="#s1"><span class="n">1</span>What actually changed</a></li>
+      <li><a href="#s2"><span class="n">2</span>Pull and restart, per node</a></li>
+      <li><a href="#s3"><span class="n">3</span>Gate: the new table exists</a></li>
+      <li><a href="#s4"><span class="n">4</span>Gate: the node serves its options</a></li>
+      <li><a href="#s5"><span class="n">5</span>Gate: the log replicates</a></li>
+      <li><a href="#s6"><span class="n">6</span>Rebuild the GCC on Windows</a></li>
+      <li><a href="#s7"><span class="n">7</span>Reinstall the two phone apps</a></li>
+      <li><a href="#s8"><span class="n">8</span>Prove it end to end</a></li>
+      <li><a href="#s9"><span class="n">9</span>If something is wrong</a></li>
+    </ol>
+  </nav>
+
+  <p class="part">Part one &middot; Context</p>
+
+  <section class="stage" id="s1">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">What actually changed on the drones</h2></div>
+    <p>Only two things reach the Raspberry Pi. Everything else in this round was app-side.</p>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>Change</th><th>Why it exists</th><th>What it touches</th></tr>
+        <tr>
+          <td><b>lora_events table</b></td>
+          <td>Every LoRa frame a node hears is now logged, not just folded into the health snapshot. The Degraded tab reads it to answer what a downed drone has been telling you, how strong the signal is, and what message it was still carrying.</td>
+          <td>New table, new <code class="inline">/lora-events</code> and <code class="inline">/sync/lora-events</code> routes, the aux bridge writes to it</td>
+        </tr>
+        <tr>
+          <td><b>/portal-options</b></td>
+          <td>The emergency app now shows the same tappable options as the captive portal, fetched from the node, so a victim with the app and a victim with a browser report the same things.</td>
+          <td>One read-only route on the public plane</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>The table replicates, unlike node health.</b> The node that hears a beacon is
+      whichever one is nearest the failure, and you may be joined to a different one. That is
+      also why all three nodes need updating rather than just the one you usually sit on: a
+      node running old code has no <code class="inline">/sync/lora-events</code> to pull from,
+      so the log stops at whoever heard it.
+    </div>
+
+    <div class="note">
+      <b>No firmware, no wiring, no SD card work.</b> The aux modules are unchanged in this
+      round. If you have not yet reflashed them for the phantom Battery B fix from the last
+      round, do that separately; it is not part of this.
+    </div>
+  </section>
+
+  <p class="part">Part two &middot; The node update</p>
+
+  <section class="stage" id="s2">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">Pull and restart, on each node in turn</h2></div>
+    <p>Join that drone's Wi-Fi, then SSH in. The node's own address is always
+    <code class="inline">10.42.0.1</code> from a phone or laptop joined to it.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">DRONE_A, then B, then S</span></div>
+<pre><span class="prompt">$</span> ssh drone@10.42.0.1
+<span class="prompt">$</span> cd ~/rescue-mesh
+<span class="prompt">$</span> git pull
+
+<span class="comment"># The API creates the new table on start. The sync daemon needs the</span>
+<span class="comment"># restart to learn the new table exists; the aux bridge needs it to</span>
+<span class="comment"># start writing log rows.</span>
+<span class="prompt">$</span> sudo systemctl restart rescue-mesh-api rescue-mesh-sync rescue-mesh-auxbridge</pre>
+    </div>
+
+    <div class="note">
+      <b>Nothing to migrate by hand.</b> Table creation runs at service start and uses
+      <code class="inline">CREATE TABLE IF NOT EXISTS</code>, so existing messages, personnel
+      and checkins are untouched. No SQL, no data loss, and running this twice is harmless.
+    </div>
+  </section>
+
+  <section class="stage gate" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Gate: the new table exists</h2></div>
+    <p>Ask the node's own health endpoint rather than the database, because that is the same
+    answer the GCC will get.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on the node</span></div>
+<pre><span class="prompt">$</span> curl -sk https://127.0.0.1:8443/health | grep -o lora_events</pre>
+    </div>
+
+    <div class="readout">
+      <div class="label">Expected</div>
+      <pre>lora_events</pre>
+      <div class="hint">One line of output is a pass. It means the table exists and the health endpoint is counting it.</div>
+    </div>
+
+    <div class="gatebox">
+      <div class="label">Stop if empty</div>
+      <p>No output means the API is running old code. Check <code class="inline">git log -1</code>
+      is the commit you expect, then <code class="inline">systemctl status rescue-mesh-api</code>
+      for a start failure. Do not continue to the next node: you want one node right before
+      you repeat a mistake three times.</p>
+    </div>
+  </section>
+
+  <section class="stage gate" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Gate: the node serves its option list</h2></div>
+    <p>This is the endpoint the emergency app now reads. It lives on the public plane, port 80,
+    with no authentication, exactly like the captive portal it mirrors.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on the node</span></div>
+<pre><span class="prompt">$</span> curl -s http://127.0.0.1/portal-options</pre>
+    </div>
+
+    <div class="readout">
+      <div class="label">Expected</div>
+      <pre>{"config_id":"stock","headline":"Tap what you need. You can tap more than one.","situations":[{"id":"trapped",...</pre>
+      <div class="hint">
+        <code class="inline">"config_id":"stock"</code> is correct on a node you have never
+        pushed mission options to. If you have pushed some, you will see your own labels and a
+        12-character id instead. Either is a pass; an HTML page instead of JSON is not.
+      </div>
+    </div>
+
+    <div class="note">
+      <b>Urgent options come first in that list.</b> The node sorts them, and the app renders in
+      the order it is given, because somebody skimming in an emergency reads the top and may
+      never reach the bottom.
+    </div>
+  </section>
+
+  <section class="stage gate" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Gate: the log replicates between nodes</h2></div>
+    <p>Run this after at least two nodes are updated and can see each other. Watch one sync
+    cycle go by; the default interval is 30 seconds.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on the node</span></div>
+<pre><span class="prompt">$</span> journalctl -u rescue-mesh-sync -n 40 --no-pager | grep lora_events</pre>
+    </div>
+
+    <div class="readout">
+      <div class="label">Expected</div>
+      <pre>SYNC_OK | peer=DRONE_B | table=lora_events | imported=0 | updated=0 | rejected=0</pre>
+      <div class="hint">
+        <code class="inline">imported=0</code> is right when nothing has gone wrong yet: there
+        are no LoRa events to replicate until a drone actually drops to fallback. What matters
+        is that the line appears at all, which proves both ends know about the table.
+      </div>
+    </div>
+
+    <div class="gatebox">
+      <div class="label">Stop if there are no SYNC lines at all</div>
+      <p>That is not a problem with this update. It means this node cannot see any peer, and
+      the first thing to check is whether the interface still exists at all:
+      <code class="inline">iw dev wlan1 info</code>. A missing interface is what took two nodes
+      out during testing, and it looks exactly like a sync bug from up here.</p>
+    </div>
+  </section>
+
+  <p class="part">Part three &middot; The laptop and the phones</p>
+
+  <section class="stage" id="s6">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Rebuild the GCC on Windows</h2></div>
+    <p>Most of this round landed in the GCC: a Degraded tab, map layer filters, the @ attach
+    picker, GCC placement and intent drawing, and the reordered Mission tab.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">PowerShell, repo root</span></div>
+<pre><span class="prompt">PS&gt;</span> git pull
+<span class="prompt">PS&gt;</span> cd gcc_app
+<span class="prompt">PS&gt;</span> flutter build windows --release</pre>
+    </div>
+
+    <div class="ui">
+      <div class="label">New in the GCC</div>
+      <dl>
+        <dt>Degraded tab</dt><dd>Downed drones, what they beaconed, signal strength, the message they were carrying, and a filterable LoRa log. Nodes that recovered stay listed for an hour.</dd>
+        <dt>Layers button</dt><dd>Bottom right of the map. Counts hidden layers rather than visible ones, so a filter you forgot is on stays visible.</dd>
+        <dt>@ in a message</dt><dd>Attaches a drone, victim or rescuer with its coordinates.</dd>
+        <dt>Place GCC / Advance / Suspect</dt><dd>On the map panel in planning mode. All three feed the AI advisor.</dd>
+        <dt>Mission tab order</dt><dd>Area first, then resources, then the plan. Drag a spare module chip onto a drone card to attach it.</dd>
+      </dl>
+    </div>
+
+    <div class="note warn">
+      <b>An unapproved AI plan no longer appears on the operations map.</b> It shows while you
+      are in planning mode, blinking, and nowhere else until you approve it. If you go looking
+      for a draft on the main map and it is not there, that is the new behaviour working.
+    </div>
+  </section>
+
+  <section class="stage" id="s7">
+    <div class="stage-head"><span class="stage-num">07</span><h2 class="stage-title">Reinstall the two phone apps</h2></div>
+    <p>Both changed. Install over the top; nothing needs uninstalling first.</p>
+
+    <div class="ui">
+      <div class="label">What is different</div>
+      <dl>
+        <dt>Rescue app</dt><dd>Sign in by scanning the QR the GCC shows when credentials are issued. No typing, and it works on a drone that has never heard of that person. The PIN screen is still there as the fallback.</dd>
+        <dt>Emergency app</dt><dd>The SOS screen now offers the same tappable options as the captive portal, fetched from the node. Location is shared by default with a switch to opt out.</dd>
+      </dl>
+    </div>
+
+    <div class="note">
+      <b>The rescue app will ask for camera permission</b> the first time you scan. It is marked
+      optional, so a phone with a broken camera still installs and falls back to the PIN.
+    </div>
+  </section>
+
+  <p class="part">Part four &middot; Proving it</p>
+
+  <section class="stage gate" id="s8">
+    <div class="stage-head"><span class="stage-num">08</span><h2 class="stage-title">Prove it end to end</h2></div>
+    <p>Four checks. The first three take a minute; the fourth is the one worth doing properly.</p>
+
+    <ol class="steps">
+      <li><b>Options match.</b> Open the emergency app on a drone Wi-Fi and open
+      <code class="inline">http://10.42.0.1/</code> in a browser on the same network. The two
+      lists of buttons must be identical. If the app shows different wording, it fell back to
+      its built-in list and the node did not answer.</li>
+
+      <li><b>Scan sign-in.</b> Issue credentials in the GCC, scan the QR with the rescue app.
+      You should be signed in with no typing. Then do it again on a DIFFERENT drone that has
+      not synced yet, which is the whole point of the change.</li>
+
+      <li><b>Layers and drafts.</b> In the GCC, run the AI advisor if you have a key set, and
+      confirm the draft blinks in planning mode and disappears from the map when you leave
+      planning mode.</li>
+
+      <li><b>A real fallback.</b> Pull power from one drone's Raspberry Pi while leaving its aux
+      module powered. Within about a minute the Degraded tab on a GCC joined to ANOTHER node
+      should show that drone, with a beacon age, a signal strength and the last message it was
+      carrying, and its map marker should blink. Restore power and it moves to Recovered after
+      the module sees three consecutive pings.</li>
+    </ol>
+
+    <div class="gatebox">
+      <div class="label">Power warning, from the last round</div>
+      <p>Do this test on a mains supply or a phone charger, not the battery pack. The battery
+      arrangement as tested cannot reliably power a Pi plus the USB Wi-Fi adapter plus the aux
+      module: the adapter browns out and silently drops off the bus, and you will spend the
+      evening debugging sync instead of testing fallback.</p>
+    </div>
+  </section>
+
+  <section class="stage" id="s9">
+    <div class="stage-head"><span class="stage-num">09</span><h2 class="stage-title">If something is wrong</h2></div>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>Symptom</th><th>What it means</th><th>Do this</th></tr>
+        <tr>
+          <td>Degraded tab is empty during a real fallback</td>
+          <td>The GCC is joined to a node that cannot hear the beacon, and the node that CAN hear it has not synced yet</td>
+          <td>Wait one sync cycle, then check <code class="inline">journalctl -u rescue-mesh-auxbridge -n 30</code> on the node nearest the downed drone for <code class="inline">FALLBACK_BEACON</code> lines</td>
+        </tr>
+        <tr>
+          <td><code class="inline">LORA_EVENT_LOG_FAIL</code> in the aux bridge log</td>
+          <td>The log write failed, deliberately without taking the bridge down with it</td>
+          <td>Check the API restarted and the table exists (stage 03). The bridge keeps working either way; only the log is affected</td>
+        </tr>
+        <tr>
+          <td>Emergency app shows different options from the browser</td>
+          <td>The node did not answer <code class="inline">/portal-options</code>, so the app used its built-in list</td>
+          <td>Re-run stage 04 on that specific node. It is almost always a node that was missed</td>
+        </tr>
+        <tr>
+          <td>Scan sign-in fails with "not a rescue sign-in code"</td>
+          <td>The QR is not one of ours, or the GCC that issued it is older than this build</td>
+          <td>Reissue the credentials from the rebuilt GCC and scan the new code</td>
+        </tr>
+        <tr>
+          <td>Log grows large after a long incident</td>
+          <td>Expected. A node down for a day beacons about 2900 times and every node in earshot keeps a copy</td>
+          <td>Nothing. Pruning to 2000 rows runs by itself every twentieth sync cycle, roughly every ten minutes</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>Rolling back is a git checkout away.</b> The new table is additive, so an older build
+      simply ignores it. Nothing in this round changes an existing table's shape, and no data
+      written by the old code becomes unreadable.
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  Rescue Mesh &middot; node update for the field backlog round &middot; 5 August 2026<br>
+  Eighteen tester findings closed. Full detail in docs/CHANGES.md items 41 to 47 and docs/FIELD_BACKLOG.md.
+</footer>
+
+</div>
+</body>
+</html>
