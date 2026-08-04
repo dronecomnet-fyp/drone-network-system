@@ -191,6 +191,12 @@ class _MapScreenState extends State<MapScreen> {
     _syncTiles(app.mbtilesPath);
 
     final active = mission.activeDeployment;
+    // Field backlog #3c: an UNAPPROVED plan is a proposal, and a proposal
+    // sitting on the operations map is indistinguishable from a decision.
+    // Drafts are visible while planning and nowhere else, so what the map
+    // shows outside planning mode is only what somebody signed off.
+    final showActive =
+        active != null && (active.approved || mission.planningMode);
     _autoFocusArea(mission);
 
     return Stack(
@@ -221,6 +227,11 @@ class _MapScreenState extends State<MapScreen> {
                 maxNativeZoom: _maxNativeZoom.round(),
                 maxZoom: _maxUsefulZoom,
               ),
+            // The area is SHADED only while planning (field backlog #3).
+            // Once the mission is running, a permanent wash of colour over
+            // the whole operation makes every marker under it harder to
+            // read, and the operator already knows where the area is. The
+            // outline stays, thin, so the boundary is still available.
             if (mission.area.length >= 3)
               PolygonLayer(
                 polygons: [
@@ -228,9 +239,13 @@ class _MapScreenState extends State<MapScreen> {
                     points: mission.area
                         .map((p) => LatLng(p.lat, p.lon))
                         .toList(),
-                    color: Colors.lightBlue.withValues(alpha: 0.10),
-                    borderColor: Colors.lightBlueAccent,
-                    borderStrokeWidth: 2,
+                    color: mission.planningMode
+                        ? Colors.lightBlue.withValues(alpha: 0.10)
+                        : Colors.transparent,
+                    borderColor: mission.planningMode
+                        ? Colors.lightBlueAccent
+                        : Colors.lightBlueAccent.withValues(alpha: 0.45),
+                    borderStrokeWidth: mission.planningMode ? 2 : 1,
                   ),
                 ],
               ),
@@ -268,8 +283,8 @@ class _MapScreenState extends State<MapScreen> {
               ),
             CircleLayer(
               circles: [
-                for (final p in _filters.placements
-                    ? (active?.placements ?? const <DronePlacement>[])
+                for (final p in _filters.placements && showActive
+                    ? active.placements
                     : const <DronePlacement>[])
                   CircleMarker(
                     point: LatLng(p.lat, p.lon),
@@ -668,30 +683,40 @@ class _MapScreenState extends State<MapScreen> {
       ));
     }
 
-    // Active deployment placements (role-colored, selectable).
-    for (final p in _filters.placements
-        ? (mission.activeDeployment?.placements ?? const <DronePlacement>[])
+    // Active deployment placements (role-colored, selectable). Drafts show
+    // only while planning (field backlog #3c) and BLINK until approved, so
+    // a proposal never reads as a decision.
+    final activeDep = mission.activeDeployment;
+    final draft = activeDep != null && !activeDep.approved;
+    for (final p in _filters.placements &&
+            activeDep != null &&
+            (activeDep.approved || mission.planningMode)
+        ? activeDep.placements
         : const <DronePlacement>[]) {
       final color = _roleColor(p.role);
       final selected = p == _selected;
+      final pin = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.place, size: selected ? 32 : 26, color: color),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            color: selected ? color.withValues(alpha: 0.6) : Colors.black54,
+            child: Text(
+                '${p.name} (${p.assignedDrone.isEmpty ? p.role : p.assignedDrone})',
+                style: const TextStyle(fontSize: 11),
+                overflow: TextOverflow.ellipsis),
+          ),
+        ],
+      );
       markers.add(Marker(
         point: LatLng(p.lat, p.lon),
         width: 140,
         height: 52,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.place,
-                size: selected ? 32 : 26, color: color),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              color: selected ? color.withValues(alpha: 0.6) : Colors.black54,
-              child: Text('${p.name} (${p.assignedDrone.isEmpty ? p.role : p.assignedDrone})',
-                  style: const TextStyle(fontSize: 11),
-                  overflow: TextOverflow.ellipsis),
-            ),
-          ],
-        ),
+        // Blinking says "not decided yet" without a legend to read
+        // (field backlog #3b). It stops the moment the deployment is
+        // approved, because the widget is simply no longer wrapped.
+        child: draft ? Blinking(minOpacity: 0.45, child: pin) : pin,
       ));
     }
 

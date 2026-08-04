@@ -865,3 +865,41 @@ Phase 1 security docs) is flagged here, never silently drifted.
     explanation for the report is #12: the watch toggle did not work until
     Bluetooth was cycled, so no scan ran, so no sighting ever arrived. A
     feature that is never reached looks identical to a broken one.
+
+47. **Mission planning reordered around the area, with card resources and
+    an honest AI progress display (field backlog #3, #3b, #3c).**
+
+    **Area first.** The operation area was reachable only from the map, so
+    an operator working down the Mission tab inventoried drones before
+    deciding where they were going. It is now the first step, drawing it
+    takes them to the map with the tool already on, and the map frames
+    itself on the result. The tab is numbered because it genuinely is a
+    sequence: where, then what you have, then the plan.
+
+    **The area is no longer permanently shaded.** The wash of colour stays
+    while planning and drops to a thin outline once the mission is
+    running, where it was making every marker underneath harder to read
+    and telling the operator something they already knew.
+
+    **Resources became cards and draggable chips.** Drones are cards with
+    a drawn quadcopter that dims when specs are unknown; spare modules are
+    chips that drag onto a drone to attach. A module already fitted is not
+    draggable, which matches both the physical act and the rule from item
+    #2 that a module cannot be on two airframes. The dropdown in the add
+    dialog stays, because drag-and-drop with a trackpad in a hurry is not
+    something anyone should be forced into.
+
+    **#3c is a safety property, not a preference.** An unapproved plan
+    drawn on the operations map is indistinguishable from a decision, and
+    this proposal comes from a language model that has never seen the
+    ground. Drafts now show while planning and nowhere else, and they
+    BLINK until approved. Covered by tests on the visibility rule itself,
+    including that withdrawing approval actually withdraws it.
+
+    **On the AI progress display, stated plainly for the thesis:** reading
+    the mission, asking the model and checking the plan are real work.
+    "Placing on the map" is a reveal of an answer that arrived complete,
+    presented one placement at a time so the operator can watch where each
+    lands. Nothing in the UI claims the model is thinking step by step,
+    because it is not, and a progress display that invents activity would
+    be worse than a spinner.

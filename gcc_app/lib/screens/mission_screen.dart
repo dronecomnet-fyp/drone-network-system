@@ -16,6 +16,8 @@ import '../services/portal_config.dart';
 import '../services/product_api.dart';
 import '../state/app_state.dart';
 import '../state/mission_state.dart';
+import '../widgets/ai_progress_dialog.dart';
+import '../widgets/drone_glyph.dart';
 
 /// Fetch a unit's specs from the product site (online) and cache them into
 /// the mission so they resolve offline afterwards. Shared by the drone and
@@ -61,17 +63,133 @@ class MissionScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
+        // Ordered as a sequence because it IS one (field backlog #3): the
+        // area decides the map view, the resources decide what can be
+        // placed in it, and the deployment needs both. The previous order
+        // asked for resources before there was anywhere to put them.
+        _step(context, 1, 'Where'),
         _MissionInfoCard(),
         const SizedBox(height: 8),
+        const _AreaCard(),
+        const SizedBox(height: 16),
+        _step(context, 2, 'What you have'),
         _ResourceCountsCard(),
         const SizedBox(height: 8),
         _ModulesCard(),
         const SizedBox(height: 8),
         _DronesCard(),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
+        _step(context, 3, 'The plan'),
         _PortalOptionsCard(),
         _DeploymentsCard(),
       ],
+    );
+  }
+}
+
+Widget _step(BuildContext context, int n, String label) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Row(
+      children: [
+        CircleAvatar(
+          radius: 11,
+          backgroundColor: Colors.white12,
+          child: Text('$n', style: const TextStyle(fontSize: 12)),
+        ),
+        const SizedBox(width: 8),
+        Text(label.toUpperCase(),
+            style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.1,
+                color: Colors.white70)),
+      ],
+    ),
+  );
+}
+
+/// The operation area, first (field backlog #3).
+///
+/// It used to be reachable only from the map, which meant an operator
+/// working down the Mission tab inventoried drones before deciding where
+/// they were going. Drawing it here also FOCUSES the map on it, so the
+/// rest of planning happens over the right ground instead of wherever the
+/// map happened to open.
+class _AreaCard extends StatelessWidget {
+  const _AreaCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final m = context.watch<MissionState>();
+    final drawn = m.area.length >= 3;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(drawn ? Icons.check_circle : Icons.pentagon_outlined,
+                    size: 18,
+                    color: drawn ? Colors.greenAccent : Colors.orangeAccent),
+                const SizedBox(width: 8),
+                Text('Operation area',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const Spacer(),
+                Text(
+                    drawn
+                        ? '${m.area.length} corners'
+                        : 'not drawn yet',
+                    style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              drawn
+                  ? 'The map is framed on this area. Everything else on this '
+                      'tab is about filling it.'
+                  : 'Draw this first. It frames the map, it bounds every '
+                      'placement, and the AI advisor will not run without it.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                FilledButton.icon(
+                  icon: const Icon(Icons.edit_location_alt, size: 16),
+                  label: Text(drawn ? 'Redraw on the map' : 'Draw the area'),
+                  onPressed: () {
+                    // Take them there AND turn the tool on. Telling an
+                    // operator where to go and leaving them to find the
+                    // button is how the old flow lost people.
+                    m.setPlanningMode(true);
+                    m.setDrawMode(MapDrawMode.area);
+                    context.read<ShellNav>().go(ShellNav.mapTab);
+                  },
+                ),
+                if (drawn) ...[
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.center_focus_strong, size: 16),
+                    label: const Text('Show it'),
+                    onPressed: () {
+                      m.setPlanningMode(true);
+                      context.read<ShellNav>().go(ShellNav.mapTab);
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => m.clearArea(),
+                    child: const Text('Clear'),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -215,45 +333,99 @@ class _ModulesCard extends StatelessWidget {
                   '(e.g. DCM-A-0042). Modules are ATTACHED when you add a '
                   'volunteer drone; here you can see which drone has each '
                   'one, and detach it.')
-            else
-              ...m.modules.map((mod) {
-                final cached = m.productCache.containsKey(mod.unitId);
-                return ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.memory),
-                  title: Text('${mod.label}  (${mod.unitId})'),
-                  subtitle: Text([
-                    mod.attachedTo.isEmpty
-                        ? 'spare stock'
-                        : 'attached to ${mod.attachedTo}',
-                    if (cached) 'specs cached',
-                  ].join('  |  ')),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (mod.attachedTo.isNotEmpty)
-                        IconButton(
-                          tooltip: 'detach from ${mod.attachedTo}',
-                          icon: const Icon(Icons.link_off, size: 18),
-                          onPressed: () => m.detachModuleByUnitId(mod.unitId),
-                        ),
-                      IconButton(
-                        tooltip: 'fetch specs (online)',
-                        icon: Icon(cached ? Icons.cloud_done : Icons.cloud_download,
-                            size: 18),
-                        onPressed: () => fetchUnitSpecs(context, m, mod.unitId),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 18),
-                        onPressed: () => m.removeModule(mod),
-                      ),
-                    ],
-                  ),
-                );
-              }),
+            else ...[
+              const SizedBox(height: 8),
+              const Text('Drag a spare module onto a drone to attach it.',
+                  style: TextStyle(fontSize: 11, color: Colors.white54)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: m.modules
+                    .map((mod) => _moduleChip(context, m, mod))
+                    .toList(),
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+
+  /// A module as a draggable chip. Only SPARE modules are draggable: one
+  /// already fitted to a drone has to be detached first, which is what
+  /// happens physically and stops a module from silently moving between
+  /// airframes in the inventory (field backlog #2).
+  Widget _moduleChip(
+      BuildContext context, MissionState m, ModuleResource mod) {
+    final cached = m.productCache.containsKey(mod.unitId);
+    final spare = mod.attachedTo.isEmpty;
+
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: spare
+            ? Colors.amber.withValues(alpha: 0.12)
+            : Colors.white.withValues(alpha: 0.04),
+        border: Border.all(
+            color: spare
+                ? Colors.amberAccent.withValues(alpha: 0.6)
+                : Colors.white24),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.memory,
+              size: 18, color: spare ? Colors.amberAccent : Colors.white54),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(mod.label,
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              Text(
+                [
+                  mod.unitId,
+                  spare ? 'spare' : 'on ${mod.attachedTo}',
+                  if (cached) 'specs cached',
+                ].join('  |  '),
+                style: const TextStyle(fontSize: 11, color: Colors.white54),
+              ),
+            ],
+          ),
+          const SizedBox(width: 6),
+          if (!spare)
+            IconButton(
+              tooltip: 'detach from ${mod.attachedTo}',
+              icon: const Icon(Icons.link_off, size: 16),
+              onPressed: () => m.detachModuleByUnitId(mod.unitId),
+            ),
+          IconButton(
+            tooltip: 'fetch specs (online)',
+            icon: Icon(cached ? Icons.cloud_done : Icons.cloud_download,
+                size: 16),
+            onPressed: () => fetchUnitSpecs(context, m, mod.unitId),
+          ),
+          IconButton(
+            tooltip: 'remove from the inventory',
+            icon: const Icon(Icons.delete_outline, size: 16),
+            onPressed: () => m.removeModule(mod),
+          ),
+        ],
+      ),
+    );
+
+    if (!spare) return chip;
+    return Draggable<ModuleResource>(
+      data: mod,
+      feedback: Material(
+        color: Colors.transparent,
+        child: Opacity(opacity: 0.9, child: chip),
+      ),
+      childWhenDragging: Opacity(opacity: 0.3, child: chip),
+      child: chip,
     );
   }
 
@@ -334,52 +506,144 @@ class _DronesCard extends StatelessWidget {
             if (m.drones.isEmpty)
               const Text('No drones yet.')
             else
-              ...m.drones.map((d) {
-                final specs = m.specsFor(d);
-                // The unit ID to fetch: the drone's own (brand) or its
-                // attached module's (volunteer carrying our module).
-                final fetchId =
-                    d.unitId.isNotEmpty ? d.unitId : d.attachedModuleId;
-                return ListTile(
-                  dense: true,
-                  leading: Icon(d.source == 'brand'
-                      ? Icons.verified
-                      : Icons.volunteer_activism),
-                  title: Text(d.label),
-                  subtitle: Text([
-                    if (d.unitId.isNotEmpty) 'unit ${d.unitId}',
-                    if (d.makeModel.isNotEmpty) d.makeModel,
-                    if (d.owner.isNotEmpty) 'pilot ${d.owner}',
-                    if (d.attachedModuleId.isNotEmpty)
-                      'module ${d.attachedModuleId}',
-                    specs == null
-                        ? 'specs unknown'
-                        : 'AP ${specs.apRangeM?.toStringAsFixed(0) ?? "?"} m',
-                  ].join('  |  ')),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (fetchId.isNotEmpty)
-                        IconButton(
-                          tooltip: 'fetch specs (online)',
-                          icon: Icon(
-                              specs != null
-                                  ? Icons.cloud_done
-                                  : Icons.cloud_download,
-                              size: 18),
-                          onPressed: () => fetchUnitSpecs(context, m, fetchId),
-                        ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 18),
-                        onPressed: () => m.removeDrone(d),
-                      ),
-                    ],
-                  ),
-                );
-              }),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children:
+                    m.drones.map((d) => _droneCard(context, m, d)).toList(),
+              ),
           ],
         ),
       ),
+    );
+  }
+
+  /// One drone as a card, and a drop target for a module (field backlog
+  /// #3). Dragging a module onto a drone is the same operation as picking
+  /// it from a dropdown, but it says what it means: the module goes ON the
+  /// drone. The dropdown is still there in the add dialog, because
+  /// drag-and-drop is unusable with a trackpad in a hurry and nobody
+  /// should be forced into it.
+  Widget _droneCard(BuildContext context, MissionState m, DroneResource d) {
+    final specs = m.specsFor(d);
+    // The unit ID to fetch: the drone's own (brand) or its attached
+    // module's (volunteer carrying our module).
+    final fetchId = d.unitId.isNotEmpty ? d.unitId : d.attachedModuleId;
+    final colour =
+        d.source == 'brand' ? Colors.cyanAccent : Colors.tealAccent;
+
+    return DragTarget<ModuleResource>(
+      onWillAcceptWithDetails: (details) =>
+          details.data.attachedTo != d.label,
+      onAcceptWithDetails: (details) {
+        final err = m.attachModule(d, details.data.unitId);
+        if (err != null) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(err)));
+        }
+      },
+      builder: (context, candidate, rejected) {
+        final hovering = candidate.isNotEmpty;
+        return Container(
+          width: 340,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: hovering
+                ? colour.withValues(alpha: 0.16)
+                : Colors.white.withValues(alpha: 0.04),
+            border: Border.all(
+                color: hovering ? colour : colour.withValues(alpha: 0.35),
+                width: hovering ? 2 : 1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DroneGlyph(color: colour, size: 52, dimmed: specs == null),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(d.label,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 15),
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                        Icon(
+                            d.source == 'brand'
+                                ? Icons.verified
+                                : Icons.volunteer_activism,
+                            size: 16,
+                            color: colour),
+                      ],
+                    ),
+                    if (d.makeModel.isNotEmpty || d.owner.isNotEmpty)
+                      Text(
+                        [
+                          if (d.makeModel.isNotEmpty) d.makeModel,
+                          if (d.owner.isNotEmpty) 'pilot ${d.owner}',
+                        ].join('  |  '),
+                        style: const TextStyle(
+                            fontSize: 11, color: Colors.white54),
+                      ),
+                    const SizedBox(height: 6),
+                    Text(
+                      d.attachedModuleId.isEmpty
+                          ? (hovering
+                              ? 'drop to attach this module'
+                              : 'no module: drag one here')
+                          : 'module ${d.attachedModuleId}',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: d.attachedModuleId.isEmpty
+                              ? Colors.orangeAccent
+                              : null),
+                    ),
+                    Text(
+                      specs == null
+                          ? 'specs unknown, defaults will be used'
+                          : 'AP ${specs.apRangeM?.toStringAsFixed(0) ?? "?"} m',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (fetchId.isNotEmpty)
+                          IconButton(
+                            tooltip: 'fetch specs (online)',
+                            icon: Icon(
+                                specs != null
+                                    ? Icons.cloud_done
+                                    : Icons.cloud_download,
+                                size: 18),
+                            onPressed: () =>
+                                fetchUnitSpecs(context, m, fetchId),
+                          ),
+                        if (d.attachedModuleId.isNotEmpty)
+                          IconButton(
+                            tooltip: 'detach the module',
+                            icon: const Icon(Icons.link_off, size: 18),
+                            onPressed: () => m.detachModule(d),
+                          ),
+                        IconButton(
+                          tooltip: 'remove this drone',
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          onPressed: () => m.removeDrone(d),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -712,16 +976,14 @@ class _DeploymentsCard extends StatelessWidget {
       return;
     }
 
+    // Field backlog #3b: show what it is doing, step by step, instead of
+    // one spinner. See ai_progress_dialog.dart for which of these steps
+    // are real work and which is presentation.
+    final progress = AiProgress();
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const AlertDialog(
-        content: Row(children: [
-          CircularProgressIndicator(),
-          SizedBox(width: 16),
-          Expanded(child: Text('Asking the AI for a deployment...')),
-        ]),
-      ),
+      builder: (_) => AiProgressDialog(progress: progress),
     );
 
     final advisor = AiAdvisor(
@@ -730,20 +992,31 @@ class _DeploymentsCard extends StatelessWidget {
       apiKey: app.aiApiKey,
     );
     try {
+      progress.to(AiStep.asking);
       final suggestion = await advisor.suggest(m);
+      progress.to(AiStep.checking);
       var n = 1;
       while (m.deployments.any((d) => d.name == 'AI plan $n')) {
         n++;
       }
-      m.addDeployment(
-        Deployment(
-          name: 'AI plan $n',
-          source: 'ai',
-          placements: suggestion.placements,
-        ),
-      );
+      // Created EMPTY, then filled one placement at a time, so the
+      // operator watches where each one lands rather than a finished plan
+      // appearing whole. Left unapproved: it blinks on the planning map
+      // and is invisible everywhere else until somebody signs it off.
+      final plan = Deployment(name: 'AI plan $n', source: 'ai');
+      m.addDeployment(plan);
+      m.setPlanningMode(true);
+      if (context.mounted) context.read<ShellNav>().go(ShellNav.mapTab);
+      for (var i = 0; i < suggestion.placements.length; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 320));
+        plan.placements.add(suggestion.placements[i]);
+        m.touch();
+        progress.reveal(i + 1, suggestion.placements.length);
+      }
+      progress.to(AiStep.done);
+      await Future<void>.delayed(const Duration(milliseconds: 250));
       if (!context.mounted) return;
-      Navigator.of(context).pop(); // dismiss the loading dialog
+      Navigator.of(context).pop(); // dismiss the progress dialog
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -775,8 +1048,9 @@ class _DeploymentsCard extends StatelessWidget {
                 ],
                 const SizedBox(height: 12),
                 Text(
-                  'This is a DRAFT: it is now the active deployment on the Map '
-                  'so you can edit placements, then tick approve.',
+                  'This is a DRAFT. It blinks on the planning map so you can '
+                  'edit the placements, and it does NOT appear on the '
+                  'operations map until you approve it.',
                   style: Theme.of(ctx).textTheme.bodySmall,
                 ),
               ],

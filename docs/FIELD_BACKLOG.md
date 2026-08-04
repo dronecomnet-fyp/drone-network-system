@@ -31,9 +31,9 @@ Status key: TODO, DOING, DONE, DISCUSS (needs a decision before code).
 
 | # | Finding | Status |
 |---|---------|--------|
-| 3 | Mission planning is not logical or friendly: area should be chosen FIRST and then become the map focus; the shaded area should not be permanently drawn; resources should be cards/chips with images and drag-and-drop rather than lists | TODO |
-| 3b | AI suggest should show its progress step by step (thinking, analysing components, applying to map) and place markers progressively, blinking until approved | TODO |
-| 3c | Unapproved AI placements must appear ONLY in the planning tab, never on the main Map tab until approved | TODO |
+| 3 | Mission planning is not logical or friendly: area should be chosen FIRST and then become the map focus; the shaded area should not be permanently drawn; resources should be cards/chips with images and drag-and-drop rather than lists | DONE |
+| 3b | AI suggest should show its progress step by step (thinking, analysing components, applying to map) and place markers progressively, blinking until approved | DONE |
+| 3c | Unapproved AI placements must appear ONLY in the planning tab, never on the main Map tab until approved | DONE |
 | 11 | Victim app SOS should use selectable options and share location by default, matching the rebuilt captive portal | DONE |
 | 13 | Degraded drones need their own tab logging every LoRa message, with blinking map markers, filters for what shows on the map, and automatic clearing when the Pi comes back | DONE |
 | 14 | GCC message composer should let the operator attach objects with an @-style picker: degraded drones, other drones, victims | DONE |
@@ -81,6 +81,18 @@ Mission planning gains a "place GCC" action that opens the map for a single
 tap. The operator then draws one or more arrows for the direction they
 expect to advance, and circles for areas they suspect need attention. All
 of it is fed to the AI advisor, which cannot infer any of it.
+
+### 3b, what the progress display honestly shows
+
+The steps are: reading the mission, asking the model, checking the plan,
+placing on the map. The first three are real work, and "asking" is the
+long network wait.
+
+"Placing on the map" is a REVEAL, not live streaming. The model returns
+every placement at once. Showing them appear one at a time lets the
+operator watch where each lands instead of a plan materialising whole,
+and the step is worded as placing rather than as receiving. Nothing in
+the UI claims the model is thinking step by step, because it is not.
 
 ### 6, what was actually wrong
 
