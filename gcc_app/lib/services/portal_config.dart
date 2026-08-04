@@ -71,6 +71,16 @@ List<Map<String, Object>> suggestedFor(String disasterType) =>
     kSuggestedSituations[disasterType.trim().toLowerCase()] ??
     kGenericSituations;
 
+/// What a mission will actually publish: the operator's one edit if they
+/// made it, otherwise the defaults for the disaster type. Keeping this in
+/// one function means the confirm dialog, the fingerprint comparison and
+/// the push can never disagree about what is going to be sent.
+List<Map<String, Object>> effectiveSituations({
+  required List<Map<String, Object>> edited,
+  required String disasterType,
+}) =>
+    edited.isNotEmpty ? edited : suggestedFor(disasterType);
+
 /// Build the payload for POST /mission-config.
 ///
 /// No version number: the node fingerprints the content and orders pushes

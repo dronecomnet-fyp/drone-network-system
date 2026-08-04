@@ -215,6 +215,31 @@ class ProductInfo {
 class MissionState extends ChangeNotifier {
   String missionName = 'unnamed mission';
   String disasterType = 'flood';
+
+  /// The victim-portal options for this mission, empty until the operator
+  /// edits them. Empty means "use the defaults for this disaster type",
+  /// which is what most missions will do.
+  List<Map<String, Object>> portalOptions = [];
+
+  /// Editing is allowed ONCE per mission (field backlog #7). The operator
+  /// chose this over free editing: multiple revisions in play make "which
+  /// options is this node actually serving" hard to reason about, and that
+  /// ambiguity is worse than the flexibility.
+  ///
+  /// This locks EDITING, not pushing. Pushing still happens once per node,
+  /// because the operator joins each drone in turn.
+  bool portalOptionsLocked = false;
+
+  bool get canEditPortalOptions => !portalOptionsLocked;
+
+  /// Commit the one permitted edit. Ignored once locked, so a stray call
+  /// cannot quietly replace what victims are being shown.
+  void setPortalOptions(List<Map<String, Object>> options) {
+    if (portalOptionsLocked || options.isEmpty) return;
+    portalOptions = List.of(options);
+    portalOptionsLocked = true;
+    notifyListeners();
+  }
   String createdAt = DateTime.now().toUtc().toIso8601String();
   final List<String> challenges = [];
   final List<GeoPoint> area = [];
@@ -474,6 +499,8 @@ class MissionState extends ChangeNotifier {
         'schema': 'mission-v1',
         'mission_name': missionName,
         'disaster_type': disasterType,
+        'portal_options': portalOptions,
+        'portal_options_locked': portalOptionsLocked,
         'created_at': createdAt,
         'saved_at': DateTime.now().toUtc().toIso8601String(),
         'challenges': challenges,
@@ -497,6 +524,10 @@ class MissionState extends ChangeNotifier {
     if (data['schema'] == 'mission-v1') {
       missionName = (data['mission_name'] ?? 'unnamed mission') as String;
       disasterType = (data['disaster_type'] ?? 'flood') as String;
+      portalOptions = ((data['portal_options'] as List<dynamic>?) ?? [])
+          .map((o) => Map<String, Object>.from(o as Map))
+          .toList();
+      portalOptionsLocked = (data['portal_options_locked'] as bool?) ?? false;
       createdAt = (data['created_at'] ?? createdAt) as String;
       challenges.addAll((data['challenges'] as List<dynamic>? ?? [])
           .map((c) => c as String));
@@ -540,6 +571,8 @@ class MissionState extends ChangeNotifier {
   void _reset() {
     missionName = 'unnamed mission';
     disasterType = 'flood';
+    portalOptions = [];
+    portalOptionsLocked = false;
     challenges.clear();
     area.clear();
     personnelCount = 0;

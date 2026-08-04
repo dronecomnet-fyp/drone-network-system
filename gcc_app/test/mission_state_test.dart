@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gcc_app/state/mission_state.dart';
 
 void main() {
+  _portalOptionTests();
   test('mission JSON round trip preserves identity, area, resources, plans',
       () {
     final m = MissionState();
@@ -111,5 +112,63 @@ void main() {
     expect(d.placements.first.lat, 3);
     m.removePlacement(d.placements.first);
     expect(d.placements, isEmpty);
+  });
+}
+
+/// Victim-portal options: defaults, and the single permitted edit.
+///
+/// The one-edit rule is the operator's decision (field backlog #7), taken
+/// over free editing because several revisions in play make "which options
+/// is this node serving" hard to reason about. It locks EDITING only:
+/// pushing still happens once per drone.
+void _portalOptionTests() {
+  group('portal options', () {
+    test('a fresh mission uses defaults and is editable', () {
+      final m = MissionState();
+      expect(m.portalOptions, isEmpty);
+      expect(m.canEditPortalOptions, isTrue);
+    });
+
+    test('editing once takes effect and then locks', () {
+      final m = MissionState();
+      m.setPortalOptions([
+        {'id': 'trapped', 'label': 'Water is rising here', 'urgent': true},
+      ]);
+      expect(m.portalOptions.single['label'], 'Water is rising here');
+      expect(m.canEditPortalOptions, isFalse);
+    });
+
+    test('a second edit is ignored, not silently applied', () {
+      final m = MissionState();
+      m.setPortalOptions([
+        {'id': 'a', 'label': 'First wording', 'urgent': true},
+      ]);
+      m.setPortalOptions([
+        {'id': 'a', 'label': 'Second wording', 'urgent': true},
+      ]);
+      expect(m.portalOptions.single['label'], 'First wording',
+          reason: 'the lock must actually hold, not just hide the button');
+    });
+
+    test('an empty edit cannot wipe what victims see', () {
+      final m = MissionState();
+      m.setPortalOptions([]);
+      expect(m.portalOptions, isEmpty);
+      expect(m.canEditPortalOptions, isTrue,
+          reason: 'a no-op must not consume the single edit');
+    });
+
+    test('the edit and its lock survive a save and load', () {
+      final m = MissionState();
+      m.setPortalOptions([
+        {'id': 'roof', 'label': 'We are on the roof', 'urgent': true},
+      ]);
+      final json = m.toJsonString();
+
+      final loaded = MissionState()..loadFromJsonString(json);
+      expect(loaded.portalOptions.single['label'], 'We are on the roof');
+      expect(loaded.canEditPortalOptions, isFalse,
+          reason: 'reloading the mission must not hand back a second edit');
+    });
   });
 }

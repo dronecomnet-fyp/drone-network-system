@@ -42,20 +42,45 @@ Status key: TODO, DOING, DONE, DISCUSS (needs a decision before code).
 
 | # | Finding | Status |
 |---|---------|--------|
-| 1 | Physical power switch, startup beep, status LEDs, and a periodic beep while in LoRa fallback. Needs a component list and wiring plan | DISCUSS |
-| 4 | The operator must place the GCC position themselves, mark the direction of advance, and mark highly suspected areas. The AI cannot infer these | DISCUSS |
-| 7 | Captive portal options: ship defaults, allow editing ONCE during mission planning, then publish. Current build allows repeated pushes | DISCUSS |
+| 1 | Power switch, startup beep and lights. DECIDED 2026-08-04: on the **Pi**, not the ESP32, and scope reduced to a switch plus a boot beep and lights. No fallback beeping | DECIDED |
+| 4 | Operator places the GCC on the map, then draws one or more ARROWS for the direction they expect to advance and CIRCLES for suspected areas, all feeding the AI | DECIDED |
+| 7 | Portal options: ship defaults, operator may edit them ONCE per mission, then publish | DECIDED |
 
 ## Notes on specific items
 
-### 7, on "only once"
+### 7, decided: edit once per mission
 
-The current design lets the operator push portal options to a node as many
-times as they like, and compares content fingerprints so re-pushing the
-same thing is harmless. The request is to allow editing once per mission.
-Worth confirming what the constraint is protecting against before building
-it, because a mission that changes character (a flood that becomes a
-landslide) is a real case where a second edit is the correct thing to do.
+Defaults ship on every node. If the operator never edits them, that is what
+victims see. They may edit the option list ONCE per mission, and then push.
+
+The operator's reasoning, which settles an earlier disagreement: keeping
+multiple revisions in play makes "which options is this node actually
+serving" hard to reason about, and that ambiguity is worse than the
+flexibility. Recorded because it overrides my suggestion that a mission
+changing character (a flood becoming a landslide) justifies a second edit.
+
+Note this is a lock on EDITING, not on pushing. Pushing still happens once
+per node, because the operator has to join each drone in turn.
+
+### 1, decided: on the Pi, minimal scope
+
+Buzzer and lights move to the Raspberry Pi rather than the aux module. That
+also sidesteps the blocker: every XIAO signal pin is already allocated
+(CHANGES.md item 10), so there was no free GPIO for a buzzer there.
+
+Scope is a physical power switch for the whole node, plus a beep and lights
+when it comes up. The periodic beep during LoRa fallback is dropped.
+
+Consequence worth stating: because this lives on the Pi, it CANNOT indicate
+anything when the Pi is dead, which is exactly the fallback case. The aux
+module keeps that job over LoRa, silently.
+
+### 4, decided: place, then draw intent
+
+Mission planning gains a "place GCC" action that opens the map for a single
+tap. The operator then draws one or more arrows for the direction they
+expect to advance, and circles for areas they suspect need attention. All
+of it is fed to the AI advisor, which cannot infer any of it.
 
 ### 13, on recovery
 

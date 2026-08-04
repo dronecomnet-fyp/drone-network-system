@@ -324,7 +324,7 @@ class _PortalConfigCardState extends State<_PortalConfigCard> {
       return;
     }
 
-    final situations = suggestedFor(mission.disasterType);
+    final situations = effectiveSituations(edited: mission.portalOptions, disasterType: mission.disasterType);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -405,7 +405,7 @@ class _PortalConfigCardState extends State<_PortalConfigCard> {
     // is "does this node serve what I have loaded?", and comparing
     // fingerprints answers it exactly, with no counter to keep correct.
     final mission = context.watch<MissionState>();
-    final wanted = portalConfigId(situations: suggestedFor(mission.disasterType));
+    final wanted = portalConfigId(situations: effectiveSituations(edited: mission.portalOptions, disasterType: mission.disasterType));
     final matches = cfg.matches(wanted);
     final chipLabel = cfg.isStock
         ? 'stock options'

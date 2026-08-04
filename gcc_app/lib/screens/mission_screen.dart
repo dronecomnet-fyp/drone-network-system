@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 import '../services/ai_advisor.dart';
 import '../main.dart' show ShellNav;
 import '../services/connectivity.dart';
+import '../services/portal_config.dart';
 import '../services/product_api.dart';
 import '../state/app_state.dart';
 import '../state/mission_state.dart';
@@ -68,6 +69,7 @@ class MissionScreen extends StatelessWidget {
         const SizedBox(height: 8),
         _DronesCard(),
         const SizedBox(height: 8),
+        _PortalOptionsCard(),
         _DeploymentsCard(),
       ],
     );
@@ -782,5 +784,184 @@ class _DeploymentsCard extends StatelessWidget {
     } finally {
       advisor.close();
     }
+  }
+}
+
+/// The victim-portal options for this mission, editable ONCE.
+///
+/// Defaults ship on every node, so a mission that never touches this still
+/// works. The single-edit rule is the operator's call (field backlog #7):
+/// keeping several revisions in play makes "which options is this node
+/// actually serving" hard to reason about, and that ambiguity is worse than
+/// the flexibility. It locks EDITING, not pushing, since pushing happens
+/// once per drone.
+class _PortalOptionsCard extends StatelessWidget {
+  Future<void> _edit(BuildContext context, MissionState m) async {
+    final starting = effectiveSituations(
+        edited: m.portalOptions, disasterType: m.disasterType);
+    final controllers = [
+      for (final s in starting)
+        (
+          text: TextEditingController(text: '${s['label']}'),
+          id: '${s['id']}',
+          urgent: s['urgent'] == true,
+        )
+    ];
+    final urgent = {for (final c in controllers) c.id: c.urgent};
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => AlertDialog(
+          title: const Text('Edit what victims see'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'These become the buttons on the victim portal. Write '
+                    'them as something a frightened person would recognise '
+                    'about themselves, not as a category.',
+                    style: Theme.of(ctx).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 12),
+                  ...controllers.map((c) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(children: [
+                          Expanded(
+                            child: TextField(
+                              controller: c.text,
+                              maxLength: 120,
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                counterText: '',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Tooltip(
+                            message: 'Urgent options are shown first',
+                            child: FilterChip(
+                              label: const Text('urgent'),
+                              selected: urgent[c.id] ?? false,
+                              onSelected: (v) =>
+                                  setSheet(() => urgent[c.id] = v),
+                            ),
+                          ),
+                        ]),
+                      )),
+                  const SizedBox(height: 4),
+                  Text(
+                    'You can only edit this once for this mission. After '
+                    'saving, push it to each drone from the Nodes tab.',
+                    style: Theme.of(ctx).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Save (once only)')),
+          ],
+        ),
+      ),
+    );
+
+    if (saved != true) return;
+    final edited = <Map<String, Object>>[
+      for (final c in controllers)
+        if (c.text.text.trim().isNotEmpty)
+          {
+            'id': c.id,
+            'label': c.text.text.trim(),
+            'urgent': urgent[c.id] ?? false,
+          }
+    ];
+    if (edited.isEmpty) return;
+    m.setPortalOptions(edited);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final m = context.watch<MissionState>();
+    final options = effectiveSituations(
+        edited: m.portalOptions, disasterType: m.disasterType);
+    final edited = m.portalOptions.isNotEmpty;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Text('Victim portal options',
+                  style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(width: 10),
+              Chip(
+                label: Text(edited ? 'edited for this mission' : 'defaults'),
+                visualDensity: VisualDensity.compact,
+                backgroundColor:
+                    edited ? Colors.green.shade900 : Colors.blueGrey.shade800,
+              ),
+            ]),
+            const SizedBox(height: 6),
+            Text(
+              edited
+                  ? 'Your wording, ready to push from the Nodes tab.'
+                  : 'Standard options for a ${m.disasterType} mission. If you '
+                      'never edit these, this is what victims see, which is '
+                      'a perfectly good outcome.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final o in options)
+                  Chip(
+                    avatar: o['urgent'] == true
+                        ? const Icon(Icons.priority_high,
+                            size: 14, color: Colors.redAccent)
+                        : null,
+                    label: Text('${o['label']}',
+                        style: const TextStyle(fontSize: 12)),
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (m.canEditPortalOptions)
+              FilledButton.tonalIcon(
+                icon: const Icon(Icons.edit, size: 16),
+                label: const Text('Edit once for this mission'),
+                onPressed: () => _edit(context, m),
+              )
+            else
+              Row(children: [
+                const Icon(Icons.lock_outline, size: 15, color: Colors.white54),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Already edited for this mission. Start a new mission to '
+                    'change them again.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ]),
+          ],
+        ),
+      ),
+    );
   }
 }
