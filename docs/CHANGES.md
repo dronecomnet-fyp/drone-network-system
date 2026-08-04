@@ -777,3 +777,34 @@ Phase 1 security docs) is flagged here, never silently drifted.
     on its own stays listed under "Recovered" for an hour, because "it
     fixed itself" is something the operator acts on by not walking out
     there.
+
+44. **The GCC composer can attach objects with an @ picker (field backlog
+    #14).** Typing `@` in an announcement body opens a picker of degraded
+    drones, drones, victims and rescuers; choosing one writes its id AND
+    its coordinates into the text.
+
+    The problem was never typing speed. "The drone in the north is down, go
+    to the victim near the school" is ambiguous to everyone who reads it,
+    and the operator had no way to name things as the system names them
+    without reading ids off another tab and copying them by hand.
+
+    Kept as PLAIN TEXT deliberately. Announcements already replicate as
+    text and render as text in the rescue app, so a structured attachment
+    format would have meant changing the wire contract, migrating every
+    node, and leaving older app installs showing an empty message. A line
+    like `@DRONE_B (6.92710, 79.86120)` needs none of that and stays
+    readable in a log file.
+
+    Ordering in the picker is the operator's priority order rather than
+    alphabetical: degraded drones first, then UNCLAIMED victims, then
+    everything else, because the first screenful is all most people read
+    mid sentence. A victim with no reported position still attaches, with
+    no coordinates rather than invented ones.
+
+    Two implementation notes that came out of testing rather than design.
+    The text surgery is a separate pure function because an off-by-one
+    there silently eats a character from a sentence somebody is composing
+    under pressure, and the first version left a double space when
+    attaching mid sentence. The picker triggers only on a single typed
+    character, never on a paste containing an @, so it cannot jump out
+    unpredictably.

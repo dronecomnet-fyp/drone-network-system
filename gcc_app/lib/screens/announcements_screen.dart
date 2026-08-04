@@ -8,6 +8,8 @@ import 'package:rescue_mesh_shared/rescue_mesh_shared.dart';
 
 import '../state/app_state.dart';
 import '../state/data_store.dart';
+import '../state/mentionables.dart';
+import '../widgets/mention_field.dart';
 
 class AnnouncementsScreen extends StatelessWidget {
   const AnnouncementsScreen({super.key});
@@ -73,6 +75,11 @@ class AnnouncementsScreen extends StatelessWidget {
   Future<void> _showComposeDialog(BuildContext context) async {
     final app = context.read<AppState>();
     final data = context.read<DataStore>();
+    final mentionables = buildMentionables(
+      health: data.health,
+      messages: data.messages.items,
+      rescuers: data.personnelLocations.items,
+    );
     final titleCtrl = TextEditingController();
     final bodyCtrl = TextEditingController();
     String priority = 'NORMAL';
@@ -92,10 +99,13 @@ class AnnouncementsScreen extends StatelessWidget {
                   controller: titleCtrl,
                   decoration: const InputDecoration(labelText: 'Title'),
                 ),
-                TextField(
+                // Field backlog #14: attaching an object writes its id
+                // AND its coordinates, so a rescuer reading this on a
+                // phone has something to act on instead of "the drone in
+                // the north".
+                MentionField(
                   controller: bodyCtrl,
-                  maxLines: 4,
-                  decoration: const InputDecoration(labelText: 'Body'),
+                  options: mentionables,
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
