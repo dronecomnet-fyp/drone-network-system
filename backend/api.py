@@ -19,7 +19,9 @@ the rescue app and GCC embed the CA and fail closed against evil twins.
 Static role keys remain as labeled break-glass credentials only.
 """
 
+import base64
 import html
+import json
 import ssl
 from datetime import datetime, timezone
 from enum import Enum
@@ -52,6 +54,10 @@ _login_id_limiter = ratelimit.SlidingWindowLimiter(
 # Location heartbeat: a rescuer app posts ~1/90 s; allow a small burst per
 # rescuer so a retry after a failure is fine, but a runaway app cannot flood.
 _location_limiter = ratelimit.SlidingWindowLimiter(6, 60, "location per id")
+# Enrolment is unauthenticated by design (the signature is the authority),
+# so it gets a tight per-IP limit: a valid code needs a handful of tries at
+# most, and this stops the endpoint being used to hammer signature checks.
+_enrol_limiter = ratelimit.SlidingWindowLimiter(10, 300, "enrol per device")
 
 
 class Role(str, Enum):
@@ -279,6 +285,19 @@ class ReplyInput(BaseModel):
         if not 1 <= len(v) <= 500:
             raise ValueError("reply must be 1-500 chars")
         return html.escape(v)
+
+
+class EnrolInput(BaseModel):
+    """A signed personnel record the rescuer carried here themselves."""
+    enrolment: str
+
+    @field_validator("enrolment")
+    @classmethod
+    def blob_ok(cls, v):
+        v = (v or "").strip()
+        if not 1 <= len(v) <= 4096:
+            raise ValueError("enrolment code out of range")
+        return v
 
 
 class GSMessageInput(BaseModel):
@@ -573,15 +592,83 @@ def create_personnel(
             f"id={record['personnel_id']} | role={record['role']}"
         )
         # The plaintext PIN exists ONLY in this response (GCC shows it once).
+        #
+        # `enrolment` is the signed record itself, so the GCC can hand it to
+        # the rescuer as a QR code. Presenting it to ANY node enrols them
+        # there without waiting for DTN sync, which is what lets someone
+        # sign up mid-mission on a different drone (field backlog #17).
+        # It carries the pin HASH, never the PIN, so holding it does not let
+        # anyone log in as that person.
         return {
             "personnel_id": record["personnel_id"],
             "name": record["name"],
             "role": record["role"],
             "expires_at": record["expires_at"],
             "pin": pin,
+            "enrolment": _enrolment_blob(record),
         }
     except Exception:
         raise HTTPException(status_code=500, detail="Internal error creating personnel")
+
+
+def _enrolment_blob(record: dict) -> str:
+    """The signed personnel record, base64 JSON, for a QR code."""
+    fields = ["personnel_id", "name", "role", "pin_salt", "pin_hash",
+              "pin_algo", "pin_iterations", "issued_at", "expires_at",
+              "status", "updated_at", "signature"]
+    payload = {k: record.get(k) for k in fields}
+    return base64.urlsafe_b64encode(
+        json.dumps(payload, separators=(",", ":")).encode()).decode()
+
+
+@app.post("/enrol")
+def enrol(body: EnrolInput, request: Request):
+    """Admit a personnel record carried here by the rescuer themselves.
+
+    Why this exists: credentials are issued by the GCC onto whichever node
+    it is joined to, and reach other nodes by DTN sync. If the mesh is
+    partitioned, or a rescuer walks to a drone that has not met the issuing
+    one yet, they simply cannot log in. In a delay-tolerant system the
+    person IS a viable carrier, so the credential travels with them.
+
+    Why it is safe without a session, which is the obvious objection:
+
+      - The record is HMAC-signed with K_MSG, so it cannot be forged
+        without the fleet secret. Verification here is the SAME check sync
+        performs on a record arriving over the radio; only the transport
+        differs, and the trust does not come from the transport.
+      - It carries the pin HASH, never the PIN. Holding the blob does not
+        let anyone authenticate as that person.
+      - It goes through ingest_personnel, so the ordinary conflict rules
+        apply: REVOKED beats ACTIVE and newest updated_at wins. Replaying
+        an old blob for someone since revoked is therefore rejected by the
+        same logic that protects sync.
+
+    Rate limited per IP like the rest of the public surface.
+    """
+    _enrol_limiter.check(request.client.host if request.client else "unknown")
+    try:
+        raw = base64.urlsafe_b64decode(body.enrolment.encode())
+        record = json.loads(raw.decode())
+        if not isinstance(record, dict) or not record.get("personnel_id"):
+            raise ValueError("not a personnel record")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Unreadable enrolment code")
+
+    import sync_engine
+    outcome = sync_engine.ingest_personnel(record, "enrolment")
+    if outcome == "rejected":
+        audit_logger.warning(
+            f"ENROL_REJECT | id={record.get('personnel_id')} | reason=bad_signature")
+        raise HTTPException(
+            status_code=400,
+            detail="That code is not valid for this fleet")
+
+    audit_logger.info(
+        f"ENROL | id={record.get('personnel_id')} | outcome={outcome}")
+    # "kept" means this node already had it, or had something newer such as
+    # a revocation. Report honestly rather than implying a fresh enrolment.
+    return {"personnel_id": record["personnel_id"], "outcome": outcome}
 
 
 @app.get("/personnel")
