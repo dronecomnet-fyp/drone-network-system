@@ -24,13 +24,16 @@ import 'package:flutter_map_mbtiles/flutter_map_mbtiles.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:mbtiles/mbtiles.dart';
 import 'package:provider/provider.dart';
+import 'package:rescue_mesh_shared/rescue_mesh_shared.dart';
 
 import '../state/app_state.dart';
 import '../state/data_store.dart';
 import '../state/drone_controller.dart';
 import '../state/fleet_state.dart';
 import '../state/mission_state.dart';
+import '../widgets/blinking.dart';
 import '../widgets/degraded_alert.dart';
+import '../widgets/map_filters.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -61,6 +64,12 @@ class _MapScreenState extends State<MapScreen> {
 
   // Sri Lanka centroid as the no-data fallback view.
   static const _fallbackCenter = LatLng(7.8731, 80.7718);
+
+  /// Which layers are drawn (field backlog #13). Everything on by default:
+  /// an operator who has not touched the filters must see the whole
+  /// picture, and hiding something they never asked to hide is how a
+  /// victim gets missed.
+  final MapFilters _filters = MapFilters();
 
   Color _roleColor(String role) {
     switch (role) {
@@ -215,7 +224,9 @@ class _MapScreenState extends State<MapScreen> {
               ),
             CircleLayer(
               circles: [
-                for (final p in active?.placements ?? const <DronePlacement>[])
+                for (final p in _filters.placements
+                    ? (active?.placements ?? const <DronePlacement>[])
+                    : const <DronePlacement>[])
                   CircleMarker(
                     point: LatLng(p.lat, p.lon),
                     radius: p.radiusM,
@@ -262,6 +273,27 @@ class _MapScreenState extends State<MapScreen> {
           child: _LegendCard(),
         ),
         Positioned(
+          bottom: 12,
+          right: 12,
+          child: MapFilterButton(
+            filters: _filters,
+            onChanged: () => setState(() {}),
+            counts: {
+              'victims':
+                  data.messages.items.where((m) => m.hasUserLocation).length,
+              'checkins': data.checkins.items.length,
+              'reports':
+                  data.gsMessages.items.where((g) => g.hasLocation).length,
+              'rescuers': data.personnelLocations.items
+                  .where((l) => l.hasLocation)
+                  .length,
+              'placements': active?.placements.length ?? 0,
+              'fleet': fleet.deployed.length,
+              'degraded': data.health?.degradedNodes.length ?? 0,
+            },
+          ),
+        ),
+        Positioned(
           top: _mbtiles == null ? 84 : 12,
           right: 12,
           child: _MissionPanel(
@@ -289,7 +321,7 @@ class _MapScreenState extends State<MapScreen> {
     // dashboard is polling a volunteer node's /health and would otherwise
     // never see DRONE_S's position or battery.
     final dt = drone.telemetry;
-    if (drone.connected && dt.lat != null && dt.lon != null) {
+    if (_filters.nodes && drone.connected && dt.lat != null && dt.lon != null) {
       final fresh = drone.linkFresh;
       final bat = dt.batteryVolts == null
           ? 'battery n/a'
@@ -324,7 +356,9 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     // Victim messages with a user location.
-    for (final m in data.messages.items.where((m) => m.hasUserLocation)) {
+    for (final m in _filters.victims
+        ? data.messages.items.where((m) => m.hasUserLocation)
+        : const <Message>[]) {
       markers.add(Marker(
         point: LatLng(m.userLat!, m.userLon!),
         width: 34,
@@ -340,7 +374,7 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     // Emergency app checkins.
-    for (final c in data.checkins.items) {
+    for (final c in _filters.checkins ? data.checkins.items : const <Checkin>[]) {
       if (c.lat == null || c.lon == null) continue;
       markers.add(Marker(
         point: LatLng(c.lat!, c.lon!),
@@ -361,7 +395,9 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     // Rescuer last known locations (M7d): one person marker per rescuer.
-    for (final loc in data.personnelLocations.items.where((l) => l.hasLocation)) {
+    for (final loc in _filters.rescuers
+        ? data.personnelLocations.items.where((l) => l.hasLocation)
+        : const <PersonnelLocation>[]) {
       markers.add(Marker(
         point: LatLng(loc.lat!, loc.lon!),
         width: 130,
@@ -388,7 +424,9 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     // Personnel field reports with a location.
-    for (final g in data.gsMessages.items.where((g) => g.hasLocation)) {
+    for (final g in _filters.reports
+        ? data.gsMessages.items.where((g) => g.hasLocation)
+        : const <GsMessage>[]) {
       markers.add(Marker(
         point: LatLng(g.locationLat!, g.locationLon!),
         width: 26,
@@ -402,7 +440,7 @@ class _MapScreenState extends State<MapScreen> {
 
     // Connected node at its GPS position.
     final gps = data.health?.gps;
-    if (gps != null && gps.hasFix) {
+    if (_filters.nodes && gps != null && gps.hasFix) {
       markers.add(Marker(
         point: LatLng(gps.lat!, gps.lon!),
         width: 36,
@@ -415,19 +453,26 @@ class _MapScreenState extends State<MapScreen> {
       ));
     }
 
-    // Degraded nodes at their last beaconed position (greyed/red).
-    for (final d in data.health?.degradedNodes ?? const []) {
-      if (d.lat == null || d.lon == null) continue;
-      markers.add(Marker(
-        point: LatLng(d.lat!, d.lon!),
-        width: 36,
-        height: 36,
-        child: Tooltip(
-          message: '${d.nodeId} DEGRADED (last beacon ${d.ts})',
-          child: const Icon(Icons.airplanemode_inactive,
-              size: 36, color: Colors.redAccent),
-        ),
-      ));
+    // Degraded nodes at their last beaconed position. Blinking, because a
+    // static red icon on a map this busy does not get noticed (field
+    // backlog #13). It stops on its own when the node stops being
+    // reported as degraded.
+    if (_filters.degraded) {
+      for (final d in data.health?.degradedNodes ?? const []) {
+        if (d.lat == null || d.lon == null) continue;
+        markers.add(Marker(
+          point: LatLng(d.lat!, d.lon!),
+          width: 44,
+          height: 44,
+          child: Tooltip(
+            message: '${d.nodeId} DEGRADED (last beacon ${d.ts})',
+            child: const Blinking(
+              child: Icon(Icons.airplanemode_inactive,
+                  size: 40, color: Colors.redAccent),
+            ),
+          ),
+        ));
+      }
     }
 
     // Area polygon vertices (draw mode), so the operator sees each tap.
@@ -450,7 +495,7 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     // Deployed drones (M7f): moving through their lifecycle. Color by phase.
-    for (final d in fleet.deployed) {
+    for (final d in _filters.fleet ? fleet.deployed : const <DeployedDrone>[]) {
       if (d.phase == FleetPhase.landed) continue;
       final color = _fleetPhaseColor(d.phase);
       markers.add(Marker(
@@ -479,8 +524,9 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     // Active deployment placements (role-colored, selectable).
-    for (final p in mission.activeDeployment?.placements ??
-        const <DronePlacement>[]) {
+    for (final p in _filters.placements
+        ? (mission.activeDeployment?.placements ?? const <DronePlacement>[])
+        : const <DronePlacement>[]) {
       final color = _roleColor(p.role);
       final selected = p == _selected;
       markers.add(Marker(

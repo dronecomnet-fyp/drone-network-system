@@ -9,6 +9,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../main.dart' show ShellNav;
 import '../state/data_store.dart';
 
 class DegradedAlert extends StatelessWidget {
@@ -45,6 +46,18 @@ class DegradedAlert extends StatelessWidget {
                         ' (last ${d.ts})',
                         style: const TextStyle(color: Colors.white, fontSize: 12),
                       )),
+                  // The banner says a drone is down; the tab says what it
+                  // has been telling us since. Without this the operator
+                  // reads the alert and has nowhere to go with it.
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: () =>
+                          context.read<ShellNav>().go(ShellNav.degradedTab),
+                      child: const Text('Open the LoRa log',
+                          style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
                 ],
               ),
             ),

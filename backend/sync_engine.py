@@ -37,6 +37,7 @@ SYNC_PATHS = {
     "checkins": "checkins",
     "personnel_locations": "personnel-locations",
     "message_replies": "message-replies",
+    "lora_events": "lora-events",
 }
 
 
@@ -175,6 +176,18 @@ def ingest_message_reply(record, peer_node_id):
     )
 
 
+def ingest_lora_event(record, peer_node_id):
+    # Append-only: a frame was heard at a moment by a receiver, and that
+    # never changes afterwards. The id is derived from content plus
+    # receiver, so the same row coming back to us collides and is ignored.
+    return _ingest_append_only(
+        "lora_events", record,
+        ["id", "kind", "about_node", "heard_by", "rssi", "snr", "lat", "lon",
+         "gps_fix", "bat_a_v", "bat_b_v", "last_msg", "raw", "received_at",
+         "node_id", "signature"],
+    )
+
+
 def ingest_personnel_location(record, peer_node_id):
     # Latest-per-rescuer: newest signed origin updated_at wins (same shape as
     # ingest_personnel, minus the REVOKED override which does not apply).
@@ -198,6 +211,7 @@ INGEST_FN = {
     "checkins": ingest_checkin,
     "personnel_locations": ingest_personnel_location,
     "message_replies": ingest_message_reply,
+    "lora_events": ingest_lora_event,
 }
 
 

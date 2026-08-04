@@ -140,6 +140,21 @@ class AuxBridge:
                 f"LORA_RX | rssi={msg.get('rssi')} | snr={msg.get('snr')} | "
                 f"len={len(str(msg.get('payload', '')))}"
             )
+            # Logged as well as audited (field backlog #13). A frame we
+            # cannot parse still tells the operator that SOMETHING is
+            # transmitting, which during a failure is information.
+            try:
+                models.save_lora_event(
+                    kind="lora_rx",
+                    about_node="",
+                    raw=str(msg.get("payload", ""))[:400],
+                    rssi=msg.get("rssi"), snr=msg.get("snr"),
+                )
+            except Exception:  # noqa: BLE001
+                # Never let logging break the bridge. Same reasoning as the
+                # peer-health cache: this sits in front of the thing that
+                # matters, it must not be able to stop it.
+                audit_logger.warning("LORA_EVENT_LOG_FAIL")
         elif mtype == "last_msg_ack":
             pass  # cache acknowledged; nothing to persist
 
@@ -196,6 +211,18 @@ class AuxBridge:
             clock_source="gps" if parts[5] else "relative",
             degraded=1,
         )
+        try:
+            models.save_lora_event(
+                kind="fallback",
+                about_node=node_id,
+                raw=raw[:400],
+                rssi=msg.get("rssi"), snr=msg.get("snr"),
+                lat=_f(2), lon=_f(3), gps_fix=int(_f(4) or 0),
+                bat_a_v=_f(6), bat_b_v=_f(8),
+                last_msg=parts[11] if len(parts) > 11 else "",
+            )
+        except Exception:  # noqa: BLE001
+            audit_logger.warning("LORA_EVENT_LOG_FAIL")
         audit_logger.warning(
             f"FALLBACK_BEACON | node={node_id} | rssi={msg.get('rssi')} | "
             f"last_msg={parts[10]}"

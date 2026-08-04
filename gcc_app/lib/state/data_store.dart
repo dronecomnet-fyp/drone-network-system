@@ -30,6 +30,7 @@ class DataStore extends ChangeNotifier {
   final personnel = Dataset<Personnel>();
   final checkins = Dataset<Checkin>();
   final personnelLocations = Dataset<PersonnelLocation>();
+  final loraEvents = Dataset<LoraEvent>();
   NodeHealth? health;
   DateTime? healthUpdated;
 
@@ -78,6 +79,7 @@ class DataStore extends ChangeNotifier {
         await _pull(announcements, c.getAnnouncements);
         await _pull(checkins, c.getCheckins);
         await _pull(personnelLocations, c.getPersonnelLocations);
+        await _pull(loraEvents, () => c.getLoraEvents(limit: 300));
         if (app.isHq) {
           await _pull(personnel, c.getPersonnel);
         }

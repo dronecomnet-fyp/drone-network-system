@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'screens/announcements_screen.dart';
+import 'screens/degraded_screen.dart';
 import 'screens/distribution_screen.dart';
 import 'screens/drone_control_screen.dart';
 import 'screens/live_feed_screen.dart';
@@ -95,6 +96,7 @@ class ShellNav extends ChangeNotifier {
   static const int mapTab = 0;
   static const int missionTab = 2;
   static const int nodesTab = 4;
+  static const int degradedTab = 5;
 
   int? _requested;
   int? takeRequest() {
@@ -141,6 +143,10 @@ class _GccShellState extends State<GccShell> {
         selectedIcon: Icon(Icons.router),
         label: Text('Nodes')),
     NavigationRailDestination(
+        icon: Icon(Icons.warning_amber_outlined),
+        selectedIcon: Icon(Icons.warning_amber),
+        label: Text('Degraded')),
+    NavigationRailDestination(
         icon: Icon(Icons.badge_outlined),
         selectedIcon: Icon(Icons.badge),
         label: Text('Personnel')),
@@ -168,6 +174,7 @@ class _GccShellState extends State<GccShell> {
     MissionScreen(),
     LiveFeedScreen(),
     NodesScreen(),
+    DegradedScreen(),
     PersonnelScreen(),
     AnnouncementsScreen(),
     DroneControlScreen(),

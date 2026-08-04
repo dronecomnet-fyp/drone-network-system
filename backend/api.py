@@ -822,6 +822,26 @@ def get_conversation_authed(
     return JSONResponse(content=models.get_conversation(device_id[:64]))
 
 
+@app.get("/lora-events")
+def get_lora_events(
+    limit: int = 200,
+    since: str = "",
+    auth: Auth = Depends(require_roles({Role.HQ, Role.RESCUE_TEAM})),
+):
+    """The LoRa frames this fleet has heard, newest first (field backlog
+    #13).
+
+    Distinct from /health's degraded list, which answers "is that drone
+    down right now". This answers "what did it tell us, when, and how well
+    were we hearing it", which is what an operator deciding whether to walk
+    out to a drone actually needs. Replicated, so the log is the fleet's
+    and not just this node's.
+    """
+    limit = max(1, min(int(limit or 200), 1000))
+    return JSONResponse(content={"events": models.get_lora_events(
+        limit=limit, since=since[:40])})
+
+
 @app.get("/mission-config")
 def get_mission_config(
     auth: Auth = Depends(require_roles({Role.HQ, Role.RESCUE_TEAM, Role.SYNC_NODE})),
@@ -1055,6 +1075,7 @@ app.get("/sync/gs-messages")(_sync_endpoint("gs_messages"))
 app.get("/sync/checkins")(_sync_endpoint("checkins"))
 app.get("/sync/personnel-locations")(_sync_endpoint("personnel_locations"))
 app.get("/sync/message-replies")(_sync_endpoint("message_replies"))
+app.get("/sync/lora-events")(_sync_endpoint("lora_events"))
 
 
 if __name__ == "__main__":

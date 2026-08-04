@@ -374,6 +374,20 @@ class RescueMeshClient {
     return PortalOptions.fromJson(data as Map<String, dynamic>);
   }
 
+  /// The LoRa frames the fleet has heard, newest first (field backlog
+  /// #13). Replicated server side, so this is the FLEET's log rather than
+  /// just this node's.
+  Future<List<LoraEvent>> getLoraEvents({int limit = 200, String since = ''}) async {
+    final q = since.isEmpty
+        ? '/lora-events?limit=$limit'
+        : '/lora-events?limit=$limit&since=${Uri.encodeQueryComponent(since)}';
+    final data = await _get(q);
+    final list = ((data as Map<String, dynamic>)['events'] as List?) ?? const [];
+    return list
+        .map((e) => LoraEvent.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<NodeHealth> getHealth() async {
     final data = await _get('/health');
     return NodeHealth.fromJson(data as Map<String, dynamic>);

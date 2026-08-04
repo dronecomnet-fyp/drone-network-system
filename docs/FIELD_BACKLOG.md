@@ -35,7 +35,7 @@ Status key: TODO, DOING, DONE, DISCUSS (needs a decision before code).
 | 3b | AI suggest should show its progress step by step (thinking, analysing components, applying to map) and place markers progressively, blinking until approved | TODO |
 | 3c | Unapproved AI placements must appear ONLY in the planning tab, never on the main Map tab until approved | TODO |
 | 11 | Victim app SOS should use selectable options and share location by default, matching the rebuilt captive portal | DONE |
-| 13 | Degraded drones need their own tab logging every LoRa message, with blinking map markers, filters for what shows on the map, and automatic clearing when the Pi comes back | TODO |
+| 13 | Degraded drones need their own tab logging every LoRa message, with blinking map markers, filters for what shows on the map, and automatic clearing when the Pi comes back | DONE |
 | 14 | GCC message composer should let the operator attach objects with an @-style picker: degraded drones, other drones, victims | TODO |
 
 ## Design decisions needed before coding

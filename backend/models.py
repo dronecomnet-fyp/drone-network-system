@@ -53,6 +53,7 @@ REPLICATED_TABLES = {
     "checkins": "id",
     "personnel_locations": "personnel_id",
     "message_replies": "id",
+    "lora_events": "id",
 }
 
 
@@ -146,6 +147,13 @@ def _message_reply_payload(r: dict) -> str:
     )
 
 
+def _lora_event_payload(r: dict) -> str:
+    return "|".join(str(x) for x in (
+        r.get("id"), r.get("kind"), r.get("about_node"), r.get("heard_by"),
+        r.get("received_at"), r.get("raw"),
+    ))
+
+
 _PAYLOAD_FN = {
     "messages": _message_payload,
     "personnel": _personnel_payload,
@@ -154,6 +162,7 @@ _PAYLOAD_FN = {
     "checkins": _checkin_payload,
     "personnel_locations": _personnel_location_payload,
     "message_replies": _message_reply_payload,
+    "lora_events": _lora_event_payload,
 }
 
 
@@ -324,6 +333,43 @@ def init_db():
             local_ts TEXT
         )
     """)
+    # Every LoRa frame a node hears, kept as a log rather than only folded
+    # into node_health (field backlog #13). node_health answers "is that
+    # drone down RIGHT NOW"; this answers "what did it tell us, when, and
+    # how well were we hearing it", which is what an operator deciding
+    # whether to walk out to a drone actually needs.
+    #
+    # Replicated on purpose, unlike node_health. The node that hears a
+    # beacon is whichever one is nearest the failure, and HQ may be joined
+    # to a different one. A log that only exists on the node nobody is
+    # looking at is not a log.
+    #
+    # The same beacon heard by two nodes produces two rows, deliberately.
+    # Each carries its own RSSI, and two independent receptions are better
+    # evidence than one. The UI groups them.
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS lora_events (
+            id TEXT PRIMARY KEY,
+            kind TEXT,
+            about_node TEXT,
+            heard_by TEXT,
+            rssi REAL,
+            snr REAL,
+            lat REAL,
+            lon REAL,
+            gps_fix INTEGER DEFAULT 0,
+            bat_a_v REAL,
+            bat_b_v REAL,
+            last_msg TEXT,
+            raw TEXT,
+            received_at TEXT,
+            node_id TEXT,
+            signature TEXT,
+            local_ts TEXT
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_lora_events_time "
+              "ON lora_events(received_at)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_replies_device "
               "ON message_replies(victim_device_id, created_at)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_messages_device "
@@ -1121,3 +1167,78 @@ def table_counts():
         counts[table] = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
     conn.close()
     return counts
+
+
+# --- LoRa event log (field backlog #13) -------------------------------------
+
+def save_lora_event(kind: str, about_node: str, raw: str, *, rssi=None,
+                    snr=None, lat=None, lon=None, gps_fix=0, bat_a_v=None,
+                    bat_b_v=None, last_msg: str = "") -> dict:
+    """Record one LoRa frame this node heard.
+
+    The id is derived from the CONTENT plus which node heard it, not from a
+    random uuid, so a frame replicated back to us from a peer that also
+    heard it collides on the primary key instead of appearing twice. Two
+    different receivers still produce two rows, which is intended.
+    """
+    received_at = iso_now()
+    ident = crypto_keys.hmac_hex(
+        crypto_keys.K_MSG,
+        "lora|" + "|".join([config.NODE_ID, raw, received_at]),
+    )[:32]
+    record = {
+        "id": ident,
+        "kind": kind,
+        "about_node": about_node,
+        "heard_by": config.NODE_ID,
+        "received_at": received_at,
+        "raw": raw,
+    }
+    record["signature"] = sign_record("lora_events", record)
+    conn = get_conn()
+    conn.execute("""
+        INSERT OR IGNORE INTO lora_events
+          (id, kind, about_node, heard_by, rssi, snr, lat, lon, gps_fix,
+           bat_a_v, bat_b_v, last_msg, raw, received_at, node_id, signature,
+           local_ts)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (ident, kind, about_node, config.NODE_ID, rssi, snr, lat, lon,
+          1 if gps_fix else 0, bat_a_v, bat_b_v, last_msg, raw, received_at,
+          config.NODE_ID, record["signature"], iso_now()))
+    conn.commit()
+    conn.close()
+    return record
+
+
+def get_lora_events(limit: int = 200, since: str = "") -> list:
+    """Newest first. `since` filters on received_at for cheap polling."""
+    conn = get_conn()
+    if since:
+        rows = conn.execute(
+            "SELECT * FROM lora_events WHERE received_at > ? "
+            "ORDER BY received_at DESC LIMIT ?", (since, limit)).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM lora_events ORDER BY received_at DESC LIMIT ?",
+            (limit,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# A busy fallback (a beacon every 30 s per node) would otherwise grow this
+# table without bound on a long deployment. Kept generous: the whole point
+# is being able to look back over an incident.
+LORA_EVENTS_KEEP_ROWS = 2000
+
+
+def prune_lora_events(keep: int = LORA_EVENTS_KEEP_ROWS) -> int:
+    conn = get_conn()
+    cur = conn.execute("""
+        DELETE FROM lora_events WHERE id NOT IN (
+            SELECT id FROM lora_events ORDER BY received_at DESC LIMIT ?
+        )
+    """, (keep,))
+    conn.commit()
+    removed = cur.rowcount or 0
+    conn.close()
+    return removed

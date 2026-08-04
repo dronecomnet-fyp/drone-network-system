@@ -766,3 +766,70 @@ class PortalOptions {
     ],
   );
 }
+
+/// One LoRa frame a node heard (field backlog #13).
+///
+/// `heardBy` matters as much as `aboutNode`: the same beacon picked up by
+/// two nodes produces two of these, and two independent receptions are
+/// better evidence that a drone is where it says it is than one.
+class LoraEvent {
+  const LoraEvent({
+    required this.id,
+    required this.kind,
+    required this.aboutNode,
+    required this.heardBy,
+    required this.receivedAt,
+    this.rssi,
+    this.snr,
+    this.lat,
+    this.lon,
+    this.gpsFix = false,
+    this.batAV,
+    this.batBV,
+    this.lastMsg = '',
+    this.raw = '',
+  });
+
+  final String id;
+
+  /// "fallback" for a beacon from a node whose Pi died, "lora_rx" for
+  /// anything else heard on the radio.
+  final String kind;
+
+  /// Empty for a frame we could not attribute to a node.
+  final String aboutNode;
+  final String heardBy;
+  final String receivedAt;
+  final double? rssi;
+  final double? snr;
+  final double? lat;
+  final double? lon;
+  final bool gpsFix;
+  final double? batAV;
+  final double? batBV;
+
+  /// The last victim message that node was carrying when it went down.
+  /// This is the payload the fallback beacon exists to rescue.
+  final String lastMsg;
+  final String raw;
+
+  bool get isFallback => kind == 'fallback';
+  bool get hasPosition => lat != null && lon != null && gpsFix;
+
+  factory LoraEvent.fromJson(Map<String, dynamic> j) => LoraEvent(
+        id: (j['id'] ?? '') as String,
+        kind: (j['kind'] ?? '') as String,
+        aboutNode: (j['about_node'] ?? '') as String,
+        heardBy: (j['heard_by'] ?? '') as String,
+        receivedAt: (j['received_at'] ?? '') as String,
+        rssi: (j['rssi'] as num?)?.toDouble(),
+        snr: (j['snr'] as num?)?.toDouble(),
+        lat: (j['lat'] as num?)?.toDouble(),
+        lon: (j['lon'] as num?)?.toDouble(),
+        gpsFix: ((j['gps_fix'] as num?)?.toInt() ?? 0) == 1,
+        batAV: (j['bat_a_v'] as num?)?.toDouble(),
+        batBV: (j['bat_b_v'] as num?)?.toDouble(),
+        lastMsg: (j['last_msg'] ?? '') as String,
+        raw: (j['raw'] ?? '') as String,
+      );
+}

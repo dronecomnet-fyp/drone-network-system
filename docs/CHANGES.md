@@ -737,3 +737,43 @@ Phase 1 security docs) is flagged here, never silently drifted.
     two situations they are in. Sending with nothing selected is still
     allowed: an SOS with no detail still says a person is here, which is
     worth more than forcing them to tick a box first.
+
+43. **Degraded drones got their own tab, a replicated LoRa log, blinking
+    map markers and map layer filters (field backlog #13).** Until now a
+    drone on LoRa fallback produced one red banner and a static red marker
+    on a map already carrying victims, checkins, rescuers, placements and
+    deployed drones. The operator's objection was that they could not find
+    it, and could not answer the question that actually matters when
+    deciding whether to walk out to a drone: what has it been telling us
+    since it went down.
+
+    A new `lora_events` table records every frame a node hears, with RSSI,
+    SNR, the position and battery the beacon carried, and the last victim
+    message that node was still holding. Three design points worth stating:
+
+    - **It replicates, unlike `node_health`.** The node that hears a
+      beacon is whichever one is nearest the failure, and HQ may be joined
+      to a different one. A log that exists only on the node nobody is
+      looking at is not a log.
+    - **The row id is derived from the frame content plus which node heard
+      it**, not a random uuid, so a frame replicated back to a node that
+      already has it collides on the primary key instead of appearing
+      twice. Two DIFFERENT receivers still produce two rows on purpose:
+      two independent receptions are better evidence than one, and the tab
+      shows "heard by" for exactly that reason.
+    - **It is pruned** every twentieth sync cycle, keeping 2000 rows. A
+      node down for a day beacons roughly 2900 times (one per 30 s), and
+      every healthy node in earshot keeps a copy.
+
+    The map markers now blink rather than sitting still, because
+    peripheral vision detects change far better than colour, and they stop
+    on their own when the node stops being reported as degraded (nothing
+    has to be told to stop, which is the bug that shape avoids). Map layer
+    filters were added alongside, defaulting to everything visible, with
+    the button showing how many layers are HIDDEN rather than how many are
+    shown: a filter someone forgot they set is how a victim goes unseen.
+
+    Recovery is shown rather than silently dropped. A node that came back
+    on its own stays listed under "Recovered" for an hour, because "it
+    fixed itself" is something the operator acts on by not walking out
+    there.

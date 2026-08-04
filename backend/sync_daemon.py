@@ -139,6 +139,7 @@ def beacon_rx_loop():
 
 def sync_loop():
     import sync_engine
+    cycles = 0
     while not _stop.is_set():
         try:
             peers = models.alive_peers(config.PEER_EXPIRY)
@@ -146,6 +147,18 @@ def sync_loop():
                 sync_engine.sync_with_peer(peer)
         except Exception as e:  # noqa: BLE001
             audit_logger.warning(f"SYNC_LOOP_ERROR | reason={type(e).__name__}")
+        cycles += 1
+        # Housekeeping, roughly every 20 cycles (10 minutes at the default
+        # interval). The LoRa event log grows on its own during a failure:
+        # a node down for a day beacons around 2900 times, and every
+        # healthy node that hears it keeps a copy (field backlog #13).
+        if cycles % 20 == 0:
+            try:
+                removed = models.prune_lora_events()
+                if removed:
+                    audit_logger.info(f"LORA_LOG_PRUNED | removed={removed}")
+            except Exception as e:  # noqa: BLE001
+                audit_logger.warning(f"PRUNE_FAIL | reason={type(e).__name__}")
         _stop.wait(config.SYNC_INTERVAL)
 
 
