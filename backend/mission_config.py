@@ -58,6 +58,12 @@ CONFIG_SCHEMA = "mission-config-v1"
 STOCK_CONFIG = {
     "schema": CONFIG_SCHEMA,
     "config_id": "stock",
+    # Credentials are scoped to a mission (field backlog, 2026-08-05). Empty
+    # here means "this node has no active mission", which accepts any
+    # credential: that is the state before the operator has pushed anything,
+    # and locking people out of an unconfigured node would be worse than
+    # useless.
+    "mission_id": "",
     "mission_name": "",
     "disaster_type": "",
     "source": "stock",
@@ -200,3 +206,13 @@ def summary() -> dict:
         "updated_at": c.get("updated_at", ""),
         "situation_count": len(c.get("situations", [])),
     }
+
+
+def active_mission_id() -> str:
+    """Which mission this node is currently running, or empty.
+
+    Empty accepts every credential. That is deliberate: a node nobody has
+    pushed a mission to must still let rescuers work, and refusing them
+    would turn a missed push into a lockout.
+    """
+    return str(load().get("mission_id", "") or "")

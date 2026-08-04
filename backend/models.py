@@ -97,11 +97,15 @@ def _message_payload(r: dict) -> str:
 
 
 def _personnel_payload(r: dict) -> str:
+    # mission_id is SIGNED: it is what stops a credential from a previous
+    # mission being replayed, so it must not be editable in transit.
+    # Appended at the end so records signed before it existed still verify
+    # (an absent value canonicalises to the empty string either way).
     return _canon(
         r.get("personnel_id"), r.get("name"), r.get("role"),
         r.get("pin_salt"), r.get("pin_hash"), r.get("pin_algo"),
         r.get("pin_iterations"), r.get("issued_at"), r.get("expires_at"),
-        r.get("status"), r.get("updated_at"),
+        r.get("status"), r.get("updated_at"), r.get("mission_id"),
     )
 
 
@@ -157,10 +161,37 @@ def sign_record(table: str, record: dict) -> str:
     return crypto_keys.hmac_hex(crypto_keys.K_MSG, _PAYLOAD_FN[table](record))
 
 
-def verify_record(table: str, record: dict) -> bool:
-    return crypto_keys.verify_hmac_hex(
-        crypto_keys.K_MSG, _PAYLOAD_FN[table](record), record.get("signature", "")
+def _personnel_payload_legacy(r: dict) -> str:
+    """The personnel payload as it was BEFORE mission_id was added.
+
+    Adding a field to a signed canonical form invalidates every signature
+    made under the old one. The fleet has live personnel records in the
+    field right now, and silently invalidating them would lock every
+    rescuer out and make sync reject them as forged. So verification
+    accepts either form, and new records are always signed with the new
+    one. This shim can be deleted once no pre-mission_id records remain.
+    """
+    return _canon(
+        r.get("personnel_id"), r.get("name"), r.get("role"),
+        r.get("pin_salt"), r.get("pin_hash"), r.get("pin_algo"),
+        r.get("pin_iterations"), r.get("issued_at"), r.get("expires_at"),
+        r.get("status"), r.get("updated_at"),
     )
+
+
+def verify_record(table: str, record: dict) -> bool:
+    sig = record.get("signature", "")
+    if crypto_keys.verify_hmac_hex(
+            crypto_keys.K_MSG, _PAYLOAD_FN[table](record), sig):
+        return True
+    # Only personnel has a legacy form, and only when the record predates
+    # mission scoping. A record that HAS a mission_id must verify under the
+    # current payload or not at all, otherwise the legacy path would be a
+    # way to strip the scoping.
+    if table == "personnel" and not record.get("mission_id"):
+        return crypto_keys.verify_hmac_hex(
+            crypto_keys.K_MSG, _personnel_payload_legacy(record), sig)
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -210,6 +241,7 @@ def init_db():
             issued_at TEXT,
             expires_at TEXT,
             status TEXT DEFAULT 'ACTIVE',
+            mission_id TEXT DEFAULT '',
             updated_at TEXT,
             signature TEXT,
             local_ts TEXT
@@ -344,6 +376,13 @@ def init_db():
     for table in REPLICATED_TABLES:
         c.execute(f"CREATE INDEX IF NOT EXISTS idx_{table}_local_ts ON {table}(local_ts)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_node_health_node_ts ON node_health(node_id, ts)")
+
+    # CREATE TABLE IF NOT EXISTS does NOT add columns to a table that
+    # already exists, and these nodes have live databases, so mission_id
+    # has to be added explicitly. Harmless to run every start.
+    existing = {r["name"] for r in c.execute("PRAGMA table_info(personnel)")}
+    if "mission_id" not in existing:
+        c.execute("ALTER TABLE personnel ADD COLUMN mission_id TEXT DEFAULT ''")
     conn.commit()
     conn.close()
 
@@ -488,13 +527,14 @@ def write_personnel_record(record: dict, local_ts: str = None):
         INSERT OR REPLACE INTO personnel (
             personnel_id, name, role, pin_salt, pin_hash, pin_algo,
             pin_iterations, issued_at, expires_at, status, updated_at,
-            signature, local_ts
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            mission_id, signature, local_ts
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         record["personnel_id"], record.get("name"), record.get("role"),
         record.get("pin_salt"), record.get("pin_hash"), record.get("pin_algo"),
         record.get("pin_iterations"), record.get("issued_at"),
         record.get("expires_at"), record.get("status"), record.get("updated_at"),
+        record.get("mission_id", "") or "",
         record.get("signature"), local_ts or iso_now(),
     ))
     conn.commit()
@@ -502,7 +542,7 @@ def write_personnel_record(record: dict, local_ts: str = None):
 
 
 def create_personnel(name: str, role: str = "RESCUE_TEAM", expires_hours: int = 0,
-                     personnel_id: str = ""):
+                     personnel_id: str = "", mission_id: str = ""):
     """Create or replace a personnel record. Returns (record, plaintext_pin).
     PINs are low entropy, so PBKDF2-SHA256 with >= 200k iterations and a
     16-byte salt (file 02 threat model note); the plaintext PIN exists only
@@ -538,6 +578,11 @@ def create_personnel(name: str, role: str = "RESCUE_TEAM", expires_hours: int = 
         "expires_at": iso_in_hours(expires_hours) if expires_hours else "",
         "status": "ACTIVE",
         "updated_at": now,
+        # Which mission this credential belongs to. Starting a new mission
+        # retires every credential from the old one at once, with no need
+        # to revoke people individually or wait for those revocations to
+        # sync (field backlog, 2026-08-05).
+        "mission_id": mission_id or "",
     }
     record["signature"] = sign_record("personnel", record)
     write_personnel_record(record, local_ts=now)
@@ -548,7 +593,8 @@ def get_personnel_public():
     """List without hash material (file 02: GET /personnel without hashes)."""
     conn = get_conn()
     rows = conn.execute("""
-        SELECT personnel_id, name, role, issued_at, expires_at, status, updated_at
+        SELECT personnel_id, name, role, issued_at, expires_at, status,
+               updated_at, mission_id
         FROM personnel ORDER BY issued_at DESC
     """).fetchall()
     conn.close()

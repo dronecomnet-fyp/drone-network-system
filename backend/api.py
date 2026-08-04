@@ -586,6 +586,9 @@ def create_personnel(
         record, pin = models.create_personnel(
             name=p.name, role=p.role, expires_hours=p.expires_hours,
             personnel_id=p.personnel_id,
+            # Scope the credential to whatever mission this node is running,
+            # so starting the next mission retires it automatically.
+            mission_id=mission_config.active_mission_id(),
         )
         audit_logger.info(
             f"PERSONNEL_CREATE | by={auth.personnel_id or 'api_key'} | "
@@ -711,6 +714,26 @@ def login(login_input: LoginInput, request: Request):
             f"LOGIN_FAIL | id={login_input.personnel_id} | ip={client_ip}"
         )
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # Credentials belong to a mission. Starting a new one retires every
+    # credential from the old one at once, without revoking people
+    # individually or waiting for those revocations to sync.
+    #
+    # Both blanks are permissive on purpose. A node with no active mission
+    # accepts anyone, because a node nobody pushed a mission to must still
+    # let rescuers work. A credential with no mission predates this feature
+    # and is not retired retroactively.
+    active = mission_config.active_mission_id()
+    cred_mission = (record["mission_id"] or "") if "mission_id" in record.keys() else ""
+    if active and cred_mission and cred_mission != active:
+        audit_logger.warning(
+            f"LOGIN_FAIL | id={login_input.personnel_id} | reason=other_mission "
+            f"| cred={cred_mission} | active={active}"
+        )
+        raise HTTPException(
+            status_code=401,
+            detail="These credentials were issued for a different mission. "
+                   "Ask HQ for new ones.")
     token = crypto_keys.mint_token(record["personnel_id"], record["role"])
     audit_logger.info(
         f"LOGIN_OK | id={record['personnel_id']} | role={record['role']} | ip={client_ip}"
