@@ -19,11 +19,11 @@ Status key: TODO, DOING, DONE, DISCUSS (needs a decision before code).
 
 | # | Finding | Status |
 |---|---------|--------|
-| 5 | Map goes blank when zoomed in far | TODO |
+| 5 | Map goes blank when zoomed in far | DONE |
 | 6 | Nodes tab shows only the directly connected drone, never peers | TODO |
-| 15 | Saving a mission creates a NEW file every time instead of saving over the chosen one | TODO |
+| 15 | Saving a mission creates a NEW file every time instead of saving over the chosen one | DONE |
 | 17 | A rescuer can only be issued credentials while on the SAME drone as the GCC. They must be able to sign up mid-mission from a different drone | TODO |
-| 18 | Live Ops figures do not refresh: revoking a rescuer leaves the tracked count unchanged | TODO |
+| 18 | Live Ops figures do not refresh: revoking a rescuer leaves the tracked count unchanged | DONE |
 | 10 | Auto-open on drone sighting: option exists in Settings but appears not to work | TODO |
 | 2 | Mission planning lets a module be attached to a drone AND a drone to a module; the two directions are not filtered properly | TODO |
 

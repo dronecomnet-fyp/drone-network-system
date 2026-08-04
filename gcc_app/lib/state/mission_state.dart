@@ -216,6 +216,18 @@ class MissionState extends ChangeNotifier {
   String missionName = 'unnamed mission';
   String disasterType = 'flood';
 
+  /// Where this mission was last saved or loaded from, so Save writes back
+  /// over it instead of asking again and creating another file. Held in
+  /// memory only: it describes THIS session's file, not mission content,
+  /// and writing it into the mission JSON would make a copied file claim
+  /// to live somewhere it does not.
+  String? filePath;
+
+  void rememberFilePath(String path) {
+    filePath = path;
+    notifyListeners();
+  }
+
   /// The victim-portal options for this mission, empty until the operator
   /// edits them. Empty means "use the defaults for this disaster type",
   /// which is what most missions will do.
@@ -571,6 +583,7 @@ class MissionState extends ChangeNotifier {
   void _reset() {
     missionName = 'unnamed mission';
     disasterType = 'flood';
+    filePath = null;
     portalOptions = [];
     portalOptionsLocked = false;
     challenges.clear();

@@ -15,6 +15,8 @@
 /// command a drone (file 04: planning is advisory).
 library;
 
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -136,6 +138,19 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  /// Deepest zoom the loaded MBTiles actually contains. Without a file
+  /// there are no tiles at all, so any limit is arbitrary and 19 simply
+  /// keeps marker work sane.
+  double get _maxNativeZoom {
+    final z = _mbtiles?.getMetadata().maxZoom;
+    return z == null ? 19 : z.toDouble();
+  }
+
+  /// How far the camera may go. A little past the native maximum, so the
+  /// operator can zoom in for detail on markers and get upscaled tiles
+  /// rather than an empty screen.
+  double get _maxUsefulZoom => _maxNativeZoom + 2;
+
   LatLng _initialCenter(DataStore data) {
     final meta = _mbtiles?.getMetadata();
     final center = meta?.defaultCenter;
@@ -164,6 +179,15 @@ class _MapScreenState extends State<MapScreen> {
           options: MapOptions(
             initialCenter: _initialCenter(data),
             initialZoom: 13,
+            // Field backlog #5: zooming in far left the screen blank.
+            // An MBTiles file only contains tiles up to a certain zoom, and
+            // past that flutter_map has nothing to draw. Clamping the
+            // camera to what the file actually holds means the operator
+            // cannot zoom into an empty void in the first place, and
+            // maxNativeZoom on the layer upscales the deepest real tiles
+            // rather than showing nothing.
+            maxZoom: _maxUsefulZoom,
+            minZoom: 2,
             onTap: (tapPosition, latlng) => _onMapTap(context, mission, latlng),
           ),
           children: [
@@ -171,6 +195,10 @@ class _MapScreenState extends State<MapScreen> {
               TileLayer(
                 tileProvider: MbTilesTileProvider(
                     mbtiles: _mbtiles!, silenceTileNotFound: true),
+                // Beyond this the deepest available tiles are scaled up,
+                // which is blurry but readable, instead of blank.
+                maxNativeZoom: _maxNativeZoom.round(),
+                maxZoom: _maxUsefulZoom,
               ),
             if (mission.area.length >= 3)
               PolygonLayer(
@@ -240,6 +268,7 @@ class _MapScreenState extends State<MapScreen> {
             selected: _selected,
             onSelect: (p) => setState(() => _selected = p),
             onSave: () => _saveMission(context),
+            onSaveAs: () => _saveMission(context, saveAs: true),
             onLoad: () => _loadMission(context),
             onFocusArea: () => focusArea(mission),
           ),
@@ -562,20 +591,30 @@ class _MapScreenState extends State<MapScreen> {
     await app.updateSettings(newCoverageRadiusM: radius);
   }
 
-  Future<void> _saveMission(BuildContext context) async {
+  /// Save over the file this mission came from, asking only the first time
+  /// (field backlog #15). Save used to call the file picker every time, so
+  /// every save produced ANOTHER file and the operator ended up with a
+  /// folder of near-identical missions and no idea which was current.
+  Future<void> _saveMission(BuildContext context, {bool saveAs = false}) async {
     final mission = context.read<MissionState>();
-    final path = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save mission',
-      fileName:
-          '${mission.missionName.replaceAll(RegExp(r"[^A-Za-z0-9_-]"), "_")}.json',
-      type: FileType.custom,
-      allowedExtensions: ['json'],
-    );
-    if (path == null) return;
+    var path = mission.filePath;
+
+    if (saveAs || path == null || path.isEmpty) {
+      path = await FilePicker.platform.saveFile(
+        dialogTitle: saveAs ? 'Save mission as' : 'Save mission',
+        fileName:
+            '${mission.missionName.replaceAll(RegExp(r"[^A-Za-z0-9_-]"), "_")}.json',
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (path == null) return;
+    }
+
     final err = await mission.saveToFile(path);
+    if (err == null) mission.rememberFilePath(path);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(err ?? 'Mission saved to $path')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(err ?? 'Saved to ${path.split(Platform.pathSeparator).last}')));
     }
   }
 
@@ -589,6 +628,9 @@ class _MapScreenState extends State<MapScreen> {
     final path = result?.files.single.path;
     if (path == null) return;
     final err = await mission.loadFromFile(path);
+    // Loading sets the save target too, so the next Save writes back to the
+    // file the operator opened rather than asking where to put it.
+    if (err == null) mission.rememberFilePath(path);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(err ?? 'Loaded ${mission.missionName}')));
@@ -601,6 +643,7 @@ class _MissionPanel extends StatelessWidget {
   final DronePlacement? selected;
   final ValueChanged<DronePlacement?> onSelect;
   final VoidCallback onSave;
+  final VoidCallback onSaveAs;
   final VoidCallback onLoad;
   final VoidCallback onFocusArea;
 
@@ -608,6 +651,7 @@ class _MissionPanel extends StatelessWidget {
     required this.selected,
     required this.onSelect,
     required this.onSave,
+    required this.onSaveAs,
     required this.onLoad,
     required this.onFocusArea,
   });
@@ -716,7 +760,16 @@ class _MissionPanel extends StatelessWidget {
                   spacing: 6,
                   alignment: WrapAlignment.end,
                   children: [
-                    OutlinedButton(onPressed: onSave, child: const Text('Save')),
+                    OutlinedButton(
+                      onPressed: onSave,
+                      // Shows WHERE it will go, so "Save" never silently
+                      // overwrites a file the operator forgot they opened.
+                      child: Text(context.watch<MissionState>().filePath == null
+                          ? 'Save...'
+                          : 'Save'),
+                    ),
+                    OutlinedButton(
+                        onPressed: onSaveAs, child: const Text('Save as...')),
                     OutlinedButton(onPressed: onLoad, child: const Text('Load')),
                   ],
                 ),

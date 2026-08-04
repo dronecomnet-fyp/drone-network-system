@@ -128,3 +128,43 @@ def test_node_health_history_is_bounded():
     ).fetchone()["c"]
     conn.close()
     assert n <= models.NODE_HEALTH_KEEP_ROWS
+
+
+def test_revoking_a_rescuer_stops_them_being_tracked():
+    """Field backlog #18: revoking someone left their location row in place,
+    so the GCC went on counting and plotting them as a tracked rescuer."""
+    conn = models.get_conn()
+    conn.execute("DELETE FROM personnel_locations WHERE personnel_id = ?",
+                 ("R_REVOKE",))
+    conn.execute("DELETE FROM personnel WHERE personnel_id = ?", ("R_REVOKE",))
+    conn.commit()
+    conn.close()
+
+    models.create_personnel("Revoked Rescuer", "RESCUE_TEAM",
+                            personnel_id="R_REVOKE")
+    models.save_personnel_location("R_REVOKE", 6.9, 79.9)
+    ids = [p["personnel_id"] for p in models.get_personnel_locations()]
+    assert "R_REVOKE" in ids
+
+    models.revoke_personnel("R_REVOKE")
+    ids = [p["personnel_id"] for p in models.get_personnel_locations()]
+    assert "R_REVOKE" not in ids, "a revoked rescuer must stop being tracked"
+
+    # The row itself is NOT deleted: it still replicates, and an operator
+    # can still ask for it deliberately.
+    all_ids = [p["personnel_id"]
+               for p in models.get_personnel_locations(include_inactive=True)]
+    assert "R_REVOKE" in all_ids
+
+
+def test_a_location_for_unknown_personnel_is_kept():
+    """Personnel sync can lag behind location sync. Dropping a real
+    rescuer's position because their record has not arrived yet would hide
+    someone who is out there working: unknown is not the same as revoked."""
+    conn = models.get_conn()
+    conn.execute("DELETE FROM personnel WHERE personnel_id = ?", ("R_UNKNOWN",))
+    conn.commit()
+    conn.close()
+    models.save_personnel_location("R_UNKNOWN", 6.5, 79.5)
+    ids = [p["personnel_id"] for p in models.get_personnel_locations()]
+    assert "R_UNKNOWN" in ids

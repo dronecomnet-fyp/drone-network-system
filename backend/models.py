@@ -721,11 +721,32 @@ def get_personnel_location_by_id(personnel_id: str):
     return dict(row) if row else None
 
 
-def get_personnel_locations():
+def get_personnel_locations(include_inactive: bool = False):
+    """Latest position per rescuer, ACTIVE personnel only by default.
+
+    Revoking someone used to leave their location row in place, so the GCC
+    went on counting and plotting them as a tracked rescuer indefinitely
+    (field backlog #18). Revocation means they are no longer on the team,
+    so they should stop being tracked; filtering here fixes it for every
+    client at once rather than in each UI.
+
+    A location whose personnel record has not reached this node yet is
+    KEPT, because the alternative is worse: dropping a real rescuer's
+    position merely because personnel sync is a cycle behind would hide
+    someone who is out there working. Unknown is not the same as revoked.
+    """
     conn = get_conn()
-    rows = conn.execute(
-        "SELECT * FROM personnel_locations ORDER BY updated_at DESC"
-    ).fetchall()
+    if include_inactive:
+        rows = conn.execute(
+            "SELECT * FROM personnel_locations ORDER BY updated_at DESC"
+        ).fetchall()
+    else:
+        rows = conn.execute("""
+            SELECT pl.* FROM personnel_locations pl
+              LEFT JOIN personnel p ON p.personnel_id = pl.personnel_id
+             WHERE p.personnel_id IS NULL OR p.status = 'ACTIVE'
+             ORDER BY pl.updated_at DESC
+        """).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
