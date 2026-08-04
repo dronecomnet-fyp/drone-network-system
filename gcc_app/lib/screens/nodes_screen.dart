@@ -324,11 +324,19 @@ class _PortalConfigCardState extends State<_PortalConfigCard> {
       return;
     }
 
-    final situations = effectiveSituations(edited: mission.portalOptions, disasterType: mission.disasterType);
+    final situations = effectiveSituations(
+        edited: mission.portalOptions, disasterType: mission.disasterType);
+    final cfg = data.health?.missionConfig ?? const shared.MissionConfigSummary();
+    // A node already running a mission, and not this one.
+    final switchesMission = !cfg.isStock &&
+        cfg.missionId.isNotEmpty &&
+        cfg.missionId != mission.ensureMissionId();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Push these options to this node?'),
+        title: Text(switchesMission
+            ? 'Switch this drone to a different mission?'
+            : 'Push these options to this node?'),
         content: SizedBox(
           width: 460,
           child: Column(
@@ -360,6 +368,34 @@ class _PortalConfigCardState extends State<_PortalConfigCard> {
                 'turn and push again; the version column shows who is done.',
                 style: Theme.of(ctx).textTheme.bodySmall,
               ),
+              // Pushing a different mission id retires every credential
+              // issued under the old one on this node, immediately. That is
+              // intended, but it must never be a quiet side effect of a
+              // button labelled "push options".
+              if (switchesMission) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade900,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.warning_amber_rounded,
+                        color: Colors.white, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'This drone is running a DIFFERENT mission. Pushing '
+                        'retires every credential issued for it, so rescuers '
+                        'still using those will be signed out of this drone '
+                        'and will need new ones.',
+                        style: TextStyle(color: Colors.white, fontSize: 13),
+                      ),
+                    ),
+                  ]),
+                ),
+              ],
             ],
           ),
         ),
@@ -368,8 +404,11 @@ class _PortalConfigCardState extends State<_PortalConfigCard> {
               onPressed: () => Navigator.of(ctx).pop(false),
               child: const Text('Cancel')),
           FilledButton(
+              style: switchesMission
+                  ? FilledButton.styleFrom(backgroundColor: Colors.red.shade700)
+                  : null,
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Push')),
+              child: Text(switchesMission ? 'Switch mission' : 'Push')),
         ],
       ),
     );
@@ -378,6 +417,7 @@ class _PortalConfigCardState extends State<_PortalConfigCard> {
     setState(() => _busy = true);
     try {
       final result = await app.client.pushMissionConfig(buildPortalConfig(
+        missionId: mission.ensureMissionId(),
         missionName: mission.missionName,
         disasterType: mission.disasterType,
         situations: situations,

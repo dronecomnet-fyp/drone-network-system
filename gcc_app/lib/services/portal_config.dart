@@ -86,6 +86,7 @@ List<Map<String, Object>> effectiveSituations({
 /// No version number: the node fingerprints the content and orders pushes
 /// by updated_at, so nothing here has to keep a counter correct.
 Map<String, dynamic> buildPortalConfig({
+  required String missionId,
   required String missionName,
   required String disasterType,
   required List<Map<String, Object>> situations,
@@ -94,6 +95,9 @@ Map<String, dynamic> buildPortalConfig({
   bool force = false,
 }) =>
     {
+      // The node scopes credentials to this, so pushing a different mission
+      // retires every credential from the previous one.
+      'mission_id': missionId,
       'mission_name': missionName,
       'disaster_type': disasterType,
       'headline': headline,

@@ -417,6 +417,11 @@ class MissionConfigSummary {
   /// correct.
   final String configId;
 
+  /// Which mission this node is running. Credentials are scoped to it, so a
+  /// node on a different mission will reject rescuers holding credentials
+  /// from another one.
+  final String missionId;
+
   /// "stock" when nobody ever pushed to this node, "pushed" otherwise.
   /// Stock is a valid working state, not a fault.
   final String source;
@@ -427,6 +432,7 @@ class MissionConfigSummary {
 
   const MissionConfigSummary({
     this.configId = 'stock',
+    this.missionId = '',
     this.source = 'stock',
     this.missionName = '',
     this.disasterType = '',
@@ -445,6 +451,7 @@ class MissionConfigSummary {
           ? const MissionConfigSummary()
           : MissionConfigSummary(
               configId: (json['config_id'] ?? 'stock') as String,
+              missionId: (json['mission_id'] ?? '') as String,
               source: (json['source'] ?? 'stock') as String,
               missionName: (json['mission_name'] ?? '') as String,
               disasterType: (json['disaster_type'] ?? '') as String,

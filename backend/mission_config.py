@@ -200,6 +200,7 @@ def summary() -> dict:
     c = load()
     return {
         "config_id": c.get("config_id", "stock"),
+        "mission_id": c.get("mission_id", ""),
         "source": c.get("source", "stock"),
         "mission_name": c.get("mission_name", ""),
         "disaster_type": c.get("disaster_type", ""),

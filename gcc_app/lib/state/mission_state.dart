@@ -216,6 +216,28 @@ class MissionState extends ChangeNotifier {
   String missionName = 'unnamed mission';
   String disasterType = 'flood';
 
+  /// Stable identity for this mission, generated once when it is created.
+  /// Credentials are issued against it, so activating a different mission
+  /// on the nodes retires every credential from this one at a stroke.
+  /// Not the mission NAME: names get edited and reused, and a credential
+  /// must not silently change which mission it belongs to.
+  String missionId = '';
+
+  /// Ensure this mission has an id, creating one on first use so missions
+  /// made before this existed pick one up rather than staying unscoped.
+  String ensureMissionId() {
+    if (missionId.isEmpty) {
+      final now = DateTime.now().toUtc();
+      final slug = missionName.trim().isEmpty
+          ? 'mission'
+          : missionName.trim().toLowerCase().replaceAll(
+              RegExp(r'[^a-z0-9]+'), '-');
+      missionId = '$slug-${now.millisecondsSinceEpoch.toRadixString(36)}';
+      notifyListeners();
+    }
+    return missionId;
+  }
+
   /// Where this mission was last saved or loaded from, so Save writes back
   /// over it instead of asking again and creating another file. Held in
   /// memory only: it describes THIS session's file, not mission content,
@@ -531,6 +553,7 @@ class MissionState extends ChangeNotifier {
         'schema': 'mission-v1',
         'mission_name': missionName,
         'disaster_type': disasterType,
+        'mission_id': missionId,
         'portal_options': portalOptions,
         'portal_options_locked': portalOptionsLocked,
         'created_at': createdAt,
@@ -556,6 +579,7 @@ class MissionState extends ChangeNotifier {
     if (data['schema'] == 'mission-v1') {
       missionName = (data['mission_name'] ?? 'unnamed mission') as String;
       disasterType = (data['disaster_type'] ?? 'flood') as String;
+      missionId = (data['mission_id'] ?? '') as String;
       portalOptions = ((data['portal_options'] as List<dynamic>?) ?? [])
           .map((o) => Map<String, Object>.from(o as Map))
           .toList();
@@ -603,6 +627,7 @@ class MissionState extends ChangeNotifier {
   void _reset() {
     missionName = 'unnamed mission';
     disasterType = 'flood';
+    missionId = '';
     filePath = null;
     portalOptions = [];
     portalOptionsLocked = false;
