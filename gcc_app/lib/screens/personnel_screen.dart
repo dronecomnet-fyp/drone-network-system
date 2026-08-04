@@ -5,6 +5,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:rescue_mesh_shared/rescue_mesh_shared.dart';
@@ -161,25 +162,60 @@ class PersonnelScreen extends StatelessWidget {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: Text('Credentials for ${issued.name}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('ID: ${issued.personnelId}',
-                style: Theme.of(ctx).textTheme.titleMedium),
-            const SizedBox(height: 16),
-            SelectableText(
-              issued.pin,
-              style: Theme.of(ctx).textTheme.displayMedium?.copyWith(
-                  fontFamily: 'monospace', letterSpacing: 8),
+        content: SizedBox(
+          width: 400,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('ID: ${issued.personnelId}',
+                    style: Theme.of(ctx).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                if (issued.signinCode.isNotEmpty) ...[
+                  // The primary path: they scan this and are working.
+                  // No typing, which matters when hands are cold, wet, or
+                  // shaking and the PIN is six digits.
+                  const Text('Have them scan this in the rescue app',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    color: Colors.white,
+                    child: QrImageView(
+                      data: issued.signinCode,
+                      size: 220,
+                      backgroundColor: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'This works on ANY drone, including one that has never '
+                    'heard of this person, so they can sign up mid-mission '
+                    'wherever they are.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  const Divider(height: 24),
+                  const Text('Or give them the PIN to type',
+                      style: TextStyle(fontSize: 12, color: Colors.white70)),
+                ],
+                const SizedBox(height: 8),
+                SelectableText(
+                  issued.pin,
+                  style: Theme.of(ctx).textTheme.headlineMedium?.copyWith(
+                      fontFamily: 'monospace', letterSpacing: 6),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Shown ONLY ONCE and stored nowhere. Hand it over now; if '
+                  'it is lost, revoke and issue again. Do not leave this on '
+                  'screen in a shared space: the QR is enough to sign in as '
+                  'this person until the mission ends.',
+                  style: TextStyle(color: Colors.orangeAccent, fontSize: 12),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            const Text(
-              'This PIN is shown ONLY ONCE and is not stored anywhere. '
-              'Hand it to the person now; if it is lost, revoke and '
-              'issue a new record.',
-              style: TextStyle(color: Colors.orangeAccent),
-            ),
-          ],
+          ),
         ),
         actions: [
           TextButton.icon(

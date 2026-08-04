@@ -683,3 +683,34 @@ Phase 1 security docs) is flagged here, never silently drifted.
       clock jump moving the sync cursor past the data) were both disproved
       by the node's own logs and cursor values before the missing interface
       was found.
+
+41. **Rescuer sign-in became a single scan, and the PIN moved inside the QR
+    (field backlog #17).** What testers hit: a rescuer could only be issued
+    credentials while standing at the same drone as the GCC, because the
+    personnel record lived only on the node that minted it and reached
+    other nodes at DTN sync speed, which may be never if the link is down.
+
+    The fix has two halves. The record travels with the RESCUER: the GCC
+    prints their K_MSG-signed personnel record into a QR, the phone hands
+    it to whichever drone it is joined to via `POST /enrol`, and that node
+    verifies it through the same `ingest_personnel` path sync itself uses.
+    A forged record is rejected exactly as a forged sync record would be,
+    so nothing is trusted merely because a phone presented it.
+
+    The second half is a posture change and is recorded here because it
+    weakens something deliberately. The QR carries the PIN as well as the
+    record, so signing in is one scan and no typing. That is only
+    defensible because credentials are scoped to a mission: activating a
+    different mission in the GCC retires every credential issued under the
+    previous one. The operator asked for this explicitly after seeing the
+    scan-then-type flow, on the grounds that a rescuer in gloves and rain
+    will not type a six-digit PIN reliably.
+
+    What that costs, stated plainly rather than buried: anyone who
+    photographs the QR while it is on screen has that rescuer's full
+    credentials until the mission ends. The mitigations are the mission
+    scope, a warning in the issue dialog telling the operator not to leave
+    the code displayed, and the PIN path being kept as the fallback.
+    Confidence: High on the mechanism, Moderate on whether mission scoping
+    is tight enough in practice, since it depends on operators actually
+    switching missions between deployments.

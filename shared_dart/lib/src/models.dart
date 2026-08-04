@@ -185,12 +185,18 @@ class IssuedPersonnel {
   final String expiresAt;
   final String pin;
 
+  /// One-scan sign-in code for the rescue app: the signed record plus the
+  /// PIN. Carries the PIN deliberately, which is only defensible because
+  /// credentials are scoped to a mission (CHANGES.md item 41).
+  final String signinCode;
+
   const IssuedPersonnel({
     required this.personnelId,
     required this.name,
     required this.role,
     required this.expiresAt,
     required this.pin,
+    this.signinCode = '',
   });
 
   factory IssuedPersonnel.fromJson(Map<String, dynamic> json) => IssuedPersonnel(
@@ -199,6 +205,7 @@ class IssuedPersonnel {
         role: (json['role'] ?? 'RESCUE_TEAM') as String,
         expiresAt: (json['expires_at'] ?? '') as String,
         pin: json['pin'] as String,
+        signinCode: (json['signin_code'] ?? '') as String,
       );
 }
 

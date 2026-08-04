@@ -159,6 +159,12 @@ class APIService {
     return _run((c) => c.login(personnelId, pin));
   }
 
+  /// Admit a signed personnel record this phone carried here, so a node
+  /// that has never met the issuing one can still authenticate the holder.
+  static Future<String> enrol(String enrolmentBlob) {
+    return _run((c) => c.enrol(enrolmentBlob));
+  }
+
   // --- messages -----------------------------------------------------------------
 
   static Future<List<Message>> getMessages() {

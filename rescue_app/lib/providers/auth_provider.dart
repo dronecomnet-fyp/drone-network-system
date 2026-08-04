@@ -7,6 +7,8 @@
 /// needed, not a retry.
 library;
 
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:rescue_mesh_shared/rescue_mesh_shared.dart' as shared;
 
@@ -61,6 +63,29 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  /// Sign in from a scanned QR: no typing at all.
+  ///
+  /// Two calls, invisible to the rescuer. First the signed record is handed
+  /// to whichever drone they are standing next to, so a node that has never
+  /// met the issuing one still knows who they are. Then an ordinary PIN
+  /// login using the PIN carried in the code.
+  ///
+  /// Enrolment failing is not fatal on its own: the node may already know
+  /// them, in which case login will simply work. Only a failed LOGIN is
+  /// reported, because that is the part the rescuer cares about.
+  Future<String?> signInWithCode(String scanned) async {
+    final decoded = decodeSigninCode(scanned);
+    if (decoded == null) {
+      return 'That is not a rescue sign-in code. Ask HQ to show it again.';
+    }
+    try {
+      await APIService.enrol(decoded.enrolment);
+    } catch (_) {
+      // Already known here, or this node is older. Try the login anyway.
+    }
+    return login(decoded.personnelId, decoded.pin);
+  }
+
   Future<void> logout() async {
     _session = null;
     lastLogoutReason = null;
@@ -79,5 +104,34 @@ class AuthProvider with ChangeNotifier {
     lastLogoutReason = error.message;
     await SessionStore.clear();
     notifyListeners();
+  }
+}
+
+/// The three fields inside a scanned sign-in code.
+class SigninCode {
+  const SigninCode(
+      {required this.personnelId, required this.pin, required this.enrolment});
+  final String personnelId;
+  final String pin;
+  final String enrolment;
+}
+
+/// Decode what the GCC put in the QR, or null if this is some other QR.
+///
+/// Kept small and pure so it can be unit tested without a camera, and so a
+/// stray barcode from a shipping label produces a clear message rather than
+/// a crash.
+SigninCode? decodeSigninCode(String scanned) {
+  try {
+    final raw = utf8.decode(base64Url.decode(scanned.trim()));
+    final map = jsonDecode(raw);
+    if (map is! Map) return null;
+    final id = (map['i'] ?? '') as String;
+    final pin = (map['p'] ?? '') as String;
+    final enrolment = (map['e'] ?? '') as String;
+    if (id.isEmpty || pin.isEmpty || enrolment.isEmpty) return null;
+    return SigninCode(personnelId: id, pin: pin, enrolment: enrolment);
+  } catch (_) {
+    return null;
   }
 }

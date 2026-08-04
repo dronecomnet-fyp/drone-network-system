@@ -12,8 +12,8 @@ Status key: TODO, DOING, DONE, DISCUSS (needs a decision before code).
 | # | Finding | Status |
 |---|---------|--------|
 | 9 | Victim app pops the "drone nearby" screen over and over, stacking many screens | DONE |
-| 12 | Watch toggle does nothing until Bluetooth is cycled off and on | TODO |
-| 8 | Battery B reads 4.18 V with no battery connected at all | TODO |
+| 12 | Watch toggle does nothing until Bluetooth is cycled off and on | DONE |
+| 8 | Battery B reads 4.18 V with no battery connected at all | DONE, needs reflash |
 
 ## Bugs
 
@@ -22,7 +22,7 @@ Status key: TODO, DOING, DONE, DISCUSS (needs a decision before code).
 | 5 | Map goes blank when zoomed in far | DONE |
 | 6 | Nodes tab shows only the directly connected drone, never peers | TODO |
 | 15 | Saving a mission creates a NEW file every time instead of saving over the chosen one | DONE |
-| 17 | A rescuer can only be issued credentials while on the SAME drone as the GCC. They must be able to sign up mid-mission from a different drone | BACKEND DONE, apps pending |
+| 17 | A rescuer can only be issued credentials while on the SAME drone as the GCC. They must be able to sign up mid-mission from a different drone | DONE |
 | 18 | Live Ops figures do not refresh: revoking a rescuer leaves the tracked count unchanged | DONE |
 | 10 | Auto-open on drone sighting: option exists in Settings but appears not to work | TODO |
 | 2 | Mission planning lets a module be attached to a drone AND a drone to a module; the two directions are not filtered properly | DONE |
@@ -81,6 +81,20 @@ Mission planning gains a "place GCC" action that opens the map for a single
 tap. The operator then draws one or more arrows for the direction they
 expect to advance, and circles for areas they suspect need attention. All
 of it is fed to the AI advisor, which cannot infer any of it.
+
+### 17, decided: scan only, no typing
+
+The rescuer scans ONE QR code shown by the GCC and is signed in. No PIN is
+typed. The code carries the signed personnel record and the PIN together,
+so the phone can hand the record to whichever drone it is standing next to
+before logging in, which is what makes signup work on a drone that has
+never heard of that person.
+
+Carrying the PIN inside the QR is a deliberate weakening, and it is only
+defensible because credentials are scoped to a mission: activating a
+different mission in the GCC retires every credential issued under the old
+one. The PIN login path stays as the fallback for a cracked camera or a
+printed code that will not scan.
 
 ### 13, on recovery
 

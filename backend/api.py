@@ -609,9 +609,27 @@ def create_personnel(
             "expires_at": record["expires_at"],
             "pin": pin,
             "enrolment": _enrolment_blob(record),
+            # The scan-only sign-in code: the record AND the PIN, so one
+            # scan gets a rescuer working with nothing to type.
+            #
+            # This DOES carry the PIN, unlike `enrolment` above, which is a
+            # deliberate posture change (CHANGES.md item 41). It is
+            # defensible only because credentials are now scoped to a
+            # mission: a stolen code dies when the mission ends rather than
+            # being useful indefinitely. Show it briefly, hand it over, move
+            # on; it should not sit on a screen in a shared space.
+            "signin_code": _signin_blob(record, pin),
         }
     except Exception:
         raise HTTPException(status_code=500, detail="Internal error creating personnel")
+
+
+def _signin_blob(record: dict, pin: str) -> str:
+    """Everything needed to sign in from one scan: the signed record plus
+    the PIN. See the posture note at the call site."""
+    return base64.urlsafe_b64encode(json.dumps(
+        {"e": _enrolment_blob(record), "p": pin, "i": record["personnel_id"]},
+        separators=(",", ":")).encode()).decode()
 
 
 def _enrolment_blob(record: dict) -> str:

@@ -46,14 +46,27 @@ def test_issuing_returns_a_carryable_credential():
     assert issued["pin"]
 
 
-def test_the_credential_never_contains_the_pin():
-    """It is shown as a QR on a screen in the field. Holding it must not be
-    enough to authenticate as that person."""
+def test_the_enrolment_blob_never_contains_the_pin():
+    """The enrolment blob admits a record to a node and nothing more, so it
+    must not be usable to authenticate as that person."""
     issued = _issue()
     decoded = json.loads(base64.urlsafe_b64decode(issued["enrolment"]))
     assert issued["pin"] not in json.dumps(decoded)
     assert decoded["pin_hash"]
     assert "pin" not in decoded
+
+
+def test_the_signin_code_DOES_carry_the_pin_and_that_is_deliberate():
+    """Scan-only sign-in was chosen over scan-then-type (CHANGES.md item
+    41). It is defensible because credentials are scoped to a mission, so a
+    stolen code dies with the mission rather than lasting indefinitely.
+    Pinned by a test so the tradeoff cannot be forgotten or reversed by
+    accident."""
+    issued = _issue()
+    decoded = json.loads(base64.urlsafe_b64decode(issued["signin_code"]))
+    assert decoded["p"] == issued["pin"]
+    assert decoded["i"] == issued["personnel_id"]
+    assert decoded["e"] == issued["enrolment"]
 
 
 def test_a_rescuer_can_enrol_on_a_node_that_never_saw_them():

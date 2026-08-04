@@ -27,6 +27,9 @@ dependencies:
   # plain background (no flutter_map_mbtiles dependency).
   flutter_map: ^8.1.1
   latlong2: ^0.9.1
+  # Sign-in by scanning the QR the GCC shows when credentials are
+  # issued, so a rescuer types nothing (field backlog #17).
+  mobile_scanner: ^5.2.3
   rescue_mesh_shared:
     path: ../shared_dart
 

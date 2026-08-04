@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../providers/message_provider.dart';
+import 'scan_signin_screen.dart';
 import 'settings_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -30,6 +31,24 @@ class _LoginScreenState extends State<LoginScreen> {
     _idController.dispose();
     _pinController.dispose();
     super.dispose();
+  }
+
+  /// Scan the QR the GCC shows when credentials are issued.
+  ///
+  /// Works on ANY drone, including one that has never heard of this person,
+  /// because the code carries their signed record as well as the PIN.
+  Future<void> _scanToSignIn() async {
+    final code = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const ScanSigninScreen()),
+    );
+    if (code == null || !mounted) return;
+    setState(() => _busy = true);
+    final err = await context.read<AuthProvider>().signInWithCode(code);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _error = err;
+    });
   }
 
   Future<void> _login() async {
@@ -145,6 +164,30 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                   const SizedBox(height: 20),
+                  // Offered FIRST because it is the easy path: HQ shows a
+                  // QR, you scan it, you are working. Typing a six-digit
+                  // PIN with cold or wet hands is the fallback, not the
+                  // default (field backlog #17).
+                  FilledButton.icon(
+                    onPressed: _busy ? null : _scanToSignIn,
+                    icon: const Icon(Icons.qr_code_scanner),
+                    label: const Text('SCAN CODE FROM HQ'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.deepOrange.shade700,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Row(children: [
+                    Expanded(child: Divider()),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8),
+                      child: Text('or type your PIN',
+                          style: TextStyle(fontSize: 12)),
+                    ),
+                    Expanded(child: Divider()),
+                  ]),
+                  const SizedBox(height: 8),
                   ElevatedButton(
                     onPressed: _busy ? null : _login,
                     style: ElevatedButton.styleFrom(

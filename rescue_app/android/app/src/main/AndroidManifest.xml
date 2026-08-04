@@ -10,6 +10,11 @@
          no internet and so is never Android's default network. -->
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
 
+    <!-- Scanning the sign-in QR the GCC shows (field backlog #17). Marked
+         not-required so a phone with a broken camera still installs and
+         uses the PIN fallback. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 

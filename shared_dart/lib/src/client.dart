@@ -128,6 +128,14 @@ class RescueMeshClient {
 
   /// PIN login. On success the returned session is ALSO installed on this
   /// client (subsequent calls send the token).
+  /// Admit a signed personnel record this device carried here, so a node
+  /// that has never met the issuing one can still authenticate them.
+  /// Unauthenticated by design: the record's signature is the authority.
+  Future<String> enrol(String enrolmentBlob) async {
+    final data = await _post('/enrol', {'enrolment': enrolmentBlob});
+    return ((data as Map<String, dynamic>)['outcome'] ?? '') as String;
+  }
+
   Future<AuthSession> login(String personnelId, String pin) async {
     final data = await _post('/auth/login', {
       'personnel_id': personnelId,
