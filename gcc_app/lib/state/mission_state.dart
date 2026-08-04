@@ -212,6 +212,59 @@ class ProductInfo {
       );
 }
 
+/// Where the operator expects the operation to ADVANCE, drawn as an arrow
+/// from one point to another (field backlog #4).
+///
+/// This is intent, and intent is the one thing the AI advisor cannot infer
+/// from a map. A polygon says where the disaster is; an arrow says which
+/// way the teams are moving through it, which is what decides where a
+/// relay has to sit to still be useful in an hour.
+class AdvanceArrow {
+  const AdvanceArrow(this.from, this.to, {this.note = ''});
+
+  final GeoPoint from;
+  final GeoPoint to;
+  final String note;
+
+  Map<String, dynamic> toJson() =>
+      {'from': from.toJson(), 'to': to.toJson(), 'note': note};
+
+  factory AdvanceArrow.fromJson(Map<String, dynamic> json) => AdvanceArrow(
+        GeoPoint.fromJson(json['from'] as Map<String, dynamic>),
+        GeoPoint.fromJson(json['to'] as Map<String, dynamic>),
+        note: (json['note'] ?? '') as String,
+      );
+}
+
+/// An area the operator SUSPECTS needs attention, drawn as a circle.
+///
+/// Deliberately separate from the operation area polygon. The polygon is
+/// where the mission is; these are hunches inside it (a collapsed street,
+/// a school, a place somebody phoned in about) and they carry no
+/// authority. Keeping them distinct means the AI can be told which is
+/// which, and the operator can delete a hunch without redrawing the
+/// mission.
+class SuspectedArea {
+  const SuspectedArea(this.center, this.radiusM, {this.note = ''});
+
+  final GeoPoint center;
+  final double radiusM;
+  final String note;
+
+  Map<String, dynamic> toJson() =>
+      {'center': center.toJson(), 'radius_m': radiusM, 'note': note};
+
+  factory SuspectedArea.fromJson(Map<String, dynamic> json) => SuspectedArea(
+        GeoPoint.fromJson(json['center'] as Map<String, dynamic>),
+        (json['radius_m'] as num? ?? 200).toDouble(),
+        note: (json['note'] ?? '') as String,
+      );
+}
+
+/// What the next map tap means. One mode at a time, because a map where a
+/// tap could mean four different things is a map the operator cannot use.
+enum MapDrawMode { none, area, gcc, arrow, suspected }
+
 class MissionState extends ChangeNotifier {
   String missionName = 'unnamed mission';
   String disasterType = 'flood';
@@ -278,6 +331,14 @@ class MissionState extends ChangeNotifier {
   final List<String> challenges = [];
   final List<GeoPoint> area = [];
 
+  /// Where the ground control centre itself is (field backlog #4). The
+  /// operator places it, because nothing in the system can know: the GCC
+  /// is a laptop in a tent and has no GPS of its own.
+  GeoPoint? gccPosition;
+
+  final List<AdvanceArrow> arrows = [];
+  final List<SuspectedArea> suspectedAreas = [];
+
   int personnelCount = 0;
   int spareBatteries = 0;
   final List<DroneResource> drones = [];
@@ -289,8 +350,16 @@ class MissionState extends ChangeNotifier {
 
   // UI modes (not serialized).
   bool planningMode = false;
-  bool areaDrawMode = false;
+  MapDrawMode drawMode = MapDrawMode.none;
   String? loadedFrom;
+
+  /// Kept as a named getter because "are we drawing the area" reads better
+  /// at the call sites than a mode comparison, and it was the original
+  /// API before there were four drawing modes.
+  bool get areaDrawMode => drawMode == MapDrawMode.area;
+
+  /// Half-finished arrow: the first tap sets this, the second completes it.
+  GeoPoint? arrowStart;
 
   Deployment? get activeDeployment {
     for (final d in deployments) {
@@ -331,12 +400,71 @@ class MissionState extends ChangeNotifier {
 
   void togglePlanning() {
     planningMode = !planningMode;
-    if (!planningMode) areaDrawMode = false;
+    if (!planningMode) setDrawMode(MapDrawMode.none);
     notifyListeners();
   }
 
-  void toggleAreaDraw() {
-    areaDrawMode = !areaDrawMode;
+  /// Selecting a mode always clears any half-finished work from the
+  /// previous one, so switching tools never leaves a dangling arrow start
+  /// waiting to attach itself to an unrelated tap.
+  void setDrawMode(MapDrawMode mode) {
+    drawMode = mode;
+    arrowStart = null;
+    notifyListeners();
+  }
+
+  void toggleDrawMode(MapDrawMode mode) =>
+      setDrawMode(drawMode == mode ? MapDrawMode.none : mode);
+
+  void toggleAreaDraw() => toggleDrawMode(MapDrawMode.area);
+
+  // ---- GCC placement, advance arrows, suspected areas (field backlog #4) ----
+
+  void setGccPosition(double lat, double lon) {
+    gccPosition = GeoPoint(lat, lon);
+    notifyListeners();
+  }
+
+  void clearGccPosition() {
+    gccPosition = null;
+    notifyListeners();
+  }
+
+  /// Tap once for the tail, once for the head. Returns true when the tap
+  /// COMPLETED an arrow, so the caller can drop out of the mode or ask for
+  /// a note.
+  bool addArrowPoint(double lat, double lon) {
+    if (arrowStart == null) {
+      arrowStart = GeoPoint(lat, lon);
+      notifyListeners();
+      return false;
+    }
+    arrows.add(AdvanceArrow(arrowStart!, GeoPoint(lat, lon)));
+    arrowStart = null;
+    notifyListeners();
+    return true;
+  }
+
+  void annotateLastArrow(String note) {
+    if (arrows.isEmpty || note.trim().isEmpty) return;
+    final last = arrows.removeLast();
+    arrows.add(AdvanceArrow(last.from, last.to, note: note.trim()));
+    notifyListeners();
+  }
+
+  void removeArrow(AdvanceArrow a) {
+    arrows.remove(a);
+    notifyListeners();
+  }
+
+  void addSuspectedArea(double lat, double lon, double radiusM,
+      {String note = ''}) {
+    suspectedAreas.add(SuspectedArea(GeoPoint(lat, lon), radiusM, note: note));
+    notifyListeners();
+  }
+
+  void removeSuspectedArea(SuspectedArea s) {
+    suspectedAreas.remove(s);
     notifyListeners();
   }
 
@@ -560,6 +688,9 @@ class MissionState extends ChangeNotifier {
         'saved_at': DateTime.now().toUtc().toIso8601String(),
         'challenges': challenges,
         'area': area.map((p) => p.toJson()).toList(),
+        'gcc_position': gccPosition?.toJson(),
+        'advance_arrows': arrows.map((a) => a.toJson()).toList(),
+        'suspected_areas': suspectedAreas.map((s) => s.toJson()).toList(),
         'resources': {
           'personnel_count': personnelCount,
           'spare_batteries': spareBatteries,
@@ -589,6 +720,12 @@ class MissionState extends ChangeNotifier {
           .map((c) => c as String));
       area.addAll((data['area'] as List<dynamic>? ?? [])
           .map((p) => GeoPoint.fromJson(p as Map<String, dynamic>)));
+      final gcc = data['gcc_position'] as Map<String, dynamic>?;
+      gccPosition = gcc == null ? null : GeoPoint.fromJson(gcc);
+      arrows.addAll((data['advance_arrows'] as List<dynamic>? ?? [])
+          .map((a) => AdvanceArrow.fromJson(a as Map<String, dynamic>)));
+      suspectedAreas.addAll((data['suspected_areas'] as List<dynamic>? ?? [])
+          .map((s) => SuspectedArea.fromJson(s as Map<String, dynamic>)));
       final res = data['resources'] as Map<String, dynamic>? ?? {};
       personnelCount = (res['personnel_count'] as num? ?? 0).toInt();
       spareBatteries = (res['spare_batteries'] as num? ?? 0).toInt();
@@ -633,6 +770,10 @@ class MissionState extends ChangeNotifier {
     portalOptionsLocked = false;
     challenges.clear();
     area.clear();
+    gccPosition = null;
+    arrows.clear();
+    arrowStart = null;
+    suspectedAreas.clear();
     personnelCount = 0;
     spareBatteries = 0;
     drones.clear();

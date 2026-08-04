@@ -147,4 +147,44 @@ void main() {
     expect(prompt, contains('Available drones: 2'));
     expect(prompt, contains('6.895000, 79.845000'));
   });
+
+  group('operator intent reaches the prompt (field backlog #4)', () {
+    MissionState _withArea() {
+      final m = MissionState()..setMissionInfo(name: 'Flood 2026');
+      m.addAreaVertex(6.90, 79.85);
+      m.addAreaVertex(6.95, 79.85);
+      m.addAreaVertex(6.95, 79.90);
+      return m;
+    }
+
+    test('the GCC position is stated when placed', () {
+      final m = _withArea()..setGccPosition(6.9271, 79.8612);
+      expect(buildUserPrompt(m), contains('Ground control centre is at'));
+      expect(buildUserPrompt(m), contains('6.927100'));
+    });
+
+    test('arrows are labelled as intent the model cannot infer', () {
+      final m = _withArea();
+      m.addArrowPoint(6.90, 79.85);
+      m.addArrowPoint(6.95, 79.90);
+      m.annotateLastArrow('pushing north as the water drops');
+      final p = buildUserPrompt(m);
+      expect(p, contains('expects the operation to advance'));
+      expect(p, contains('pushing north as the water drops'));
+    });
+
+    test('suspected areas are explicitly weighted below the polygon', () {
+      final m = _withArea()..addSuspectedArea(6.93, 79.87, 250, note: 'school');
+      final p = buildUserPrompt(m);
+      expect(p, contains('hunches, not confirmed reports'));
+      expect(p, contains('school'));
+      expect(p, contains('radius 250 m'));
+    });
+
+    test('a mission with no drawing says nothing about it', () {
+      final p = buildUserPrompt(_withArea());
+      expect(p, isNot(contains('Ground control centre')));
+      expect(p, isNot(contains('SUSPECTS')));
+    });
+  });
 }

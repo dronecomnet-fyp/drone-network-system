@@ -16,6 +16,7 @@
 library;
 
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -160,6 +161,17 @@ class _MapScreenState extends State<MapScreen> {
   /// rather than an empty screen.
   double get _maxUsefulZoom => _maxNativeZoom + 2;
 
+  /// Rotation for an arrow head, in radians clockwise from north, which is
+  /// what Transform.rotate wants for an icon that points up by default.
+  /// Equirectangular is fine at the scale of one operation area and avoids
+  /// a spherical formula nobody will check.
+  double _bearingRad(GeoPoint from, GeoPoint to) {
+    final dx = (to.lon - from.lon) *
+        math.cos((from.lat + to.lat) / 2 * math.pi / 180);
+    final dy = to.lat - from.lat;
+    return math.atan2(dx, dy);
+  }
+
   LatLng _initialCenter(DataStore data) {
     final meta = _mbtiles?.getMetadata();
     final center = meta?.defaultCenter;
@@ -220,6 +232,38 @@ class _MapScreenState extends State<MapScreen> {
                     borderColor: Colors.lightBlueAccent,
                     borderStrokeWidth: 2,
                   ),
+                ],
+              ),
+            // Suspected areas (field backlog #4). Drawn under the
+            // placements so an operator's hunch never hides the thing the
+            // plan actually commits to.
+            CircleLayer(
+              circles: [
+                for (final sa in _filters.intent
+                    ? mission.suspectedAreas
+                    : const <SuspectedArea>[])
+                  CircleMarker(
+                    point: LatLng(sa.center.lat, sa.center.lon),
+                    radius: sa.radiusM,
+                    useRadiusInMeter: true,
+                    color: Colors.amber.withValues(alpha: 0.10),
+                    borderColor: Colors.amberAccent,
+                    borderStrokeWidth: 1.5,
+                  ),
+              ],
+            ),
+            if (_filters.intent && mission.arrows.isNotEmpty)
+              PolylineLayer(
+                polylines: [
+                  for (final a in mission.arrows)
+                    Polyline(
+                      points: [
+                        LatLng(a.from.lat, a.from.lon),
+                        LatLng(a.to.lat, a.to.lon),
+                      ],
+                      color: Colors.amberAccent,
+                      strokeWidth: 3,
+                    ),
                 ],
               ),
             CircleLayer(
@@ -475,6 +519,107 @@ class _MapScreenState extends State<MapScreen> {
       }
     }
 
+    // The GCC itself (field backlog #4). Nothing in the system can know
+    // where this is: it is a laptop in a tent with no GPS, so the
+    // operator places it, and everything downstream that reasons about
+    // distance from HQ depends on it being here.
+    final gcc = mission.gccPosition;
+    if (_filters.intent && gcc != null) {
+      markers.add(Marker(
+        point: LatLng(gcc.lat, gcc.lon),
+        width: 120,
+        height: 46,
+        child: Tooltip(
+          message: 'Ground control centre (placed by the operator)',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.home_work, size: 28, color: Colors.orangeAccent),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                color: Colors.black54,
+                child: const Text('GCC', style: TextStyle(fontSize: 10)),
+              ),
+            ],
+          ),
+        ),
+      ));
+    }
+
+    if (_filters.intent) {
+      // Arrow heads. flutter_map draws lines, not arrows, so the head is a
+      // marker at the far end: cheaper and clearer than rotating a custom
+      // painter, and it stays the same size at every zoom.
+      for (final a in mission.arrows) {
+        markers.add(Marker(
+          point: LatLng(a.to.lat, a.to.lon),
+          width: 150,
+          height: 44,
+          child: Tooltip(
+            message: a.note.isEmpty ? 'expected advance' : a.note,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Transform.rotate(
+                  angle: _bearingRad(a.from, a.to),
+                  child: const Icon(Icons.navigation,
+                      size: 26, color: Colors.amberAccent),
+                ),
+                if (a.note.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    color: Colors.black54,
+                    child: Text(a.note,
+                        style: const TextStyle(fontSize: 10),
+                        overflow: TextOverflow.ellipsis),
+                  ),
+              ],
+            ),
+          ),
+        ));
+      }
+
+      // The tail of an arrow the operator has started but not finished, so
+      // a half-drawn arrow is visible rather than invisible state.
+      final start = mission.arrowStart;
+      if (start != null) {
+        markers.add(Marker(
+          point: LatLng(start.lat, start.lon),
+          width: 20,
+          height: 20,
+          child: const Icon(Icons.adjust, size: 20, color: Colors.amberAccent),
+        ));
+      }
+
+      for (final sa in mission.suspectedAreas) {
+        markers.add(Marker(
+          point: LatLng(sa.center.lat, sa.center.lon),
+          width: 160,
+          height: 40,
+          child: Tooltip(
+            message: sa.note.isEmpty
+                ? 'suspected area, ${sa.radiusM.toStringAsFixed(0)} m'
+                : '${sa.note} (${sa.radiusM.toStringAsFixed(0)} m)',
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.help_outline,
+                    size: 20, color: Colors.amberAccent),
+                if (sa.note.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    color: Colors.black54,
+                    child: Text(sa.note,
+                        style: const TextStyle(fontSize: 10),
+                        overflow: TextOverflow.ellipsis),
+                  ),
+              ],
+            ),
+          ),
+        ));
+      }
+    }
+
     // Area polygon vertices (draw mode), so the operator sees each tap.
     if (mission.area.isNotEmpty) {
       for (var i = 0; i < mission.area.length; i++) {
@@ -557,9 +702,28 @@ class _MapScreenState extends State<MapScreen> {
   /// or drop a new placement, depending on the active mode.
   Future<void> _onMapTap(
       BuildContext context, MissionState mission, LatLng latlng) async {
-    if (mission.areaDrawMode) {
-      mission.addAreaVertex(latlng.latitude, latlng.longitude);
-      return;
+    // One mode at a time (field backlog #4). A map where a tap could mean
+    // four different things is a map the operator cannot use.
+    switch (mission.drawMode) {
+      case MapDrawMode.area:
+        mission.addAreaVertex(latlng.latitude, latlng.longitude);
+        return;
+      case MapDrawMode.gcc:
+        mission.setGccPosition(latlng.latitude, latlng.longitude);
+        // Single tap, then straight back out: placing the GCC twice by
+        // accident is far more likely than wanting to place it twice.
+        mission.setDrawMode(MapDrawMode.none);
+        return;
+      case MapDrawMode.arrow:
+        final completed =
+            mission.addArrowPoint(latlng.latitude, latlng.longitude);
+        if (completed) await _annotateArrow(context, mission);
+        return;
+      case MapDrawMode.suspected:
+        await _addSuspectedArea(context, mission, latlng);
+        return;
+      case MapDrawMode.none:
+        break;
     }
     if (!mission.planningMode) return;
     if (_selected != null) {
@@ -568,6 +732,110 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
     await _addPlacement(context, mission, latlng);
+  }
+
+  /// Asked once the second tap lands, because an arrow with no reason
+  /// attached is close to useless to the AI and to whoever reads the plan
+  /// tomorrow. Skippable: an operator mid-briefing should not be blocked
+  /// by a text box.
+  Future<void> _annotateArrow(
+      BuildContext context, MissionState mission) async {
+    final ctrl = TextEditingController();
+    final note = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Direction of advance'),
+        content: SizedBox(
+          width: 380,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Why do you expect the operation to move this way? The AI '
+                'advisor cannot infer intent from the map, so this is the '
+                'part only you can supply.',
+                style: TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Note (optional)',
+                  hintText: 'e.g. pushing north as the water drops',
+                ),
+                onSubmitted: (v) => Navigator.of(ctx).pop(v),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(''),
+              child: const Text('Skip')),
+          FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(ctrl.text),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (note != null && note.trim().isNotEmpty) {
+      mission.annotateLastArrow(note);
+    }
+  }
+
+  Future<void> _addSuspectedArea(
+      BuildContext context, MissionState mission, LatLng latlng) async {
+    final radiusCtrl = TextEditingController(text: '200');
+    final noteCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Suspected area'),
+        content: SizedBox(
+          width: 380,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('${latlng.latitude.toStringAsFixed(5)}, '
+                  '${latlng.longitude.toStringAsFixed(5)}'),
+              const SizedBox(height: 4),
+              const Text(
+                'A place you suspect needs attention. This carries no '
+                'authority on its own: it tells the advisor where to bias '
+                'coverage, and tells the next shift what you were thinking.',
+                style: TextStyle(fontSize: 12),
+              ),
+              TextField(
+                controller: radiusCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Radius (m)'),
+              ),
+              TextField(
+                controller: noteCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'What do you suspect?',
+                  hintText: 'e.g. school, reported by a caller',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Add')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final r = double.tryParse(radiusCtrl.text.trim()) ?? 200;
+    mission.addSuspectedArea(
+        latlng.latitude, latlng.longitude, r.clamp(10, 20000),
+        note: noteCtrl.text.trim());
   }
 
   Future<void> _addPlacement(
@@ -702,6 +970,28 @@ class _MissionPanel extends StatelessWidget {
     required this.onFocusArea,
   });
 
+  /// One line telling the operator what their next tap will do. The map
+  /// has five possible meanings for a tap now, and a mode you cannot see
+  /// is a mode you will use by accident.
+  String _drawHint(MissionState mission, DronePlacement? selected) {
+    switch (mission.drawMode) {
+      case MapDrawMode.area:
+        return 'tap to add polygon vertices (${mission.area.length})';
+      case MapDrawMode.gcc:
+        return 'tap where the ground control centre is';
+      case MapDrawMode.arrow:
+        return mission.arrowStart == null
+            ? 'tap where the advance STARTS'
+            : 'now tap where it is heading';
+      case MapDrawMode.suspected:
+        return 'tap the centre of an area you suspect';
+      case MapDrawMode.none:
+        return selected == null
+            ? 'tap the map to add a placement'
+            : 'tap the map to MOVE "${selected.name}"';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final mission = context.watch<MissionState>();
@@ -759,15 +1049,72 @@ class _MissionPanel extends StatelessWidget {
                       ),
                   ],
                 ),
-                if (mission.areaDrawMode)
-                  Text('tap to add polygon vertices (${mission.area.length})',
-                      style: Theme.of(context).textTheme.bodySmall),
-                if (!mission.areaDrawMode)
-                  Text(
-                      selected == null
-                          ? 'tap the map to add a placement'
-                          : 'tap the map to MOVE "${selected!.name}"',
-                      style: Theme.of(context).textTheme.bodySmall),
+                // Field backlog #4: the operator places the GCC, draws
+                // where they expect to advance, and circles what they
+                // suspect. None of it can be inferred from a map, and all
+                // of it is fed to the advisor.
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.home_work, size: 16),
+                        label: Text(mission.gccPosition == null
+                            ? 'Place GCC'
+                            : 'Move GCC'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor:
+                              mission.drawMode == MapDrawMode.gcc
+                                  ? Colors.orangeAccent
+                                  : null,
+                        ),
+                        onPressed: () =>
+                            mission.toggleDrawMode(MapDrawMode.gcc),
+                      ),
+                    ),
+                    if (mission.gccPosition != null)
+                      IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        tooltip: 'remove the GCC marker',
+                        onPressed: () => mission.clearGccPosition(),
+                      ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.trending_up, size: 16),
+                        label: Text('Advance (${mission.arrows.length})'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor:
+                              mission.drawMode == MapDrawMode.arrow
+                                  ? Colors.amberAccent
+                                  : null,
+                        ),
+                        onPressed: () =>
+                            mission.toggleDrawMode(MapDrawMode.arrow),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.help_outline, size: 16),
+                        label:
+                            Text('Suspect (${mission.suspectedAreas.length})'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor:
+                              mission.drawMode == MapDrawMode.suspected
+                                  ? Colors.amberAccent
+                                  : null,
+                        ),
+                        onPressed: () =>
+                            mission.toggleDrawMode(MapDrawMode.suspected),
+                      ),
+                    ),
+                  ],
+                ),
+                Text(_drawHint(mission, selected),
+                    style: Theme.of(context).textTheme.bodySmall),
                 const Divider(),
                 Text(
                     active == null

@@ -24,7 +24,12 @@ class MapFilters {
   bool nodes = true;
   bool degraded = true;
 
+  /// The operator's own drawing: GCC position, advance arrows, suspected
+  /// areas. Grouped as one layer because they are one thought.
+  bool intent = true;
+
   bool get allOn =>
+      intent &&
       victims &&
       checkins &&
       reports &&
@@ -35,6 +40,7 @@ class MapFilters {
       degraded;
 
   int get hiddenCount => [
+        intent,
         victims,
         checkins,
         reports,
@@ -48,6 +54,7 @@ class MapFilters {
   void showAll() {
     victims = checkins = reports = rescuers = true;
     placements = fleet = nodes = degraded = true;
+    intent = true;
   }
 }
 
@@ -140,6 +147,9 @@ class MapFilterButton extends StatelessWidget {
                       (v) => filters.nodes = v, color: Colors.cyanAccent),
                   row('Degraded drones', 'degraded', filters.degraded,
                       (v) => filters.degraded = v, color: Colors.redAccent),
+                  row('GCC, advance arrows, suspected areas', 'intent',
+                      filters.intent, (v) => filters.intent = v,
+                      color: Colors.amberAccent),
                 ],
               ),
             ),

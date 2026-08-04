@@ -203,6 +203,42 @@ String buildUserPrompt(MissionState mission) {
   for (final p in mission.area) {
     b.writeln('  ${p.lat.toStringAsFixed(6)}, ${p.lon.toStringAsFixed(6)}');
   }
+  // The operator's own drawing (field backlog #4). This is the part of the
+  // briefing that exists nowhere else: a map says where the disaster is,
+  // and only the operator knows which way the teams are moving through it
+  // and which corners they are worried about. Stated as such, so the model
+  // is not left to guess how much weight to give it.
+  final gcc = mission.gccPosition;
+  if (gcc != null) {
+    b.writeln('Ground control centre is at '
+        '${gcc.lat.toStringAsFixed(6)}, ${gcc.lon.toStringAsFixed(6)}. '
+        'Placements should keep a path back to it where that is possible.');
+  }
+  if (mission.arrows.isNotEmpty) {
+    b.writeln('The operator expects the operation to advance along these '
+        'directions, which is intent you cannot infer from the map:');
+    for (final ar in mission.arrows) {
+      b.writeln('  from ${ar.from.lat.toStringAsFixed(6)}, '
+          '${ar.from.lon.toStringAsFixed(6)} '
+          'towards ${ar.to.lat.toStringAsFixed(6)}, '
+          '${ar.to.lon.toStringAsFixed(6)}'
+          '${ar.note.isEmpty ? "" : " (${ar.note})"}');
+    }
+    b.writeln('Bias coverage so it is still useful as the teams move that '
+        'way, rather than optimising only for the present moment.');
+  }
+  if (mission.suspectedAreas.isNotEmpty) {
+    b.writeln('The operator SUSPECTS these areas need attention. These are '
+        'hunches, not confirmed reports, so weight them below the area '
+        'polygon itself:');
+    for (final sa in mission.suspectedAreas) {
+      b.writeln('  ${sa.center.lat.toStringAsFixed(6)}, '
+          '${sa.center.lon.toStringAsFixed(6)} '
+          'radius ${sa.radiusM.round()} m'
+          '${sa.note.isEmpty ? "" : " (${sa.note})"}');
+    }
+  }
+
   b.writeln('Propose placements covering this area with the drones available.');
   return b.toString();
 }

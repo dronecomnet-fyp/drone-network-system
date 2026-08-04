@@ -808,3 +808,33 @@ Phase 1 security docs) is flagged here, never silently drifted.
     attaching mid sentence. The picker triggers only on a single typed
     character, never on a paste containing an @, so it cannot jump out
     unpredictably.
+
+45. **The operator can now place the GCC and draw what they intend (field
+    backlog #4).** Three additions to the planning map: a single tap places
+    the ground control centre, two taps draw an arrow for the direction the
+    operation is expected to advance, and a tap plus a radius circles an
+    area they suspect needs attention. All three save with the mission and
+    all three are fed to the AI advisor.
+
+    Why it matters more than it looks: the map says where the disaster is,
+    and that is all it says. Which way the teams are moving through it, and
+    which corners the operator is worried about, exist nowhere in the
+    system and cannot be inferred from a polygon. The advisor was being
+    asked to plan without the one input only a human has. The prompt now
+    labels each piece for what it is, including telling the model that
+    suspected areas are hunches to be weighted BELOW the area polygon
+    rather than treated as confirmed reports.
+
+    The GCC position is operator-supplied because nothing can know it: the
+    GCC is a laptop in a tent with no GPS.
+
+    Two interaction decisions worth recording. Drawing is now an explicit
+    mode (area, GCC, arrow, suspected, or none) with a line of text saying
+    what the next tap will do, because a map where a tap can mean five
+    things is a map that gets used by accident. And switching tools
+    discards a half-drawn arrow, so a dangling start point cannot attach
+    itself to an unrelated tap later.
+
+    Compatibility: mission files saved before this load unchanged, with the
+    fields simply absent. Covered by a test, because every mission file the
+    operator already has is one of those.

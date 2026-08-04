@@ -227,4 +227,64 @@ void _attachConsistencyTests() {
       expect(m.modules.single.attachedTo, "Ann's drone");
     });
   });
+
+  group('operator intent: GCC, advance arrows, suspected areas', () {
+    // Field backlog #4. All three survive a save/load round trip, because
+    // the whole point is that the next shift and the AI advisor can read
+    // what this operator was thinking.
+
+    test('an arrow needs two taps and is not created by the first', () {
+      final m = MissionState();
+      expect(m.addArrowPoint(6.90, 79.85), isFalse);
+      expect(m.arrows, isEmpty);
+      expect(m.arrowStart, isNotNull);
+      expect(m.addArrowPoint(6.95, 79.90), isTrue);
+      expect(m.arrows.single.from.lat, 6.90);
+      expect(m.arrows.single.to.lat, 6.95);
+      expect(m.arrowStart, isNull, reason: 'the tail must not linger');
+    });
+
+    test('switching tools discards a half drawn arrow', () {
+      final m = MissionState();
+      m.addArrowPoint(6.90, 79.85);
+      m.setDrawMode(MapDrawMode.suspected);
+      expect(m.arrowStart, isNull,
+          reason: 'otherwise the next tap joins an unrelated arrow');
+    });
+
+    test('the GCC position, arrows and suspected areas round trip', () {
+      final m = MissionState();
+      m.setMissionInfo(name: 'Flood 2026');
+      m.setGccPosition(6.9271, 79.8612);
+      m.addArrowPoint(6.90, 79.85);
+      m.addArrowPoint(6.95, 79.90);
+      m.annotateLastArrow('pushing north as the water drops');
+      m.addSuspectedArea(6.93, 79.87, 250, note: 'school');
+
+      final copy = MissionState()..loadFromJsonString(m.toJsonString());
+      expect(copy.gccPosition!.lat, closeTo(6.9271, 1e-9));
+      expect(copy.arrows.single.note, 'pushing north as the water drops');
+      expect(copy.suspectedAreas.single.radiusM, 250);
+      expect(copy.suspectedAreas.single.note, 'school');
+    });
+
+    test('a mission file without them still loads', () {
+      // Every mission saved before this feature existed.
+      final legacy = MissionState()..setMissionInfo(name: 'Old');
+      final json = legacy.toJsonString().replaceAll('"gcc_position": null,', '');
+      final m = MissionState()..loadFromJsonString(json);
+      expect(m.gccPosition, isNull);
+      expect(m.arrows, isEmpty);
+      expect(m.suspectedAreas, isEmpty);
+    });
+
+    test('clearing the mission clears the drawing too', () {
+      final m = MissionState();
+      m.setGccPosition(6.9271, 79.8612);
+      m.addSuspectedArea(6.93, 79.87, 250);
+      m.clearMission();
+      expect(m.gccPosition, isNull);
+      expect(m.suspectedAreas, isEmpty);
+    });
+  });
 }
