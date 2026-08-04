@@ -144,7 +144,7 @@ void _autoOpenWiringTests() {
   group('auto-open wiring', () {
     DroneSighting sighting(String node) => DroneSighting(
           nodeLabel: node,
-          ssid: 'RESCUE_' + node,
+          ssid: 'RESCUE_$node',
           rssi: -60,
           seenAt: DateTime(2026, 8, 5, 10, 0, 0),
         );
