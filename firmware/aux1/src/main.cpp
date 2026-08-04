@@ -97,6 +97,30 @@ static const float SHUNT_OHMS = 0.100f;
 static const bool BATT_A_SHUNT_INVERT = false;   // CH1 wired IN+ to battery
 static const bool BATT_B_SHUNT_INVERT = false;   // CH2 wired IN+ to battery
 
+// IS EACH CHANNEL ACTUALLY WIRED TO A BATTERY?
+//
+// An INA3221 input with nothing attached FLOATS, and on the usual breakout
+// boards it floats up near the supply rail. Field testing found Battery B
+// reporting a confident 4.18 V with no battery connected at all, which
+// reads exactly like a healthy full pack (field backlog #8). Believing a
+// battery is fine when there is no battery is worse than reporting nothing.
+//
+// The firmware cannot tell a floating input from a real 4.18 V pack by
+// voltage alone, so it is told instead. Set the flag false for a channel
+// that is not wired and it reports null rather than a number.
+//
+// PROPER HARDWARE FIX, do this when convenient: tie an unused channel's
+// IN+ and IN- to GND. It then reads about 0 V instead of floating, and the
+// plausibility floor below catches it automatically with no flag to
+// remember.
+static const bool BATT_A_PRESENT = true;
+static const bool BATT_B_PRESENT = true;
+
+// Below this a channel is treated as not connected. No pack we use sits
+// under 1 V while actually attached (a 1S LiPo is dead by 3.0 V and a 2S
+// pack far higher), so this only ever fires on a grounded or dead input.
+static const float BATT_MIN_PLAUSIBLE_V = 1.0f;
+
 // Measurement limits worth knowing when reading these numbers (both come
 // straight from the datasheet plus the 0.100 ohm shunt, confidence High):
 //   Range:       13-bit signed x 40 uV = +/-163.8 mV across the shunt,
@@ -203,11 +227,14 @@ static int16_t ina13Bit(uint16_t raw) {
   return v;
 }
 
-// channel: 1..3. Returns false if the chip did not answer.
+// channel: 1..3. Returns false if the chip did not answer, OR if this
+// channel has no battery on it, so a caller that gets true always has a
+// number worth publishing.
 // currentMa is SIGNED: positive discharging, negative charging (see the
 // convention above). invert flips a channel whose shunt is wired backwards.
 static bool inaReadChannel(uint8_t ch, float& busV, float& currentMa,
-                           bool invert = false) {
+                           bool invert = false, bool present = true) {
+  if (!present) return false;
   uint16_t rawShunt, rawBus;
   uint8_t shuntReg = 0x01 + 2 * (ch - 1);
   uint8_t busReg = 0x02 + 2 * (ch - 1);
@@ -216,6 +243,9 @@ static bool inaReadChannel(uint8_t ch, float& busV, float& currentMa,
   busV = ina13Bit(rawBus) * 8e-3f;              // LSB 8 mV
   currentMa = (shuntV / SHUNT_OHMS) * 1000.0f;
   if (invert) currentMa = -currentMa;
+  // A grounded or unwired input: report nothing rather than a number that
+  // looks like a reading.
+  if (busV < BATT_MIN_PLAUSIBLE_V) return false;
   return true;
 }
 
@@ -302,14 +332,14 @@ static void sendBattery() {
   JsonDocument doc;
   doc["type"] = "battery";
   float v, ma;
-  if (inaOk && inaReadChannel(1, v, ma, BATT_A_SHUNT_INVERT)) {
+  if (inaOk && inaReadChannel(1, v, ma, BATT_A_SHUNT_INVERT, BATT_A_PRESENT)) {
     doc["bat_a_v"] = v;
     doc["bat_a_ma"] = ma;
   } else {
     doc["bat_a_v"] = nullptr;
     doc["bat_a_ma"] = nullptr;
   }
-  if (inaOk && inaReadChannel(2, v, ma, BATT_B_SHUNT_INVERT)) {
+  if (inaOk && inaReadChannel(2, v, ma, BATT_B_SHUNT_INVERT, BATT_B_PRESENT)) {
     doc["bat_b_v"] = v;
     doc["bat_b_ma"] = ma;
   } else {
@@ -458,8 +488,8 @@ static void pollLora() {
 static void sendFallbackBeacon() {
   if (!loraOk) return;
   float aV = 0, aMa = 0, bV = 0, bMa = 0;
-  bool haveA = inaOk && inaReadChannel(1, aV, aMa, BATT_A_SHUNT_INVERT);
-  bool haveB = inaOk && inaReadChannel(2, bV, bMa, BATT_B_SHUNT_INVERT);
+  bool haveA = inaOk && inaReadChannel(1, aV, aMa, BATT_A_SHUNT_INVERT, BATT_A_PRESENT);
+  bool haveB = inaOk && inaReadChannel(2, bV, bMa, BATT_B_SHUNT_INVERT, BATT_B_PRESENT);
   bool fix = gps.location.isValid();
 
   String beacon = "FB|" + nodeId + "|";

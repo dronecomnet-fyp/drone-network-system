@@ -46,18 +46,42 @@ Future<void> main() async {
   runApp(EmergencyApp(controller: controller));
 }
 
+/// Route name for the drone-found screen, so it can be recognised in the
+/// navigator stack and never pushed twice.
+const String kDroneFoundRoute = 'drone-found';
+
+/// Open the drone-found screen, at most once.
+///
+/// Both the notification tap and the auto-open path come through here. The
+/// notification path previously pushed unconditionally, which meant tapping
+/// two notifications stacked two screens on top of each other.
+void openDroneFound(String nodeLabel, String ssid) {
+  final nav = navigatorKey.currentState;
+  if (nav == null) return;
+
+  // Ask the navigator itself whether this screen is already showing rather
+  // than tracking it in a bool, which can desync when a screen is popped by
+  // the system or a route is pushed on top of it.
+  var alreadyOpen = false;
+  nav.popUntil((route) {
+    if (route.settings.name == kDroneFoundRoute) alreadyOpen = true;
+    return true; // inspect only, pop nothing
+  });
+  if (alreadyOpen) return;
+
+  nav.push(MaterialPageRoute(
+    settings: const RouteSettings(name: kDroneFoundRoute),
+    builder: (_) => DroneFoundScreen(nodeLabel: nodeLabel, ssid: ssid),
+  ));
+}
+
 void _handleNotificationTap(String payload) {
   // payload = "drone:<nodeLabel>|<ssid>"
   if (!payload.startsWith(NotificationService.dronePayloadPrefix)) return;
   final body = payload.substring(NotificationService.dronePayloadPrefix.length);
   final parts = body.split('|');
   if (parts.length < 2) return;
-  navigatorKey.currentState?.push(
-    MaterialPageRoute(
-      builder: (_) =>
-          DroneFoundScreen(nodeLabel: parts[0], ssid: parts[1]),
-    ),
-  );
+  openDroneFound(parts[0], parts[1]);
 }
 
 class EmergencyApp extends StatefulWidget {
@@ -85,21 +109,8 @@ class _EmergencyAppState extends State<EmergencyApp> {
     super.dispose();
   }
 
-  void _openDroneFound(DroneSighting s) {
-    final nav = navigatorKey.currentState;
-    if (nav == null) return;
-    // Do not stack a second copy if they are already looking at it.
-    if (_droneScreenOpen) return;
-    _droneScreenOpen = true;
-    nav
-        .push(MaterialPageRoute(
-          builder: (_) =>
-              DroneFoundScreen(nodeLabel: s.nodeLabel, ssid: s.ssid),
-        ))
-        .then((_) => _droneScreenOpen = false);
-  }
-
-  bool _droneScreenOpen = false;
+  void _openDroneFound(DroneSighting s) =>
+      openDroneFound(s.nodeLabel, s.ssid);
 
   @override
   Widget build(BuildContext context) {

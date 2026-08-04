@@ -82,20 +82,47 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// How long before the same drone may auto-open the screen again.
+  /// Matches the notification cooldown: if the alert is not worth repeating
+  /// yet, neither is taking over the screen.
+  static const Duration reopenAfter = Duration(minutes: 5);
+
+  final Map<String, DateTime> _lastAutoOpened = {};
+
   void _onSighting(DroneSighting sighting) {
-    final isNew = lastSighting?.nodeLabel != sighting.nodeLabel;
     lastSighting = sighting;
     notifyListeners();
-
-    // Only jump the user to the drone screen for a NEW drone, and only if
-    // they agreed to it. Doing it on every advertisement would yank the
-    // screen out from under someone mid-sentence, several times a second.
-    if (isNew && autoOpenOnDrone == true) {
+    if (autoOpenOnDrone == true && shouldAutoOpen(sighting.nodeLabel)) {
       onAutoOpen?.call(sighting);
     }
   }
 
+  /// Should a sighting of [nodeLabel] open the screen right now?
+  ///
+  /// The first version compared against the single most recent sighting,
+  /// which looked fine with one drone and broke badly with two: sightings
+  /// alternate A, B, A, B several times a second, so every one of them
+  /// counted as "a new drone" and the app stacked screen after screen.
+  /// Tracking each node separately with a cooldown is what actually
+  /// expresses the intent, and it is the same rule the notification uses.
+  ///
+  /// Public and side-effecting only on its own map, so the rule is unit
+  /// tested without a radio.
+  bool shouldAutoOpen(String nodeLabel, [DateTime? now]) {
+    final t = now ?? DateTime.now();
+    final last = _lastAutoOpened[nodeLabel];
+    if (last != null && t.difference(last) < reopenAfter) return false;
+    _lastAutoOpened[nodeLabel] = t;
+    return true;
+  }
+
+  @visibleForTesting
+  void resetAutoOpenHistory() => _lastAutoOpened.clear();
+
   Future<void> setAutoOpenOnDrone(bool value) async {
+    // Turning it on should work immediately rather than inheriting a
+    // cooldown from before it was enabled.
+    if (value) _lastAutoOpened.clear();
     await storage.setAutoOpenOnDrone(value);
     autoOpenOnDrone = value;
     notifyListeners();

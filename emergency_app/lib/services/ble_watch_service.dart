@@ -89,12 +89,36 @@ class BleWatchService {
 
   /// Start the foreground service and the filtered scan. Returns an error
   /// string if BLE is unavailable, else null.
+  /// The adapter's actual state, not the plugin's cached snapshot.
+  ///
+  /// adapterStateNow is populated by the first event the plugin receives
+  /// from the platform, so on a cold start it reports `unknown` even when
+  /// Bluetooth is plainly on. Reading it directly made arming fail with
+  /// "Turn Bluetooth on" until the user toggled Bluetooth off and on, which
+  /// generated the event and populated the cache. That is exactly the
+  /// symptom testers reported (field backlog #12).
+  ///
+  /// So: use the cache when it has a real answer, otherwise wait briefly on
+  /// the stream for the first definite one, and fall back rather than hang
+  /// if the platform never answers.
+  static Future<BluetoothAdapterState> _adapterState() async {
+    final cached = FlutterBluePlus.adapterStateNow;
+    if (cached != BluetoothAdapterState.unknown) return cached;
+    try {
+      return await FlutterBluePlus.adapterState
+          .firstWhere((s) => s != BluetoothAdapterState.unknown)
+          .timeout(const Duration(seconds: 3));
+    } catch (_) {
+      return FlutterBluePlus.adapterStateNow;
+    }
+  }
+
   Future<String?> arm() async {
     if (_armed) return null;
     if (await FlutterBluePlus.isSupported == false) {
       return 'Bluetooth is not supported on this device.';
     }
-    if (FlutterBluePlus.adapterStateNow != BluetoothAdapterState.on) {
+    if (await _adapterState() != BluetoothAdapterState.on) {
       return 'Turn Bluetooth on to arm the watch.';
     }
 

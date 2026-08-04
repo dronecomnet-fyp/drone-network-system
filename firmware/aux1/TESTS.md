@@ -40,6 +40,13 @@ With the unified firmware flashed and the module on a bench supply:
      call anything under `kBatteryIdleMa` (5 mA) idle.
    - A channel the chip cannot answer for reports `null`, which is not the
      same as `0` (no reading vs no current).
+   - A channel with NO BATTERY on it must also report `null`. An
+     unconnected INA3221 input floats up near the supply rail and field
+     testing saw Battery B report a confident 4.18 V with nothing attached,
+     which is indistinguishable from a full pack. Set `BATT_A_PRESENT` /
+     `BATT_B_PRESENT` false for a channel that is not wired. Better, tie
+     that channel's IN+ and IN- to GND: it then reads about 0 V and the
+     `BATT_MIN_PLAUSIBLE_V` floor catches it with no flag to remember.
 3. LoRa path: flash the SECOND module with the same firmware (it doubles
    as the receiver). On module 1's serial, send
    `{"type":"lora_tx","payload":"hello-bench"}`.

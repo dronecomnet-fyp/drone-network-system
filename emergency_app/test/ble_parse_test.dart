@@ -1,7 +1,9 @@
 import 'package:emergency_app/services/ble_watch_service.dart';
+import 'package:emergency_app/state/app_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  _autoOpenTests();
   _antiSpamTests();
   group('BLE service-data parsing (file 03 payload nodeId|ssid)', () {
     test('parses a well-formed advertisement payload', () {
@@ -73,6 +75,58 @@ void _antiSpamTests() {
       expect(svc.shouldNotify('DRONE_A', t0), isFalse);
       svc.resetNotificationHistory();
       expect(svc.shouldNotify('DRONE_A', t0), isTrue);
+    });
+  });
+}
+
+/// Auto-open rule (field backlog #9).
+///
+/// The bug testers hit: with TWO drones powered, the app opened the
+/// drone-found screen over and over and stacked many screens. The first
+/// implementation compared each sighting against the single most recent
+/// one, which is correct with one drone and wrong with two, because
+/// sightings alternate A, B, A, B several times a second and every one of
+/// them then counts as "a new drone".
+void _autoOpenTests() {
+  group('auto-open on sighting', () {
+    test('opens once for a drone, not on every advertisement', () {
+      final c = AppController();
+      final t0 = DateTime(2026, 8, 3, 10, 0, 0);
+      expect(c.shouldAutoOpen('DRONE_A', t0), isTrue);
+      for (var ms = 500; ms <= 60000; ms += 500) {
+        expect(c.shouldAutoOpen('DRONE_A', t0.add(Duration(milliseconds: ms))),
+            isFalse);
+      }
+    });
+
+    test('TWO drones alternating do not reopen forever', () {
+      // The exact reported case. Each drone gets one open, then silence.
+      final c = AppController();
+      final t0 = DateTime(2026, 8, 3, 10, 0, 0);
+      var opens = 0;
+      for (var i = 0; i < 200; i++) {
+        final node = i.isEven ? 'DRONE_A' : 'DRONE_B';
+        if (c.shouldAutoOpen(node, t0.add(Duration(milliseconds: i * 500)))) {
+          opens++;
+        }
+      }
+      expect(opens, 2, reason: 'one per drone, not one per advertisement');
+    });
+
+    test('a genuinely new drone still opens straight away', () {
+      final c = AppController();
+      final t0 = DateTime(2026, 8, 3, 10, 0, 0);
+      expect(c.shouldAutoOpen('DRONE_A', t0), isTrue);
+      expect(c.shouldAutoOpen('DRONE_S', t0), isTrue,
+          reason: 'a different drone arriving is real news');
+    });
+
+    test('after the cooldown the same drone may open again', () {
+      final c = AppController();
+      final t0 = DateTime(2026, 8, 3, 10, 0, 0);
+      expect(c.shouldAutoOpen('DRONE_A', t0), isTrue);
+      expect(c.shouldAutoOpen('DRONE_A', t0.add(AppController.reopenAfter)),
+          isTrue);
     });
   });
 }
