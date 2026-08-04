@@ -212,7 +212,9 @@ class _ModulesCard extends StatelessWidget {
             ),
             if (m.modules.isEmpty)
               const Text('No modules listed. Add each of our units by ID '
-                  '(e.g. DCM-A-0042); a module can attach to one drone.')
+                  '(e.g. DCM-A-0042). Modules are ATTACHED when you add a '
+                  'volunteer drone; here you can see which drone has each '
+                  'one, and detach it.')
             else
               ...m.modules.map((mod) {
                 final cached = m.productCache.containsKey(mod.unitId);
@@ -229,6 +231,12 @@ class _ModulesCard extends StatelessWidget {
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (mod.attachedTo.isNotEmpty)
+                        IconButton(
+                          tooltip: 'detach from ${mod.attachedTo}',
+                          icon: const Icon(Icons.link_off, size: 18),
+                          onPressed: () => m.detachModuleByUnitId(mod.unitId),
+                        ),
                       IconButton(
                         tooltip: 'fetch specs (online)',
                         icon: Icon(cached ? Icons.cloud_done : Icons.cloud_download,
@@ -421,7 +429,13 @@ class _AddDroneDialogState extends State<_AddDroneDialog> {
                 ButtonSegment(value: 'volunteer', label: Text('Volunteer')),
               ],
               selected: {_source},
-              onSelectionChanged: (s) => setState(() => _source = s.first),
+              onSelectionChanged: (s) => setState(() {
+                _source = s.first;
+                // Our own drones carry their module by unit ID, so a module
+                // picked while on "volunteer" would be silently dropped on
+                // submit. Clear it rather than lose it quietly.
+                if (_source == 'brand') _moduleId = null;
+              }),
             ),
             const SizedBox(height: 8),
             TextField(

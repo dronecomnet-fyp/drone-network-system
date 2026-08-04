@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gcc_app/state/mission_state.dart';
 
 void main() {
+  _attachConsistencyTests();
   _portalOptionTests();
   test('mission JSON round trip preserves identity, area, resources, plans',
       () {
@@ -169,6 +170,61 @@ void _portalOptionTests() {
       expect(loaded.portalOptions.single['label'], 'We are on the roof');
       expect(loaded.canEditPortalOptions, isFalse,
           reason: 'reloading the mission must not hand back a second edit');
+    });
+  });
+}
+
+/// Module attach/detach consistency (field backlog #2).
+///
+/// Both the drone list and the module list show this relationship, but only
+/// the drone side could change it, so it read like two settings that might
+/// disagree. Whichever side breaks the link, both must end up telling the
+/// same story.
+void _attachConsistencyTests() {
+  group('module attachment stays consistent', () {
+    MissionState withPair() {
+      final m = MissionState();
+      m.addModule(ModuleResource(unitId: 'DCM-A-0042', label: 'module B'));
+      m.addDrone(DroneResource(
+        label: "Ann's drone",
+        source: 'volunteer',
+        attachedModuleId: 'DCM-A-0042',
+      ));
+      return m;
+    }
+
+    test('attaching is visible from both sides', () {
+      final m = withPair();
+      expect(m.drones.single.attachedModuleId, 'DCM-A-0042');
+      expect(m.modules.single.attachedTo, "Ann's drone");
+    });
+
+    test('detaching from the module side clears both sides', () {
+      final m = withPair();
+      m.detachModuleByUnitId('DCM-A-0042');
+      expect(m.modules.single.attachedTo, isEmpty);
+      expect(m.drones.single.attachedModuleId, isEmpty,
+          reason: 'the drone must not still claim a module it no longer has');
+    });
+
+    test('detaching from the drone side clears both sides', () {
+      final m = withPair();
+      m.detachModule(m.drones.single);
+      expect(m.drones.single.attachedModuleId, isEmpty);
+      expect(m.modules.single.attachedTo, isEmpty);
+    });
+
+    test('the module returns to the free pool after detaching', () {
+      final m = withPair();
+      m.detachModuleByUnitId('DCM-A-0042');
+      final free = m.modules.where((x) => x.attachedTo.isEmpty).length;
+      expect(free, 1, reason: 'it must be offerable to another drone again');
+    });
+
+    test('detaching an unknown id is harmless', () {
+      final m = withPair();
+      m.detachModuleByUnitId('NOT-A-MODULE');
+      expect(m.modules.single.attachedTo, "Ann's drone");
     });
   });
 }

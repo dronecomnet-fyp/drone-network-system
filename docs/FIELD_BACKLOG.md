@@ -25,7 +25,7 @@ Status key: TODO, DOING, DONE, DISCUSS (needs a decision before code).
 | 17 | A rescuer can only be issued credentials while on the SAME drone as the GCC. They must be able to sign up mid-mission from a different drone | BACKEND DONE, apps pending |
 | 18 | Live Ops figures do not refresh: revoking a rescuer leaves the tracked count unchanged | DONE |
 | 10 | Auto-open on drone sighting: option exists in Settings but appears not to work | TODO |
-| 2 | Mission planning lets a module be attached to a drone AND a drone to a module; the two directions are not filtered properly | TODO |
+| 2 | Mission planning lets a module be attached to a drone AND a drone to a module; the two directions are not filtered properly | DONE |
 
 ## User experience
 

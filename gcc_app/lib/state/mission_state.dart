@@ -419,6 +419,26 @@ class MissionState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Break the same link from the MODULE side.
+  ///
+  /// Attaching happens on the drone, because a drone carries a module and
+  /// not the reverse. But BOTH lists displayed the relationship while only
+  /// the drone side could change it, which made it look like two settings
+  /// that might disagree (field backlog #2). Now: one place to make the
+  /// link, either place to break it, both showing the same truth.
+  void detachModuleByUnitId(String unitId) {
+    for (final d in drones.where((d) => d.attachedModuleId == unitId).toList()) {
+      detachModule(d);
+    }
+    // Also clear any module row left pointing at a drone that is gone.
+    for (final m in modules.where((m) => m.unitId == unitId)) {
+      if (m.attachedTo.isNotEmpty) {
+        m.attachedTo = '';
+        notifyListeners();
+      }
+    }
+  }
+
   void cacheProduct(String unitId, ProductInfo info) {
     productCache[unitId] = info;
     notifyListeners();
