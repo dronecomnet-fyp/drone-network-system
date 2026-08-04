@@ -259,6 +259,7 @@ echo "[Step 5] Configuring IBSS DTN backbone on wlan1"
 mkdir -p /etc/NetworkManager/conf.d
 cp "$SCRIPT_DIR/files/unmanaged-dtn.conf" /etc/NetworkManager/conf.d/unmanaged-dtn.conf
 install -m 755 "$SCRIPT_DIR/files/dtn-net-up.sh" /usr/local/sbin/dtn-net-up.sh
+install -m 755 "$SCRIPT_DIR/files/node_indicator.py" /usr/local/sbin/node_indicator.py
 
 # --- Step 8 (file 01): services, sudoers, firewall, Bluetooth off --------------
 
@@ -267,6 +268,14 @@ for unit in rescue-mesh-runtime dtn-net rescue-mesh-api rescue-portal \
             rescue-mesh-sync rescue-mesh-auxbridge rescue-mesh-firewall; do
     cp "$SCRIPT_DIR/systemd/$unit.service" "/etc/systemd/system/$unit.service"
 done
+# Front-panel beep and lights, only when the node has them fitted
+# (INDICATOR=true in the node conf). Harmless to install either way; the
+# service simply fails to open the GPIO on a node without the hardware.
+if [[ "${INDICATOR:-false}" == "true" ]]; then
+    cp "$SCRIPT_DIR/systemd/rescue-mesh-indicator.service" \
+       /etc/systemd/system/rescue-mesh-indicator.service
+fi
+
 # System drone only: the MAVLink gateway service (file 08).
 if [[ "$DRONE_CONTROL" == "true" ]]; then
     cp "$SCRIPT_DIR/systemd/rescue-mesh-mavgw.service" \
@@ -316,6 +325,9 @@ systemctl enable rescue-mesh-runtime dtn-net rescue-mesh-api rescue-portal \
     rescue-mesh-sync rescue-mesh-auxbridge rescue-mesh-firewall >/dev/null
 if [[ "$DRONE_CONTROL" == "true" ]]; then
     systemctl enable rescue-mesh-mavgw >/dev/null
+fi
+if [[ "${INDICATOR:-false}" == "true" ]]; then
+    systemctl enable rescue-mesh-indicator >/dev/null
 fi
 
 # RETIRED Phase 1 units must not exist (file 01 step 8, rule 5 disclosure):

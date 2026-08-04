@@ -1,0 +1,21 @@
+# rescue-mesh-indicator.service: front-panel beep and lights (field
+# backlog #1). Optional: a node without the hardware fitted simply fails
+# to open the GPIO and stops, which is why Restart is on-failure with a
+# long delay rather than a tight loop.
+#
+# Runs as root because gpiozero needs GPIO access, unlike the other units.
+# It reads /health over loopback and drives three pins; it has no database
+# access and no network exposure.
+[Unit]
+Description=Rescue mesh node indicator (buzzer + status LEDs)
+After=rescue-mesh-api.service
+Wants=rescue-mesh-api.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/sbin/node_indicator.py
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

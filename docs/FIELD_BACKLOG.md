@@ -42,7 +42,7 @@ Status key: TODO, DOING, DONE, DISCUSS (needs a decision before code).
 
 | # | Finding | Status |
 |---|---------|--------|
-| 1 | Power switch, startup beep and lights. DECIDED 2026-08-04: on the **Pi**, not the ESP32, and scope reduced to a switch plus a boot beep and lights. No fallback beeping | DECIDED |
+| 1 | Power switch, startup beep and lights, on the Pi. Parts list, wiring and code in docs/NODE_PANEL.md | DONE, needs soldering |
 | 4 | Operator places the GCC on the map, then draws one or more ARROWS for the direction they expect to advance and CIRCLES for suspected areas, all feeding the AI | DECIDED |
 | 7 | Portal options: ship defaults, operator may edit them ONCE per mission, then publish | DECIDED |
 
