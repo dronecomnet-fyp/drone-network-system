@@ -13,6 +13,7 @@ import '../state/app_state.dart';
 import '../state/data_store.dart';
 import '../state/mission_state.dart';
 import '../widgets/battery_text.dart';
+import '../widgets/drone_glyph.dart';
 
 class NodesScreen extends StatelessWidget {
   const NodesScreen({super.key});
@@ -90,10 +91,12 @@ class _ConnectedNodeCard extends StatelessWidget {
           children: [
             Row(
               children: [
+                const DroneGlyph(color: Colors.cyanAccent, size: 46),
+                const SizedBox(width: 12),
                 Text(h.nodeId, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(width: 8),
                 Chip(
-                  label: Text('connected'),
+                  label: const Text('connected'),
                   visualDensity: VisualDensity.compact,
                   backgroundColor: Colors.green.shade900,
                 ),
@@ -170,16 +173,6 @@ class _ConnectedNodeCard extends StatelessWidget {
 }
 
 class _PeersCard extends StatelessWidget {
-  /// "HH:mm:ss" from an ISO stamp; the raw string is too wide for a cell.
-  String _shortTime(String iso) {
-    final t = DateTime.tryParse(iso);
-    if (t == null) return iso;
-    final l = t.toLocal();
-    return '${l.hour.toString().padLeft(2, '0')}:'
-        '${l.minute.toString().padLeft(2, '0')}:'
-        '${l.second.toString().padLeft(2, '0')}';
-  }
-
   /// How old the cached position/battery beside it actually is. "never"
   /// means we have not managed to reach that peer's /health yet, which is
   /// what an un-updated node looks like.
@@ -188,6 +181,14 @@ class _PeersCard extends StatelessWidget {
     final t = DateTime.tryParse(p.healthTs!);
     if (t == null) return '-';
     return formatAge(DateTime.now().difference(t));
+  }
+
+  /// Seconds since this peer last beaconed, or null if unparseable. Used
+  /// to decide whether the card reads as live or stale.
+  int? _beaconAgeS(shared.PeerInfo p) {
+    final t = DateTime.tryParse(p.lastSeen);
+    if (t == null) return null;
+    return DateTime.now().toUtc().difference(t.toUtc()).inSeconds;
   }
 
   @override
@@ -199,58 +200,134 @@ class _PeersCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('DTN peers seen by ${h.nodeId}',
-                style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text('Other drones in the fleet',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(width: 10),
+                Text('as seen by ${h.nodeId}',
+                    style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+            const SizedBox(height: 10),
             if (h.peers.isEmpty)
-              const Text('No peers in beacon range (normal for DTN: sync '
-                  'happens whenever nodes meet).')
+              // The empty state earns its length. During testing this said
+              // only "no peers", which is indistinguishable between the
+              // normal DTN case and a dead USB adapter, and an evening was
+              // spent on the wrong theory because of it (CHANGES item 40).
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade900.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('No other drone is in range right now.'),
+                    const SizedBox(height: 6),
+                    Text(
+                      'For a delay-tolerant mesh this is normal: nodes sync '
+                      'when they meet. It is ALSO what a dead USB WiFi '
+                      'adapter looks like, which is not normal. If this node '
+                      'should be hearing someone, check on it directly with '
+                      '"iw dev wlan1 info" before suspecting sync.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              )
             else
-              DataTable(
-                columnSpacing: 20,
-                columns: const [
-                  DataColumn(label: Text('Node')),
-                  DataColumn(label: Text('DTN IP')),
-                  DataColumn(label: Text('Beacon')),
-                  DataColumn(label: Text('Position')),
-                  DataColumn(label: Text('Battery A')),
-                  DataColumn(label: Text('Battery B')),
-                  DataColumn(label: Text('Info age')),
-                ],
-                rows: h.peers
-                    .map((p) => DataRow(cells: [
-                          DataCell(Text(p.nodeId)),
-                          DataCell(Text(p.ip)),
-                          DataCell(Text(_shortTime(p.lastSeen))),
-                          DataCell(Text(p.hasFix
-                              ? '${p.lat!.toStringAsFixed(5)}, '
-                                  '${p.lon!.toStringAsFixed(5)}'
-                              : (p.hasHealth ? 'no fix' : '-'))),
-                          DataCell(Row(children: [
-                            if (batteryFlowIcon(p.batAMa) != null) ...[
-                              Icon(batteryFlowIcon(p.batAMa),
-                                  size: 13, color: batteryFlowColor(p.batAMa)),
-                              const SizedBox(width: 3),
-                            ],
-                            Text(batteryLine(p.batAV, p.batAMa)),
-                          ])),
-                          DataCell(Row(children: [
-                            if (batteryFlowIcon(p.batBMa) != null) ...[
-                              Icon(batteryFlowIcon(p.batBMa),
-                                  size: 13, color: batteryFlowColor(p.batBMa)),
-                              const SizedBox(width: 3),
-                            ],
-                            Text(batteryLine(p.batBV, p.batBMa)),
-                          ])),
-                          // Separate from the beacon column on purpose: a peer
-                          // can be beaconing right now while the position and
-                          // battery beside it are minutes old.
-                          DataCell(Text(_healthAge(p))),
-                        ]))
-                    .toList(),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children:
+                    h.peers.map((p) => _peerCard(context, p)).toList(),
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _peerCard(BuildContext context, shared.PeerInfo p) {
+    final ageS = _beaconAgeS(p);
+    // 90 s is three beacon intervals at the default 30 s. One missed
+    // beacon is nothing; three means something.
+    final stale = ageS == null || ageS > 90;
+    final colour = stale ? Colors.orangeAccent : Colors.cyanAccent;
+
+    return Container(
+      width: 330,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        border: Border.all(color: colour.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DroneGlyph(color: colour, size: 54, dimmed: stale),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(p.nodeId,
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 8),
+                    Chip(
+                      label: Text(stale ? 'no recent beacon' : 'in range',
+                          style: const TextStyle(fontSize: 11)),
+                      visualDensity: VisualDensity.compact,
+                      backgroundColor: stale
+                          ? Colors.orange.shade900
+                          : Colors.green.shade900,
+                    ),
+                  ],
+                ),
+                Text(p.ip,
+                    style: const TextStyle(fontSize: 11, color: Colors.white54)),
+                const SizedBox(height: 6),
+                Text(p.hasFix
+                    ? '${p.lat!.toStringAsFixed(5)}, ${p.lon!.toStringAsFixed(5)}'
+                    : (p.hasHealth ? 'GPS: no fix' : 'position not fetched yet')),
+                const SizedBox(height: 4),
+                Row(children: [
+                  if (batteryFlowIcon(p.batAMa) != null) ...[
+                    Icon(batteryFlowIcon(p.batAMa),
+                        size: 13, color: batteryFlowColor(p.batAMa)),
+                    const SizedBox(width: 3),
+                  ],
+                  Text('A ${batteryLine(p.batAV, p.batAMa)}',
+                      style: const TextStyle(fontSize: 12)),
+                  const SizedBox(width: 10),
+                  if (batteryFlowIcon(p.batBMa) != null) ...[
+                    Icon(batteryFlowIcon(p.batBMa),
+                        size: 13, color: batteryFlowColor(p.batBMa)),
+                    const SizedBox(width: 3),
+                  ],
+                  Text('B ${batteryLine(p.batBV, p.batBMa)}',
+                      style: const TextStyle(fontSize: 12)),
+                ]),
+                const SizedBox(height: 6),
+                // Two ages, not one. A peer can be beaconing right now
+                // while the position and battery beside it are minutes
+                // old, and collapsing them into a single "last seen" hid
+                // exactly that.
+                Text(
+                  'beacon ${ageS == null ? "unknown" : formatAge(Duration(seconds: ageS))}'
+                  ', details ${_healthAge(p)}',
+                  style: const TextStyle(fontSize: 11, color: Colors.white54),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -279,6 +356,8 @@ class _DegradedCard extends StatelessWidget {
             const SizedBox(height: 8),
             ...h.degradedNodes.map((d) => ListTile(
                   dense: true,
+                  leading: const DroneGlyph(
+                      color: Colors.redAccent, size: 40, dimmed: true),
                   title: Text(
                       '${d.nodeId}: Pi down, aux module beaconing (last ${d.ts})'),
                   subtitle: Text([

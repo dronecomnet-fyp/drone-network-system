@@ -20,11 +20,11 @@ Status key: TODO, DOING, DONE, DISCUSS (needs a decision before code).
 | # | Finding | Status |
 |---|---------|--------|
 | 5 | Map goes blank when zoomed in far | DONE |
-| 6 | Nodes tab shows only the directly connected drone, never peers | TODO |
+| 6 | Nodes tab shows only the directly connected drone, never peers | DONE, recheck on hardware |
 | 15 | Saving a mission creates a NEW file every time instead of saving over the chosen one | DONE |
 | 17 | A rescuer can only be issued credentials while on the SAME drone as the GCC. They must be able to sign up mid-mission from a different drone | DONE |
 | 18 | Live Ops figures do not refresh: revoking a rescuer leaves the tracked count unchanged | DONE |
-| 10 | Auto-open on drone sighting: option exists in Settings but appears not to work | TODO |
+| 10 | Auto-open on drone sighting: option exists in Settings but appears not to work | NO DEFECT FOUND, see below |
 | 2 | Mission planning lets a module be attached to a drone AND a drone to a module; the two directions are not filtered properly | DONE |
 
 ## User experience
@@ -81,6 +81,36 @@ Mission planning gains a "place GCC" action that opens the map for a single
 tap. The operator then draws one or more arrows for the direction they
 expect to advance, and circles for areas they suspect need attention. All
 of it is fed to the AI advisor, which cannot infer any of it.
+
+### 6, what was actually wrong
+
+The peers table was correct all along. It showed nothing because there
+WERE no peers: DRONE_B's USB WiFi adapter had browned out and dropped off
+the bus, so the two nodes could not see each other (CHANGES.md item 40).
+
+What changed is the presentation, which was genuinely part of the problem.
+The old empty state said only "no peers in beacon range", which is
+indistinguishable between the normal delay-tolerant case and a dead
+adapter, and an evening went into the wrong theory because of it. It now
+names both possibilities and gives the one command that tells them apart.
+Peers are cards with a drawn drone rather than a table row, with the
+beacon age and the details age shown separately, because a peer can be
+beaconing right now while its position and battery are minutes old.
+
+**Worth rechecking on hardware** now that the power problem is fixed: the
+display was never exercised with two live peers.
+
+### 10, no defect found
+
+The auto-open path is wired correctly: a sighting reaches the navigation
+callback when the setting is on, does nothing when it is off, and does
+nothing before the victim has been asked. That is now covered by tests
+that drive the same callback the radio drives, which is what was missing.
+
+The likely explanation for the report is #12. The watch toggle did not
+work until Bluetooth was cycled, so the scan was never running, so no
+sighting ever arrived, so auto-open could not fire. A feature that is
+never reached looks identical to a broken one from the outside.
 
 ### 17, decided: scan only, no typing
 

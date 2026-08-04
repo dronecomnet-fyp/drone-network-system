@@ -838,3 +838,30 @@ Phase 1 security docs) is flagged here, never silently drifted.
     Compatibility: mission files saved before this load unchanged, with the
     fields simply absent. Covered by a test, because every mission file the
     operator already has is one of those.
+
+46. **Node cards, and an empty state that does not mislead (field backlog
+    #6 and #10).** The peers table was reported as never showing peers. It
+    was correct: there were none, because DRONE_B's USB WiFi adapter had
+    browned out (item 40). The presentation was still part of the problem,
+    and that is what changed.
+
+    The old empty state said "no peers in beacon range", which is
+    indistinguishable between the normal delay-tolerant case and a dead
+    adapter. It now names both possibilities and gives the one command
+    that separates them, because an evening was spent on the wrong theory
+    for want of that sentence. Peers became cards with a drawn quadcopter
+    rather than table rows, showing the beacon age and the details age
+    SEPARATELY, since a peer can be beaconing right now while its position
+    and battery are minutes old.
+
+    The drone picture is drawn in code rather than shipped as a photo.
+    There is no internet at a deployment so any image must live in the
+    binary, and a photo in the binary is a photo of SOME drone, which
+    becomes misleading the moment a volunteer arrives with a different
+    airframe. The colour carries state, so the picture is not decoration.
+
+    On #10, auto-open: no defect found. The path is wired correctly and
+    now has tests driving the same callback the radio drives. The likely
+    explanation for the report is #12: the watch toggle did not work until
+    Bluetooth was cycled, so no scan ran, so no sighting ever arrived. A
+    feature that is never reached looks identical to a broken one.

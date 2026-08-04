@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   _autoOpenTests();
+  _autoOpenWiringTests();
   _antiSpamTests();
   group('BLE service-data parsing (file 03 payload nodeId|ssid)', () {
     test('parses a well-formed advertisement payload', () {
@@ -127,6 +128,77 @@ void _autoOpenTests() {
       expect(c.shouldAutoOpen('DRONE_A', t0), isTrue);
       expect(c.shouldAutoOpen('DRONE_A', t0.add(AppController.reopenAfter)),
           isTrue);
+    });
+  });
+}
+
+/// Field backlog #10: "auto-open exists in Settings but appears not to
+/// work". The cooldown rule above was already tested; the DELIVERY was
+/// not, and a setting that is stored correctly but never consulted looks
+/// exactly like a broken feature from the outside.
+///
+/// The watch calls onSighting for every advertisement it parses, so
+/// driving that callback directly is the same path a real radio takes,
+/// minus the radio.
+void _autoOpenWiringTests() {
+  group('auto-open wiring', () {
+    DroneSighting sighting(String node) => DroneSighting(
+          nodeLabel: node,
+          ssid: 'RESCUE_' + node,
+          rssi: -60,
+          seenAt: DateTime(2026, 8, 5, 10, 0, 0),
+        );
+
+    test('a sighting opens the screen when the setting is on', () {
+      final c = AppController();
+      c.autoOpenOnDrone = true;
+      DroneSighting? opened;
+      c.onAutoOpen = (s) => opened = s;
+
+      c.watch.onSighting!(sighting('DRONE_A'));
+      expect(opened, isNotNull);
+      expect(opened!.nodeLabel, 'DRONE_A');
+    });
+
+    test('nothing opens while the setting is off', () {
+      final c = AppController();
+      c.autoOpenOnDrone = false;
+      var opens = 0;
+      c.onAutoOpen = (_) => opens++;
+
+      c.watch.onSighting!(sighting('DRONE_A'));
+      expect(opens, 0);
+    });
+
+    test('nothing opens before the operator has been asked', () {
+      // null means never answered. Taking over the screen without consent
+      // is worse than not taking it over at all.
+      final c = AppController();
+      expect(c.autoOpenOnDrone, isNull);
+      var opens = 0;
+      c.onAutoOpen = (_) => opens++;
+
+      c.watch.onSighting!(sighting('DRONE_A'));
+      expect(opens, 0);
+    });
+
+    test('the sighting is recorded for the UI even when it does not open', () {
+      final c = AppController();
+      c.autoOpenOnDrone = false;
+      c.watch.onSighting!(sighting('DRONE_B'));
+      expect(c.lastSighting?.nodeLabel, 'DRONE_B',
+          reason: 'the home screen shows this regardless of auto-open');
+    });
+
+    test('two drones advertising continuously open twice, not forever', () {
+      final c = AppController();
+      c.autoOpenOnDrone = true;
+      var opens = 0;
+      c.onAutoOpen = (_) => opens++;
+      for (var i = 0; i < 100; i++) {
+        c.watch.onSighting!(sighting(i.isEven ? 'DRONE_A' : 'DRONE_B'));
+      }
+      expect(opens, 2);
     });
   });
 }
