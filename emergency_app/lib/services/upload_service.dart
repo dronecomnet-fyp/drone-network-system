@@ -8,6 +8,7 @@ library;
 import 'package:rescue_mesh_shared/rescue_mesh_shared.dart' as shared;
 
 import '../constants.dart';
+import '../models/stored_point.dart';
 import 'storage_service.dart';
 
 class UploadResult {
@@ -46,12 +47,22 @@ class UploadService {
   /// Upload all not-yet-uploaded points, optionally with an SOS. Marks the
   /// uploaded points locally on success (file 06). [sosText] is ignored
   /// unless [sos] is true.
-  Future<UploadResult> upload({bool sos = false, String sosText = ''}) async {
+  /// [includeLocation] false means the victim explicitly opted OUT. Their
+  /// points then stay on the phone and the SOS travels without
+  /// coordinates. Sharing is the default because a rescue team that knows
+  /// only that SOMEBODY needs help cannot act on it; opting out is offered
+  /// because it is their phone and their choice.
+  Future<UploadResult> upload(
+      {bool sos = false,
+      String sosText = '',
+      bool includeLocation = true}) async {
     final deviceId = await storage.deviceId();
     final allPoints = await storage.points();
-    final pending = sos
-        ? allPoints // an SOS uploads everything for context
-        : allPoints.where((p) => !p.uploaded).toList();
+    final pending = !includeLocation
+        ? <StoredPoint>[]
+        : sos
+            ? allPoints // an SOS uploads everything for context
+            : allPoints.where((p) => !p.uploaded).toList();
 
     final client = shared.RescueMeshClient(baseUrl: kDroneBaseUrl);
     try {

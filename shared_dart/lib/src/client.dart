@@ -364,6 +364,16 @@ class RescueMeshClient {
     return data as Map<String, dynamic>;
   }
 
+  /// The situation options this node is currently serving in its captive
+  /// portal, so the emergency app offers the SAME choices (field backlog
+  /// #11). Falls back to the caller's own defaults on any failure: a node
+  /// running older code has no such endpoint, and an app that shows no
+  /// options at all would be worse than one showing stock ones.
+  Future<PortalOptions> getPortalOptions() async {
+    final data = await _get('/portal-options');
+    return PortalOptions.fromJson(data as Map<String, dynamic>);
+  }
+
   Future<NodeHealth> getHealth() async {
     final data = await _get('/health');
     return NodeHealth.fromJson(data as Map<String, dynamic>);

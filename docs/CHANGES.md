@@ -714,3 +714,26 @@ Phase 1 security docs) is flagged here, never silently drifted.
     Confidence: High on the mechanism, Moderate on whether mission scoping
     is tight enough in practice, since it depends on operators actually
     switching missions between deployments.
+
+42. **The victim app's SOS screen now offers the same tappable options as
+    the captive portal (field backlog #11).** It previously had one empty
+    text box. Every objection the testers raised about the old portal
+    applied to it just as hard: wet hands, a cracked screen, a keyboard in
+    the wrong language, and panic all make typing the one thing a victim
+    cannot reliably do.
+
+    The options are FETCHED FROM THE NODE (`GET /portal-options` on the
+    public plane), not hardcoded in the app. That is the part worth
+    keeping: the operator may edit the option list per mission, and if the
+    app carried its own copy then a victim with the app and a victim with a
+    browser would report different vocabularies, making the rescue team's
+    tally meaningless. The app ships the stock list only as a fallback for
+    a node running older code, and stock is deliberately need-based rather
+    than disaster-specific, so it is never wrong, only less tailored.
+
+    Location is now opt OUT rather than attached silently. The switch is on
+    by default because a team that knows only that somebody needs help
+    cannot act on it, and the confirmation screen says plainly which of the
+    two situations they are in. Sending with nothing selected is still
+    allowed: an SOS with no detail still says a person is here, which is
+    worth more than forcing them to tick a box first.

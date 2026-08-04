@@ -593,6 +593,36 @@ def windows_probe_alt():
     return PlainTextResponse(content="Rescue Network Portal", status_code=200)
 
 
+@app.get("/portal-options")
+def portal_options():
+    """The option list this node is currently serving, for the emergency
+    app (field backlog #11).
+
+    The captive portal and the app must offer the SAME choices, or a victim
+    who happens to have the app reports something the rescue team's own
+    tally does not recognise. Serving them from one config is the only way
+    to keep that true when the operator edits the list per mission.
+
+    Public plane on purpose: this is exactly the text already rendered into
+    the portal HTML that anybody on the AP can read, so there is nothing
+    here to protect.
+    """
+    cfg = mission_config.load()
+    situations = sorted(
+        cfg.get("situations") or [],
+        key=lambda s: not s.get("urgent"),
+    )
+    return JSONResponse({
+        "config_id": cfg.get("config_id", "stock"),
+        "headline": cfg.get("headline", ""),
+        "situations": [
+            {"id": str(s.get("id", "")), "label": str(s.get("label", "")),
+             "urgent": bool(s.get("urgent"))}
+            for s in situations
+        ],
+    })
+
+
 @app.get("/area-map")
 def area_map(request: Request):
     """Positions for the victim app's map: drones, other people who need

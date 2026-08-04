@@ -149,3 +149,43 @@ def test_corrupt_config_falls_back_to_stock_rather_than_breaking_the_portal():
     assert mission_config.load()["source"] == "stock"
     assert victim.get("/").status_code == 200
     _reset()
+
+
+def test_the_app_is_served_the_same_options_as_the_portal():
+    """Field backlog #11. The emergency app and the captive portal must
+    offer the SAME choices, or a victim with the app reports something the
+    rescue team's own tally does not recognise."""
+    _reset()
+    pushed = _cfg(label="I am trapped in a flooded house")
+    assert authed.post("/mission-config", json=pushed, headers=HQ).status_code == 200
+
+    served = victim.get("/portal-options").json()
+    labels = [s["label"] for s in served["situations"]]
+    assert "I am trapped in a flooded house" in labels
+    assert "I need a boat" in labels
+    assert served["headline"] == "Tap what you need."
+
+    # The portal HTML is the other consumer of the same config; if these
+    # ever diverge the two victims see different questions.
+    page = victim.get("/").text
+    for label in labels:
+        assert label in page
+
+
+def test_urgent_options_are_served_first():
+    """The app renders in the order it is given, and someone skimming in an
+    emergency reads the top of a list and may never reach the bottom."""
+    _reset()
+    served = victim.get("/portal-options").json()
+    urgency = [s["urgent"] for s in served["situations"]]
+    assert urgency == sorted(urgency, reverse=True)
+
+
+def test_an_unconfigured_node_still_serves_options_to_the_app():
+    """A node nobody pushed to is the normal state early in a rollout. An
+    app showing an empty list there would be worse than one showing the
+    need-based stock list."""
+    _reset()
+    served = victim.get("/portal-options").json()
+    assert served["config_id"] == "stock"
+    assert len(served["situations"]) >= 4

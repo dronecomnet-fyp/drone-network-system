@@ -697,3 +697,72 @@ class Conversation {
     return Conversation(out);
   }
 }
+
+/// One tappable option in the victim-facing portal and app.
+class PortalSituation {
+  const PortalSituation(
+      {required this.id, required this.label, required this.urgent});
+
+  final String id;
+  final String label;
+
+  /// Urgent options sort first and are flagged to the rescue team. Someone
+  /// skimming in an emergency reads the top of a list and may never reach
+  /// the bottom, so this is ordering information, not decoration.
+  final bool urgent;
+
+  factory PortalSituation.fromJson(Map<String, dynamic> j) => PortalSituation(
+        id: (j['id'] ?? '') as String,
+        label: (j['label'] ?? '') as String,
+        urgent: j['urgent'] == true,
+      );
+}
+
+/// What one node is currently offering victims.
+class PortalOptions {
+  const PortalOptions(
+      {required this.configId,
+      required this.headline,
+      required this.situations});
+
+  /// Fingerprint of the content, so the app can tell whether a node is on
+  /// stock options or on what the operator pushed for this mission.
+  final String configId;
+  final String headline;
+  final List<PortalSituation> situations;
+
+  factory PortalOptions.fromJson(Map<String, dynamic> j) => PortalOptions(
+        configId: (j['config_id'] ?? 'stock') as String,
+        headline: (j['headline'] ?? '') as String,
+        situations: ((j['situations'] as List?) ?? const [])
+            .map((e) => PortalSituation.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+
+  /// What ships in the app, matching backend STOCK_CONFIG. Used when the
+  /// node cannot be asked, so the victim always has something to tap.
+  static const PortalOptions stock = PortalOptions(
+    configId: 'stock',
+    headline: 'Tap what you need. You can tap more than one.',
+    situations: [
+      PortalSituation(
+          id: 'trapped',
+          label: 'I am trapped and cannot get out',
+          urgent: true),
+      PortalSituation(
+          id: 'injured', label: 'Someone here is injured', urgent: true),
+      PortalSituation(
+          id: 'medical', label: 'I need medicine or a doctor', urgent: true),
+      PortalSituation(
+          id: 'water_food',
+          label: 'I need drinking water or food',
+          urgent: false),
+      PortalSituation(
+          id: 'shelter', label: 'I need shelter or evacuation', urgent: false),
+      PortalSituation(
+          id: 'safe',
+          label: 'I am safe, reporting my location',
+          urgent: false),
+    ],
+  );
+}
