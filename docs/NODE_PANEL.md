@@ -1,5 +1,9 @@
 # Node front panel: power switch, beep and lights
 
+**Building one? Follow `docs/node_front_panel.html` instead.** It is the same
+content as a browsable runbook with a pin-header diagram, which is easier to
+work from with a soldering iron in hand. This file is the reference.
+
 What to buy, where to solder it, and what each light means. This is field
 backlog #1, scoped by the operator to a power switch plus a beep and lights
 at startup. Everything here lives on the Raspberry Pi.
@@ -110,7 +114,8 @@ muted or unplugged.
 
 ## Enabling it
 
-Add to that node's `deploy/nodes/drone_x.conf`:
+Every node conf now ships with the switch already present and set to false,
+so this is a one-word change in `deploy/nodes/drone_x.conf`:
 
 ```text
 INDICATOR=true
@@ -119,10 +124,13 @@ INDICATOR=true
 Then on the Pi:
 
 ```bash
-sudo apt install -y python3-gpiozero
 cd ~/rescue-mesh/deploy && sudo ./setup_node.sh a     # or b, or s
 sudo systemctl status rescue-mesh-indicator
 ```
+
+`setup_node.sh` installs `python3-gpiozero` itself when INDICATOR is true,
+so there is no separate apt step to forget. It installs it only on nodes
+that ask for it: a node with no panel fitted has no use for the library.
 
 To test without rebooting:
 

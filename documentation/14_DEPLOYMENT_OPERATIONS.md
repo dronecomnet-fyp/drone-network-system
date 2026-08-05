@@ -97,6 +97,7 @@ gates (the same design system throughout). Start here for any hands-on task:
 | `deploy/windows_degraded_fix.html` | the DEGRADED-forever fix and fallback recovery |
 | `deploy/windows_full_rollout.html` | the whole fleet, A + B + S, in one pass |
 | `docs/node_update_lora_log.html` | the LoRa event log and portal-options round |
+| `docs/node_front_panel.html` | build the power switch, buzzer and status lamps |
 | `deploy/mission_layer_check.html` | verify the whole mission layer end to end |
 | `firmware/aux1/windows_bringup.html` | flash and test the aux module |
 | `gcc_app/windows_gcc_bringup.html` | build and run the GCC |

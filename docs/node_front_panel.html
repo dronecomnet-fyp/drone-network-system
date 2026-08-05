@@ -1,0 +1,434 @@
+<title>Node Front Panel: Switch, Beep and Lamps</title>
+<style>
+@font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
+
+:root {
+  --ink: #1b2028; --paper: #f6f4ef; --paper-raised: #eeebe3; --line: #d8d3c6;
+  --wire: #5b6b7a; --accent: #d9711c; --accent-strong: #b85c14;
+  --pass: #1f8f5b; --pass-bg: #e4f4ec; --stop: #c23a3a; --stop-bg: #fbe9e7;
+  --term-bg: #14181e; --term-fg: #e6e2d6; --term-dim: #8a93a3; --code-fg: #2a2f38;
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+  --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+  --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+  --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+  --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+    --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+    --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+    --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+body { font-family: var(--sans); font-size: 16px; line-height: 1.6; padding: 0 0 6rem; }
+::selection { background: var(--accent); color: #14181e; }
+a { color: var(--accent-strong); }
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; }
+
+.masthead { border-bottom: 1px solid var(--line); padding: 2.6rem 0 1.8rem; margin-bottom: 2.2rem; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--wire); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+h1.title { font-family: var(--mono); font-size: 1.9rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6rem; }
+.dek { max-width: 46ch; color: var(--wire); font-size: 1.02rem; margin: 0; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1.4rem; font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+.meta-row b { color: var(--ink); font-weight: 600; }
+
+/* the loop diagram */
+.loop { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1.5rem; padding: 0.9rem 1rem; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; font-family: var(--mono); font-size: 0.76rem; }
+.loop .n { padding: 0.2rem 0.55rem; border-radius: 5px; background: var(--paper); border: 1px solid var(--line); white-space: nowrap; }
+.loop .n.hi { border-color: var(--accent); color: var(--accent-strong); }
+.loop .ar { color: var(--wire); }
+
+.index { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin-bottom: 2.6rem; }
+.index-title { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--wire); margin: 0 0 0.7rem; }
+.index ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.25rem 1rem; }
+.index li a { display: flex; gap: 0.55rem; align-items: baseline; text-decoration: none; color: var(--ink); font-size: 0.88rem; padding: 0.2rem 0; }
+.index li a:hover { color: var(--accent-strong); }
+.index .n { font-family: var(--mono); color: var(--wire); font-size: 0.78rem; min-width: 1.4em; }
+
+.part { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-strong); border-top: 1px solid var(--line); padding-top: 1.4rem; margin: 0 0 1.6rem; }
+
+.stage { border-left: 3px solid var(--line); padding: 0 0 0 1.3rem; margin-bottom: 2.9rem; scroll-margin-top: 1.5rem; }
+.stage.gate { border-left-color: var(--stop); }
+.stage-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 0.85rem; }
+.stage-num { font-family: var(--mono); font-size: 0.85rem; color: var(--wire); background: var(--paper-raised); border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.6rem; flex-shrink: 0; }
+h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+.stage ul, .stage ol.steps { margin: 0 0 1rem; padding-left: 1.25rem; max-width: 60ch; }
+.stage li { margin-bottom: 0.4rem; }
+.stage li:last-child { margin-bottom: 0; }
+
+.term { background: var(--term-bg); border-radius: 8px; margin: 0 0 1rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000); }
+.term-bar { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.term-bar .cap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--term-dim); margin-left: 0.3rem; }
+.term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
+.term-bar .led.r { background: #e5645c; } .term-bar .led.y { background: #e5b84f; } .term-bar .led.g { background: #57c273; }
+.term pre { margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg); }
+.term .prompt { color: var(--term-dim); }
+.term .comment { color: var(--term-dim); font-style: italic; }
+
+code.inline { font-family: var(--mono); font-size: 0.88em; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 4px; padding: 0.05rem 0.35rem; color: var(--code-fg); }
+
+.readout { background: var(--pass-bg); border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line)); border-radius: 8px; padding: 0.9rem 1.1rem 1rem; margin: 0 0 1rem; }
+.readout .label { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pass); margin-bottom: 0.55rem; }
+.readout pre, .readout code { font-family: var(--mono); font-size: 0.85rem; color: var(--code-fg); white-space: pre-wrap; word-break: break-word; margin: 0; }
+.readout .hint { font-family: var(--sans); font-size: 0.85rem; color: var(--wire); margin-top: 0.55rem; white-space: normal; }
+
+.gatebox { background: var(--stop-bg); border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line)); border-radius: 8px; padding: 0.95rem 1.1rem 1.05rem; margin: 0 0 0.4rem; }
+.gatebox .label { font-family: var(--mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.gatebox p { margin: 0; max-width: 58ch; font-size: 0.95rem; }
+
+.ui { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px; padding: 0.9rem 1.1rem; margin: 0 0 1rem; }
+.ui .label { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 0.5rem; }
+.ui dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 0.9rem; font-size: 0.9rem; }
+.ui dt { font-family: var(--mono); font-size: 0.82rem; color: var(--wire); }
+.ui dd { margin: 0; }
+
+.note { border: 1px dashed var(--line); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.88rem; color: var(--wire); margin: 0 0 1rem; max-width: 60ch; }
+.note b { color: var(--ink); }
+.note.warn { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+.fieldtable-wrap { overflow-x: auto; margin-bottom: 1rem; }
+table.fieldtable { border-collapse: collapse; width: 100%; font-size: 0.85rem; min-width: 30rem; }
+table.fieldtable th, table.fieldtable td { text-align: left; padding: 0.45rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.fieldtable th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wire); font-weight: 600; }
+
+footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+
+@media (max-width: 640px) {
+  h1.title { font-size: 1.55rem; }
+  .index ol { grid-template-columns: 1fr; }
+  .ui dl { grid-template-columns: 1fr; gap: 0.1rem 0; }
+  .ui dt { margin-top: 0.5rem; }
+}
+</style>
+<style>
+.hdr-wrap { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 1rem; margin: 0 0 1rem; overflow-x: auto; }
+.hdr-legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; font-family: var(--mono); font-size: 0.72rem; color: var(--wire); margin-bottom: 0.9rem; }
+.hdr-legend span { display: flex; align-items: center; gap: 0.35rem; }
+.hdr-legend i.sw { width: 11px; height: 11px; border-radius: 3px; border: 1px solid var(--line); display: inline-block; }
+.hdr { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; min-width: 22rem; }
+.pin { font-family: var(--mono); font-size: 0.72rem; padding: 0.28rem 0.45rem; border: 1px solid var(--line); border-radius: 4px; background: var(--paper); color: var(--wire); white-space: nowrap; display: flex; gap: 0.4rem; }
+.pin b { color: var(--ink); min-width: 1.4em; text-align: right; font-weight: 600; }
+.sw.buz, .pin.buz { background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: var(--accent); }
+.pin.buz, .pin.grn, .pin.amb, .pin.btn, .pin.gnd { color: var(--ink); }
+.sw.grn, .pin.grn { background: color-mix(in srgb, var(--pass) 24%, transparent); border-color: var(--pass); }
+.sw.amb, .pin.amb { background: color-mix(in srgb, #e5b84f 30%, transparent); border-color: #e5b84f; }
+.sw.btn, .pin.btn { background: color-mix(in srgb, var(--wire) 26%, transparent); border-color: var(--wire); }
+.sw.gnd, .pin.gnd { background: color-mix(in srgb, var(--ink) 12%, transparent); border-color: var(--wire); }
+.sw.avoid, .pin.avoid { background: color-mix(in srgb, var(--stop) 18%, transparent); border-color: var(--stop); }
+@media (max-width: 560px) { .hdr { min-width: 20rem; } .pin { font-size: 0.66rem; } }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; Field backlog #1 &middot; Node front panel</div>
+    <h1 class="title">Power Switch, Beep<br>and Status Lamps</h1>
+    <p class="dek">What to buy, exactly where to solder it, and what each light means. The software is already written and shipped; this is the hardware half. About 40 minutes per node with a soldering iron.</p>
+    <div class="meta-row">
+      <span><b>Per node cost</b> under 500 LKR</span>
+      <span><b>Pins used</b> 4 of 40, all free</span>
+      <span><b>Code</b> already on the node</span>
+      <span><b>Risk</b> read stage 4 first</span>
+    </div>
+    <div class="loop">
+      <span class="n">buy parts</span><span class="ar">&rarr;</span>
+      <span class="n hi">solder 3 pins + GND</span><span class="ar">&rarr;</span>
+      <span class="n">switch in the supply lead</span><span class="ar">&rarr;</span>
+      <span class="n">INDICATOR=true</span><span class="ar">&rarr;</span>
+      <span class="n hi">two beeps and a green lamp</span>
+    </div>
+  </header>
+
+  <div class="note warn" style="max-width:none;">
+    <b>The amber lamp is the reason to build this.</b> It is lit whenever the node can
+    currently see at least one peer. The failure that took two nodes out during testing, a
+    USB Wi-Fi adapter browning out and dropping off the bus, shows up here instantly as an
+    unlit amber lamp. Without it, that failure is only visible by reading sync logs, which is
+    how it cost an evening.
+  </div>
+
+  <nav class="index">
+    <p class="index-title">Stages</p>
+    <ol>
+      <li><a href="#s1"><span class="n">1</span>What it does</a></li>
+      <li><a href="#s2"><span class="n">2</span>Parts to buy</a></li>
+      <li><a href="#s3"><span class="n">3</span>Where each wire goes</a></li>
+      <li><a href="#s4"><span class="n">4</span>The switch, and the SD card</a></li>
+      <li><a href="#s5"><span class="n">5</span>Turn it on in software</a></li>
+      <li><a href="#s6"><span class="n">6</span>Test it</a></li>
+      <li><a href="#s7"><span class="n">7</span>If nothing happens</a></li>
+      <li><a href="#s8"><span class="n">8</span>What it cannot do</a></li>
+    </ol>
+  </nav>
+
+  <p class="part">Part one &middot; The design</p>
+
+  <section class="stage" id="s1">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">What it does, and why it is on the Pi</h2></div>
+
+    <p>Three things: a physical power switch for the whole node, a beep when the node
+    becomes ready, and two lamps that tell you the node's state from across a field
+    without opening a laptop.</p>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>Light</th><th>State</th><th>Meaning</th></tr>
+        <tr><td>Green</td><td>blinking</td><td>Booting. Services have not answered yet</td></tr>
+        <tr><td>Green</td><td>solid</td><td>Node is ready. Safe to walk away</td></tr>
+        <tr><td>Green</td><td>off after a long boot</td><td>Services failed to start. One long beep accompanies this</td></tr>
+        <tr><td>Amber</td><td>solid</td><td>This node can see at least one peer right now</td></tr>
+        <tr><td>Amber</td><td>off</td><td>No peers visible. Normal in a DTN, or a dead radio</td></tr>
+      </table>
+    </div>
+
+    <p>Beeps: two short ones when the node first becomes ready, once. One long beep if it
+    gives up waiting. Nothing after that, deliberately, because anything that beeps
+    repeatedly gets muted or unplugged.</p>
+
+    <div class="note">
+      <b>Why the Pi and not the aux module.</b> The aux module was the first instinct, since
+      it survives the Pi dying and could therefore beep during LoRa fallback. It is not
+      possible: every XIAO ESP32-C3 signal pin is already allocated (CHANGES item 10, where
+      LoRa MISO had to move to the last spare). Adding a buzzer would mean giving up a LoRa
+      line. The operator also chose the Pi independently.
+    </div>
+  </section>
+
+  <p class="part">Part two &middot; Building it</p>
+
+  <section class="stage" id="s2">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">Parts to buy, per node</h2></div>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>Part</th><th>Spec</th><th>Why this spec</th></tr>
+        <tr><td>Power switch</td><td>SPST latching rocker or toggle, <b>5 A</b></td><td>It carries the whole node. A 1 A signal switch will not survive the Pi plus the AR9271 plus the aux module</td></tr>
+        <tr><td>Buzzer</td><td><b>ACTIVE</b> 3.3 V, about 12 mm</td><td>Active means it makes its own tone from a HIGH level. A passive one needs a PWM tone and will stay completely silent with this code</td></tr>
+        <tr><td>LED, green</td><td>3 mm or 5 mm</td><td>READY</td></tr>
+        <tr><td>LED, amber</td><td>3 mm or 5 mm</td><td>MESH. Any colour that is clearly not the green one</td></tr>
+        <tr><td>Resistors</td><td>2 x 220 to 330 ohm</td><td>One per LED. Do not omit these: a bare LED on a GPIO pin can damage the pin</td></tr>
+        <tr><td>Momentary button</td><td>small tactile, normally open</td><td>Optional but strongly recommended. Stage 4 explains why</td></tr>
+        <tr><td>Wire</td><td>22 AWG stranded</td><td>Stranded survives vibration on an airframe; solid core work-hardens and snaps</td></tr>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>Check the buzzer current.</b> Anything drawing over roughly 25 mA needs a transistor
+      rather than a direct GPIO connection. Most small 3.3 V active buzzers are well under
+      that, but read the datasheet before wiring it straight to a pin.
+    </div>
+  </section>
+
+  <section class="stage" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Where each wire goes</h2></div>
+
+    <p>Four signal connections and four grounds. The diagram is the Raspberry Pi 40-pin
+    header as you look down at the board with the USB ports towards you. Pin 1 is the
+    top-left, marked with a square pad on the board.</p>
+
+    <div class="hdr-wrap">
+      <div class="hdr-legend">
+        <span><i class="sw buz"></i>buzzer</span>
+        <span><i class="sw grn"></i>green LED</span>
+        <span><i class="sw amb"></i>amber LED</span>
+        <span><i class="sw btn"></i>button</span>
+        <span><i class="sw gnd"></i>ground</span>
+        <span><i class="sw avoid"></i>do not use</span>
+      </div>
+      <div class="hdr">
+        <div class="pin"><b>1</b> 3V3</div><div class="pin"><b>2</b> 5V</div>
+        <div class="pin"><b>3</b> GPIO2</div><div class="pin"><b>4</b> 5V</div>
+        <div class="pin btn"><b>5</b> GPIO3</div><div class="pin gnd"><b>6</b> GND</div>
+        <div class="pin"><b>7</b> GPIO4</div><div class="pin avoid"><b>8</b> GPIO14</div>
+        <div class="pin gnd"><b>9</b> GND</div><div class="pin avoid"><b>10</b> GPIO15</div>
+        <div class="pin buz"><b>11</b> GPIO17</div><div class="pin"><b>12</b> GPIO18</div>
+        <div class="pin grn"><b>13</b> GPIO27</div><div class="pin gnd"><b>14</b> GND</div>
+        <div class="pin amb"><b>15</b> GPIO22</div><div class="pin"><b>16</b> GPIO23</div>
+        <div class="pin"><b>17</b> 3V3</div><div class="pin"><b>18</b> GPIO24</div>
+        <div class="pin"><b>19</b> GPIO10</div><div class="pin gnd"><b>20</b> GND</div>
+        <div class="pin"><b>21</b> GPIO9</div><div class="pin"><b>22</b> GPIO25</div>
+        <div class="pin"><b>23</b> GPIO11</div><div class="pin"><b>24</b> GPIO8</div>
+        <div class="pin"><b>25</b> GND</div><div class="pin"><b>26</b> GPIO7</div>
+        <div class="pin"><b>27</b> ID_SD</div><div class="pin"><b>28</b> ID_SC</div>
+        <div class="pin"><b>29</b> GPIO5</div><div class="pin"><b>30</b> GND</div>
+        <div class="pin"><b>31</b> GPIO6</div><div class="pin"><b>32</b> GPIO12</div>
+        <div class="pin"><b>33</b> GPIO13</div><div class="pin"><b>34</b> GND</div>
+        <div class="pin"><b>35</b> GPIO19</div><div class="pin"><b>36</b> GPIO16</div>
+        <div class="pin"><b>37</b> GPIO26</div><div class="pin"><b>38</b> GPIO20</div>
+        <div class="pin"><b>39</b> GND</div><div class="pin"><b>40</b> GPIO21</div>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>Pins 8 and 10 are marked do-not-use for a reason.</b> That is GPIO14/15, the UART
+      DRONE_S uses for its flight controller. It is the only GPIO peripheral in the whole
+      design, and the four pins above are chosen to stay clear of it, so this panel is
+      identical on all three nodes.
+    </div>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">the same thing, as a list</span></div>
+<pre>Buzzer      +   -&gt; pin 11  (GPIO17)
+Buzzer      -   -&gt; pin 9   (GND)
+
+Green LED   +   -&gt; pin 13  (GPIO27)  through a 220-330 ohm resistor
+Green LED   -   -&gt; pin 14  (GND)
+
+Amber LED   +   -&gt; pin 15  (GPIO22)  through a 220-330 ohm resistor
+Amber LED   -   -&gt; pin 20  (GND)
+
+Button (optional, safe shutdown)
+        one leg -&gt; pin 5   (GPIO3)
+        other   -&gt; pin 6   (GND)</pre>
+    </div>
+
+    <div class="note">
+      <b>The LED long leg is the positive one.</b> The resistor can sit on either side of the
+      LED; it limits current the same either way. If a lamp never lights, this is the first
+      thing to check.
+    </div>
+  </section>
+
+  <section class="stage gate" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">The switch, and the thing that will bite you</h2></div>
+
+    <p>Wire the switch <b>in series with the positive supply lead</b> feeding the Pi, before
+    the Pi's power input. It carries the full node current, which is why the 5 A rating
+    matters.</p>
+
+    <div class="gatebox">
+      <div class="label">Read this before fitting a bare power switch</div>
+      <p>Cutting power to a running Pi is an unclean shutdown. Do it repeatedly and the SD
+      card <b>will</b> eventually corrupt. That is not theoretical here: these nodes already
+      lose power in the field, and one has already been taken down by a USB brownout.</p>
+    </div>
+
+    <p>Two ways to live with it, in order of preference:</p>
+
+    <ol class="steps">
+      <li><b>Fit the optional button on GPIO3.</b> Press it to shut down cleanly, wait for the
+      green lamp to go out, then flip the switch. GPIO3 is special: the same button also
+      WAKES a halted Pi, so one button does both jobs. Enable it by adding one line to
+      <code class="inline">/boot/firmware/config.txt</code>:
+        <div class="term" style="margin-top:0.6rem;">
+          <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">/boot/firmware/config.txt</span></div>
+<pre>dtoverlay=gpio-shutdown,gpio_pin=3,active_low=1,gpio_pull=up</pre>
+        </div>
+      </li>
+      <li><b>Accept the risk</b> and keep a spare flashed SD card in the kit. Reasonable for a
+      demo, poor for a deployment.</li>
+    </ol>
+  </section>
+
+  <p class="part">Part three &middot; Software and testing</p>
+
+  <section class="stage" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Turn it on in software</h2></div>
+
+    <p>The code is already on the node. Every node conf now ships with the switch present
+    and set to false, so you are changing one word.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on the node</span></div>
+<pre><span class="prompt">$</span> cd ~/rescue-mesh
+<span class="prompt">$</span> git pull
+
+<span class="comment"># Edit this node's conf: deploy/nodes/drone_a.conf (or _b, or _s)</span>
+<span class="comment"># Change INDICATOR=false to INDICATOR=true</span>
+<span class="prompt">$</span> nano deploy/nodes/drone_a.conf
+
+<span class="prompt">$</span> cd deploy
+<span class="prompt">$</span> sudo ./setup_node.sh a          <span class="comment"># or b, or s</span>
+<span class="prompt">$</span> sudo systemctl status rescue-mesh-indicator</pre>
+    </div>
+
+    <div class="note">
+      <b>The setup script installs <code class="inline">python3-gpiozero</code> for you</b>
+      when INDICATOR is true, so there is no separate apt step to forget. It only installs it
+      on nodes that ask for it, since a node with no panel fitted has no use for the library.
+    </div>
+  </section>
+
+  <section class="stage gate" id="s6">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Test it</h2></div>
+
+    <p>You do not need to reboot to test. Restarting the service replays the whole startup
+    sequence.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on the node</span></div>
+<pre><span class="prompt">$</span> sudo systemctl restart rescue-mesh-indicator</pre>
+    </div>
+
+    <div class="readout">
+      <div class="label">Expected, within a few seconds</div>
+      <pre>green lamp blinks, then goes solid
+two short beeps
+amber lamp lights IF another node is currently in range</pre>
+      <div class="hint">Amber staying dark is not a failure on its own. With one node powered
+      there is nothing to see. Power a second node and it should light within about
+      10 seconds, which is also the cleanest proof the mesh is up.</div>
+    </div>
+
+    <div class="gatebox">
+      <div class="label">The one test worth doing properly</div>
+      <p>With two nodes up and both amber lamps lit, unplug the USB Wi-Fi adapter from one of
+      them. Both amber lamps should go out within about 10 seconds. That is the exact field
+      failure this panel exists to make visible, and confirming it now means you will
+      recognise it instantly later.</p>
+    </div>
+  </section>
+
+  <section class="stage" id="s7">
+    <div class="stage-head"><span class="stage-num">07</span><h2 class="stage-title">If nothing happens</h2></div>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr>
+        <tr><td>No sound at all, lamps fine</td><td>A PASSIVE buzzer is fitted where an active one is needed</td><td>Replace it. A passive buzzer needs a PWM tone and will never sound with this code</td></tr>
+        <tr><td>Service dies immediately</td><td><code class="inline">python3-gpiozero</code> missing, or a pin already in use</td><td><code class="inline">journalctl -u rescue-mesh-indicator -n 20</code>. If you enabled the panel by hand rather than through setup_node.sh, install the library</td></tr>
+        <tr><td>A lamp never lights</td><td>Wired backwards</td><td>The long leg goes to the GPIO side, through the resistor</td></tr>
+        <tr><td>Green blinks forever</td><td>The API genuinely is not answering</td><td>That is the lamp doing its job. <code class="inline">systemctl status rescue-mesh-api</code></td></tr>
+        <tr><td>Amber never lights</td><td>Either genuinely no peers, or the USB adapter has dropped off the bus</td><td><code class="inline">iw dev wlan1 info</code> before suspecting the lamp or the sync</td></tr>
+        <tr><td>Everything works, then dies on battery</td><td>Not this circuit. The lamps draw about 20 mA</td><td>The node needs a 3 A class supply. This is a known limit, not a new fault</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="stage" id="s8">
+    <div class="stage-head"><span class="stage-num">08</span><h2 class="stage-title">What it cannot do, stated plainly</h2></div>
+
+    <p>The panel runs on the Raspberry Pi. <b>It therefore cannot indicate anything once the
+    Pi is dead</b>, which is exactly the LoRa fallback case: a failed node goes dark
+    locally.</p>
+
+    <p>The aux module still reports that condition to the rest of the fleet over LoRa, so the
+    GCC's Degraded tab sees it and a neighbouring drone logs every beacon. But nobody
+    standing next to the failed drone will know from looking at it. This was accepted
+    deliberately rather than overlooked, and it is the direct cost of the pin shortage on the
+    aux side.</p>
+
+    <div class="note">
+      <b>If you ever want local indication of a dead Pi</b>, it has to move to the aux module,
+      which means freeing a XIAO pin, which means giving up a LoRa line or adding an I2C GPIO
+      expander. That is a real project, not an afternoon, and it is recorded as future work
+      rather than a gap.
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  Rescue Mesh &middot; front panel build plan &middot; field backlog #1<br>
+  Software: deploy/files/node_indicator.py, deploy/systemd/rescue-mesh-indicator.service. Reference: docs/NODE_PANEL.md.
+</footer>

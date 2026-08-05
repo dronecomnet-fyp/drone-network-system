@@ -139,6 +139,15 @@ apt-get update -qq
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
     git python3 python3-venv python3-pip sqlite3 openssl iw nftables
 
+# Front panel (field backlog #1). Installed only when the node conf asks for
+# it, because a node with no panel fitted has no use for the library. Doing
+# it HERE rather than leaving it to the operator: the service is enabled
+# later in this same script, and enabling a unit whose import fails means a
+# crash loop the operator has to diagnose from journalctl.
+if [[ "${INDICATOR:-false}" == "true" ]]; then
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-gpiozero
+fi
+
 echo "[Step 6] Python venv + pinned requirements"
 sudo -u "$SERVICE_USER" python3 -m venv "$BACKEND_DIR/.venv"
 sudo -u "$SERVICE_USER" "$BACKEND_DIR/.venv/bin/pip" install -q --upgrade pip
