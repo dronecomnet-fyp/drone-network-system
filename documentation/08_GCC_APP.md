@@ -148,6 +148,22 @@ Live MAVLink telemetry and the command palette for the system drone. Every
 command is gated on a fresh heartbeat, and force-DISARM is always visible.
 Covered in chapter 11.
 
+### Field Share (`screens/distribution_screen.dart`)
+
+Turns the ground laptop into a local download point. At a disaster site
+there is no internet and no app store, yet rescuers arriving on scene still
+need the app installed and the right offline map regions on their phones.
+
+The tab serves a folder of files over plain HTTP on the laptop's own Wi-Fi and
+shows a link plus a QR code; phones on the same network open it in a browser
+and self-serve. Plain HTTP is correct here: a phone with no internet cannot be
+asked to trust a certificate, and this is the same reasoning as the victim
+plane (chapter 05).
+
+The bundle has to be prepared BEFORE leaving, while there is still internet:
+the APKs and the `.mbtiles` regions for the operation area. `docs/FIELD_SHARE.md`
+covers what to pack and how.
+
 ### Settings (`screens/settings_screen.dart`)
 
 Node base URL; the fleet CA (loaded from `fleet_ca.crt`, without which HTTPS
@@ -187,7 +203,8 @@ gcc_app/lib/
   state/                    AppState, DataStore, MissionState, FleetState,
                             DroneController, mentionables
   screens/                  one file per tab
-  services/                 geo, product_api, ai_advisor, connectivity, portal_config
+  services/                 geo, product_api, ai_advisor, connectivity,
+                            portal_config, distribution_server
   widgets/                  blinking, drone_glyph, map_filters, mention_field,
                             ai_progress_dialog, degraded_alert, battery_text
   mavlink/mav_service.dart  the MAVLink UDP link
