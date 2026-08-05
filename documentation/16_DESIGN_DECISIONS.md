@@ -74,6 +74,69 @@ Sorted keep / fix / demote (chapter 05 has the detail):
 - **`MissionState` supersedes `PlanState` (25):** the whole operation in one
   local JSON file, with legacy plan import so nothing is lost.
 
+## The field-backlog decisions (CHANGES 31-47)
+
+These came out of testers using the system rather than from design, which is
+why several of them overturn something earlier.
+
+- **DEGRADED is derived, never read back (31):** a stored flag meant one LoRa
+  beacon marked a node down forever, even while the fleet was actively syncing
+  with it. Health is now computed from live evidence, and the aux module
+  recovers by itself after three consecutive pings instead of beaconing until
+  someone notices.
+- **No version counter for portal config (36):** superseding two earlier
+  attempts to patch its symptoms. A counter has to be stored somewhere and kept
+  correct, and every holder can be wrong; content fingerprints cannot rewind.
+  Recorded as a case of stopping to ask what the mechanism was FOR rather than
+  fixing it a third time.
+- **Portal options edit once per mission (field backlog #7):** the operator
+  overruled a suggestion that a mission changing character justifies a second
+  edit. Several revisions in play make "which options is this node serving"
+  hard to reason about, and that ambiguity is worse than the flexibility.
+- **The front panel lives on the Pi, not the aux module (field backlog #1):**
+  every XIAO signal pin was already allocated. The consequence is accepted
+  openly: the panel goes dark exactly when the Pi dies, which is the fallback
+  case it would be most useful in.
+- **Credentials carried by their owner (41):** a signed personnel record
+  travels as a QR and is admitted through the same verification path sync uses.
+  No new trust, one new delivery route.
+- **The PIN inside the sign-in QR (41):** a deliberate weakening on the
+  operator's explicit instruction, bounded by mission-scoped credentials. The
+  cost is stated rather than buried: photographing the code on screen yields
+  full credentials until the mission ends. Confidence Moderate that mission
+  scoping is tight enough in practice, because it depends on operators actually
+  switching missions.
+- **Victims tap, they do not type (42):** and the options come from the NODE,
+  not the app, so a victim with the app and a victim with a browser report the
+  same vocabulary. Location became opt out rather than a silent attachment.
+- **The LoRa log replicates, node health does not (43):** the node that hears a
+  beacon is whichever is nearest the failure, and HQ may be elsewhere. Health
+  is a node's opinion about right now and does not travel well; a heard frame
+  is a fact about a moment and does.
+- **Attachments are plain text (44):** a structured format would have meant
+  changing the wire contract, migrating every node, and leaving older installs
+  showing an empty message.
+- **Operator intent is first-class (45):** GCC position, advance arrows and
+  suspected areas are recorded and fed to the advisor, because they exist
+  nowhere else and cannot be inferred from a polygon.
+- **Unapproved plans stay out of the operations map (47):** treated as a safety
+  property. A proposal beside the live operation reads as a decision, and this
+  proposal comes from a model that has never seen the ground.
+- **The AI progress display does not invent activity (47):** three of its four
+  steps are real work and the fourth is labelled as placing rather than
+  receiving, because the model answers all at once.
+
+Two entries are corrections rather than decisions, kept because deleting them
+would hide how the system was actually built:
+
+- **Item 26 was withdrawn (30):** Battery B moved to the ESP32's own ADC and
+  then straight back to the INA3221, because the first change solved a problem
+  that measurement showed did not exist.
+- **Item 39 originally blamed the wrong thing (40):** a sync defect was written
+  up as the cause of a field failure the logs later disproved. The real cause
+  was USB power. The defect was genuine and the fix stayed; the false
+  attribution was corrected in all three places it had been written.
+
 ## The recurring principles behind the decisions
 
 Reading the decisions, a few principles recur and are worth internalising:

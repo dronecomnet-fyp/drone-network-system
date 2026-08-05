@@ -16,7 +16,7 @@ From `backend/` with the virtualenv:
 .venv/bin/python -m pytest tests/ -q
 ```
 
-28 tests covering both planes and the sync layer:
+91 tests covering both planes and the sync layer:
 
 - `tests/test_api.py`: the victim message flow and signature; the check-in flow
   (SOS creates a message); the full auth lifecycle (create personnel including
@@ -29,6 +29,26 @@ From `backend/` with the virtualenv:
   NEW, personnel newest-wins with REVOKED override, append-only tables,
   personnel-location newest-wins), tampered records rejected at ingest, and
   beacon replay rejected by the counter.
+- `tests/test_sync_resilience.py`: one failing table must not stop the others,
+  and the optional peer-health cache must never abort a sync cycle. Written
+  after a latent defect where a broad failure in a nice-to-have cache could
+  have stopped messages replicating entirely.
+- `tests/test_degraded_and_peers.py`: DEGRADED is DERIVED from live evidence,
+  so a single fallback beacon cannot mark a node down forever while the fleet
+  is actively syncing with it.
+- `tests/test_enrolment.py`: a carried personnel record is verified the same
+  way a synced one is; the enrolment blob never contains the PIN, while the
+  sign-in code deliberately does (chapter 05 states why).
+- `tests/test_mission_scoped_creds.py`: credentials issued under one mission
+  are rejected by a node running another, and an unconfigured node accepts any.
+- `tests/test_mission_config.py`: stock options on an un-pushed node, content
+  fingerprints stable across identical pushes, a stale push refused, and the
+  app and the captive portal serving the SAME labels.
+- `tests/test_conversations.py` and `tests/test_area_map.py`: victim replies
+  and the positions-only area map (no content, no ids).
+- `tests/test_lora_log.py`: the LoRa log replicates to a node that never heard
+  the beacon, the same frame coming back does not duplicate, a forged entry is
+  rejected, and the table is pruned rather than growing without bound.
 
 ### GCC app (flutter test)
 
@@ -36,23 +56,42 @@ From `gcc_app/`:
 
 ```
 flutter analyze     # clean
-flutter test        # 41 tests
+flutter test        # 90 tests
 ```
 
 Covering mission serialization (round-trip, legacy plan import, the
-module-attachment rule), the fleet state machine and the reserve-battery math,
-the MAVLink wire encodings (arm, force-disarm, motor test, takeoff, reposition,
-RTL), the AI advisor (parsing good/fenced/prose/refusal replies, and the
-validator's polygon/count/connectivity/system-drone/clamp checks), plus a shell
-smoke test that every tab renders its honest empty or gated state and that the
-break-glass key unlocks the HQ surfaces.
+module-attachment rule, and the operator's intent drawing surviving a save and
+load), the fleet state machine and the reserve-battery math, the MAVLink wire
+encodings (arm, force-disarm, motor test, takeoff, reposition, RTL), the AI
+advisor (parsing good/fenced/prose/refusal replies, the validator's
+polygon/count/connectivity/system-drone/clamp checks, and that operator intent
+reaches the prompt), the @ attach picker (the text surgery, and the picker's
+priority ordering), the draft-visibility rule, plus a shell smoke test that
+every tab renders its honest empty or gated state and that the break-glass key
+unlocks the HQ surfaces.
+
+Two of those exist because writing them found something. The @ picker's text
+surgery left a double space when attaching mid sentence. And the
+draft-visibility tests pin a safety property, not a preference: an unapproved
+plan must not appear on the operations map, and withdrawing approval must
+actually withdraw it.
 
 ### Shared package and the phone apps
 
 - `shared_dart`: `dart analyze` is clean; it has live tests that run against
   real backend processes, including the certificate-pinning drill.
-- `rescue_app` and `emergency_app`: `flutter analyze` reports zero errors and
-  zero warnings; unit tests under each app's `test/`.
+- `rescue_app`: 16 tests, including the sign-in QR decoder. That decoder is
+  tested on its own because scanning the WRONG barcode is the normal case, not
+  the exceptional one: shipping labels, asset tags and food packaging all carry
+  codes, and every one must produce a readable message rather than a crash on
+  the login screen.
+- `emergency_app`: 23 tests, including the BLE payload parser, the auto-open
+  cooldown (two drones alternating must open twice, not forever), and the
+  auto-open WIRING: a sighting opens the screen when the setting is on, does
+  nothing when off, and does nothing before the person has been asked. That
+  last group was added because a tester reported auto-open as broken when the
+  real cause was upstream, and a setting stored correctly but never consulted
+  looks identical to a broken feature.
 
 ### Website
 

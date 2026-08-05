@@ -54,8 +54,27 @@ SOS), rescuer last-known positions (teal person pins, chapter 12), personnel
 field reports (purple flags), the connected node and any degraded nodes at
 their beaconed positions, the active deployment's placements with coverage
 circles, and deployed drones moving through their lifecycle. It is also the
-planning surface (chapter 12): draw the operation area polygon, drop and move
+planning surface (chapter 12): draw the operation area polygon, place the GCC
+itself, draw advance arrows and suspected-area circles, and drop and move
 role-colored placements.
+
+Three rules the map follows that are easy to miss:
+
+- **A tap means exactly one thing at a time.** Drawing is an explicit mode
+  (area, GCC, arrow, suspected area, or none) and the panel states in words
+  what the next tap will do. A map where a tap could mean five things is a map
+  that gets used by accident.
+- **Unapproved plans do not appear here.** A draft deployment shows while
+  planning mode is on, blinking, and nowhere else. A proposal drawn on the
+  operations map is indistinguishable from a decision, and these proposals come
+  from a language model that has never seen the ground.
+- **The area is shaded only while planning.** Once the mission is running it
+  drops to a thin outline, because a permanent colour wash over the whole
+  operation makes every marker underneath harder to read.
+
+A Layers button filters what is drawn. It counts HIDDEN layers rather than
+visible ones, deliberately: a filter somebody forgot they set is how a victim
+goes unseen.
 
 ### Live Ops (`screens/live_ops_screen.dart`)
 
@@ -78,8 +97,28 @@ timestamps.
 ### Nodes (`screens/nodes_screen.dart`)
 
 Node health from `/health`: the connected node's GPS, battery, uptime, clock
-source and message counts; its alive DTN peers; and any DEGRADED nodes learned
-from LoRa fallback beacons. Every block shows its age.
+source and message counts; its alive DTN peers as cards; any DEGRADED nodes;
+and what this node is currently serving victims (chapter 12). Every block shows
+its age.
+
+Peer cards show the BEACON age and the DETAILS age separately, because a peer
+can be beaconing right now while the position and battery beside it are minutes
+old. The empty state names both reasons a node might see no peers: the normal
+delay-tolerant case, and a dead USB WiFi adapter, which is what actually
+happened in the field and cost an evening of debugging sync (chapter 14).
+
+### Degraded (`screens/degraded_screen.dart`)
+
+Downed drones and the LoRa log. `/health` answers only "is that drone down
+right now", which is the wrong question when deciding whether to walk half a
+kilometre to it. This tab answers what it has been telling you: last beacon
+age, signal strength, which nodes heard it, the battery it reported, and the
+last victim message it was still carrying.
+
+Nodes that recovered stay listed for an hour, because "it came back by itself"
+is something the operator acts on by NOT walking out there. The raw log is
+filterable by node and by fallback-only, since when the summary looks wrong the
+operator needs to see what actually arrived.
 
 ### Personnel (`screens/personnel_screen.dart`)
 
@@ -90,6 +129,18 @@ side (chapter 05).
 ### Announcements (`screens/announcements_screen.dart`)
 
 Read and (for HQ) post operational notices that sync to all nodes.
+
+Typing `@` in the body opens a picker of degraded drones, drones, victims and
+rescuers; choosing one writes its id AND its coordinates into the message. The
+problem this solves is not typing speed: "the drone in the north is down, go to
+the victim near the school" is ambiguous to everyone who reads it, and the
+operator previously had no way to name things as the system names them without
+reading ids off another tab.
+
+The attachment is plain text on purpose. Announcements already replicate and
+render as text, so a structured format would have meant changing the wire
+contract, migrating every node, and leaving older app installs showing an empty
+message.
 
 ### Drone (`screens/drone_control_screen.dart`)
 
@@ -122,18 +173,22 @@ advisor endpoint, model, and key; and the labelled break-glass HQ key.
   macos` or `-d windows`.
 - The installable Windows build steps are in `docs/RELEASES.md`; the bring-up
   runbook is `gcc_app/windows_gcc_bringup.html`.
-- Tests: `flutter test` (41 tests: mission serialization, the fleet state
-  machine and battery math, the MAVLink wire encodings, the AI validator, and a
-  shell smoke test that every tab renders its honest empty/gated state).
-  `flutter analyze` is clean.
+- Tests: `flutter test` (90 tests: mission serialization including operator
+  intent, the fleet state machine and battery math, the MAVLink wire encodings,
+  the AI validator and prompt, the @ attach picker, the draft-visibility rule,
+  and a shell smoke test that every tab renders its honest empty/gated state).
+  `flutter analyze` is clean. Chapter 15 has the detail.
 
 ## Where the code lives
 
 ```
 gcc_app/lib/
   main.dart                 the shell + navigation + login dialog
-  state/                    AppState, DataStore, MissionState, FleetState, DroneController
+  state/                    AppState, DataStore, MissionState, FleetState,
+                            DroneController, mentionables
   screens/                  one file per tab
-  services/                 geo, product_api, ai_advisor
+  services/                 geo, product_api, ai_advisor, connectivity, portal_config
+  widgets/                  blinking, drone_glyph, map_filters, mention_field,
+                            ai_progress_dialog, degraded_alert, battery_text
   mavlink/mav_service.dart  the MAVLink UDP link
 ```

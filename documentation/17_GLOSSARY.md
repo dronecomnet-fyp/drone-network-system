@@ -109,3 +109,21 @@ Terms and acronyms used across this project, in plain language.
   deployment).
 - **TRCSL:** the spectrum regulator whose clearance is required before raising
   LoRa transmit power (chapter 07).
+- **Mission config:** the option list a node serves victims, pushed per node and
+  identified by a hash of its own content, never a version counter (chapter 12).
+- **Mission id:** the identity a mission's credentials are scoped to. Switching
+  the active mission retires every credential from the previous one (chapter 05).
+- **Enrolment:** admitting a signed personnel record that the rescuer's own
+  phone carried to a node that has never synced with the issuer (chapter 05).
+- **Sign-in code:** the QR the GCC shows when issuing credentials, carrying the
+  signed record AND the PIN so signing in is one scan (chapter 05 states the
+  security trade).
+- **LoRa event log (`lora_events`):** every LoRa frame a node hears, replicated
+  across the fleet, behind the GCC's Degraded tab (chapter 08).
+- **Draft deployment:** an unapproved plan. Visible in planning mode only, and
+  blinking, so a proposal is never mistaken for a decision (chapter 12).
+- **Operator intent:** the GCC position, advance arrows and suspected areas the
+  operator draws. The one planning input that exists nowhere else in the system
+  (chapter 12).
+- **Field backlog:** the eighteen tester findings of August 2026 and what each
+  turned out to be (`docs/FIELD_BACKLOG.md`).

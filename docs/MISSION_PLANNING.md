@@ -9,9 +9,18 @@ props-off on the bench only (see CHANGES item 23).
 
 1. HQ, online. The operator opens the GCC and creates a mission on the
    Mission tab: name (e.g. "Flood 2026"), disaster type, and challenges.
+   The tab is ordered as a sequence: where, then what you have, then the
+   plan.
 
-2. Inventory. The operator lists resources: personnel count, spare
-   batteries, comm modules (by our unit ID), and drones. Drones come three
+2. Draw the operation area FIRST. It is step one for a reason: it frames the
+   map that every later step happens over, it bounds every placement, and the
+   AI advisor will not run without it. Drawing it from the Mission tab takes
+   the operator to the map with the tool already on.
+
+3. Inventory. The operator lists resources: personnel count, spare
+   batteries, comm modules (by our unit ID), and drones. Modules are chips
+   that DRAG onto a drone card to attach; a module already fitted must be
+   detached first, which matches the physical act. Drones come three
    ways, and the roster is editable at ANY time, including offline in the
    field:
    - OUR BRAND: enter the unit ID, tap "fetch specs" (pulls from the product
@@ -21,27 +30,38 @@ props-off on the bench only (see CHANGES item 23).
    - MINIMAL: just a label, specs unknown.
    A module can only be attached to one drone at a time.
 
-3. Product specs. The GCC fetches a unit's specs from the hosted product
+4. Product specs. The GCC fetches a unit's specs from the hosted product
    site (Supabase) by ID and caches them into the mission file, so once
    cached they resolve with no network. The public site (website/) shows the
    catalogue, a 3D product view, a unit lookup, and a request-a-quote form.
 
-4. Plan the area. On the Map tab, planning mode, the operator draws the
-   operation area polygon and drops placements (role-colored: user AP, mesh
-   relay, system drone) with coverage circles sized from the cached specs.
+5. Say what only you know. Still in planning mode, the operator places the
+   GCC itself (nothing in the system can know where a laptop in a tent is),
+   draws arrows for where they expect the operation to advance, and circles
+   areas they suspect need attention. The map says where the disaster is and
+   nothing more; this is the intent that cannot be inferred from it.
 
-5. AI suggestion (optional, online). "AI suggest" on the Mission tab sends
-   the mission (area, counts, specs, challenges) to a free OpenAI-compatible
-   model, which returns placements. The GCC validates them (inside the area,
-   count vs drones, mesh connectivity, one system drone) and drops them in as
-   an unapproved "AI plan" the operator edits and approves. The AI never
-   commands anything.
+6. Place the drones. Drop role-colored placements (user AP, mesh relay,
+   system drone) with coverage circles sized from the cached specs. Select a
+   placement and tap a new spot to move it.
 
-6. Field, offline. At the disaster the operator plans or edits manually (no
+7. AI suggestion (optional, online). "AI suggest" on the Mission tab sends
+   the mission (area, counts, specs, challenges, and the intent from step 5)
+   to a free OpenAI-compatible model, which returns placements. The GCC
+   validates them (inside the area, count vs drones, mesh connectivity, one
+   system drone) and drops them in as an unapproved "AI plan" the operator
+   edits and approves. The AI never commands anything.
+
+   An unapproved plan BLINKS in planning mode and does not appear on the
+   operations map at all. That is deliberate: a proposal drawn beside the
+   live operation reads as a decision, and this one came from a model that
+   has never seen the ground.
+
+8. Field, offline. At the disaster the operator plans or edits manually (no
    internet needed), including adding volunteer drones that arrive on site.
    Deployments and the whole mission save/load as a local JSON file.
 
-7. Deploy. On Live Ops, the fleet board deploys drones to placements. In
+9. Deploy. On Live Ops, the fleet board deploys drones to placements. In
    DEMO mode any number of drones are simulated: they fly out, hold station,
    and auto-return before the battery reserve is spent; volunteer rows are
    pilot-advisory (the GCC shows the pilot instruction). For DRONE_S with a
@@ -50,11 +70,19 @@ props-off on the bench only (see CHANGES item 23).
    The board shows "Deployed X / Y available" and disables Deploy when the
    pool is empty.
 
-8. Live operations. Live Ops shows the numbers (victims, SOS, field reports,
+10. Live operations. Live Ops shows the numbers (victims, SOS, field reports,
    rescuers tracked, mesh/battery/GPS), each with its data age. The Map shows
    everyone's last known location: victims, SOS check-ins, rescuers (teal
    pins, from the location heartbeat), the connected node, degraded nodes,
-   and the deployed drones moving through their lifecycle.
+   and the deployed drones moving through their lifecycle. A Layers button
+   filters what is drawn, and counts HIDDEN layers rather than visible ones,
+   because a filter somebody forgot is how a victim goes unseen.
+
+11. Victim-facing options. The operator may edit the portal option list ONCE
+    per mission and push it to each node in turn. Each node reports which
+    config it holds, so partial rollout is visible instead of silent. The
+    emergency app reads the same list from the node, so a victim with the app
+    and a victim with a browser report the same things.
 
 ## The no-fly demo script (about 15 minutes)
 

@@ -39,6 +39,32 @@ State is `provider`-based:
   2 minutes on failure), pausing on credential failure.
 - `providers/heartbeat_provider.dart`: the location heartbeat (below).
 
+## Signing in: one scan, no typing
+
+The login screen offers scanning FIRST and the PIN second, because typing a
+six-digit personnel id and PIN with cold or wet hands is the thing a rescuer
+cannot reliably do.
+
+`screens/scan_signin_screen.dart` reads the QR the GCC shows when credentials
+are issued. `decodeSigninCode` (in `providers/auth_provider.dart`, kept pure so
+it is unit-tested without a camera) unpacks three fields: the personnel id, the
+PIN, and the holder's signed personnel record. `signInWithCode` then does two
+things the rescuer never sees:
+
+1. `POST /enrol` hands the signed record to whichever drone the phone is joined
+   to, so a node that has never met this person can still authenticate them.
+   Failure here is not fatal: the node may already know them.
+2. An ordinary PIN login with the carried PIN.
+
+A scanned barcode that is not one of ours (a shipping label, an equipment asset
+tag) produces a readable message rather than a crash, which is tested,
+because scanning the wrong thing is the normal case rather than the
+exceptional one.
+
+The PIN carried in the QR is a deliberate reduction in security posture, taken
+on the operator's explicit instruction and bounded by mission-scoped
+credentials. Chapter 05 states the trade in full, including what it costs.
+
 ## The networking layer
 
 The app never talks HTTP directly. `services/api_service.dart` is a static

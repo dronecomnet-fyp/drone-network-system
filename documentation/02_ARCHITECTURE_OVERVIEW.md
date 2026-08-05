@@ -65,6 +65,8 @@ Behind them:
   GPS, and time into the node, and receiving LoRa fallback events.
 - `backend/crypto_keys.py`: derives the three purpose-separated keys from one
   master secret.
+- `backend/mission_config.py`: what this node currently serves victims, pushed
+  per node by the GCC and identified by a hash of its own content (chapter 12).
 
 ### On the drones (firmware)
 

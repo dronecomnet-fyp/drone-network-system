@@ -34,8 +34,37 @@ by a random device id generated on the phone.
    detected, a high-priority notification and this screen offer to join the
    drone's Wi-Fi (a settings intent, with a manual join always available).
 4. **Connected** (`screens/connected_screen.dart`): once on the drone Wi-Fi,
-   the app uploads its stored check-ins and offers an SOS composer. SOS check-ins
-   are flagged so they stand out on the GCC map (orange).
+   the app uploads its stored check-ins and offers an SOS composer. SOS
+   check-ins are flagged so they stand out on the GCC map (orange).
+5. **Conversation** (`screens/conversation_screen.dart`): the victim reads
+   replies to their own messages, with honest delivery states. It never claims
+   a message has been read by a person, only that a drone holds it.
+6. **Area map** (`screens/area_map_screen.dart`): drones, other people who need
+   help, and rescuers, as positions only. The node's `/area-map` returns
+   coordinates and never content or ids, so one victim cannot read another's
+   message.
+
+### The SOS composer: tap, do not type
+
+The composer was originally one empty text box. Every objection the testers
+raised about the old captive portal applied to it just as hard: wet hands, a
+cracked screen, a keyboard set to the wrong language, and panic all make typing
+the one thing a person here cannot do.
+
+It now shows the same big tappable options as the portal, and it FETCHES them
+from the node (`GET /portal-options`) rather than carrying its own copy. That
+is the part worth understanding: the operator may edit the option list per
+mission, so a hardcoded list would mean a victim with the app and a victim with
+a browser reporting different vocabularies, and the rescue team's tally of who
+needs what would stop meaning anything. A built-in need-based list is used only
+when the node cannot be asked, which is what an older node looks like.
+
+Location moved from silently attached to **opt out**, defaulting on. A team
+that knows only that somebody needs help cannot act on it, so the default
+matters; but it is their phone, so the choice exists, and the confirmation
+screen states which of the two situations they are in rather than always
+claiming the drone has their location. Sending with nothing selected is still
+allowed: an SOS with no detail still says a person is here.
 
 ## Privacy-first storage
 
@@ -50,6 +79,20 @@ by a random device id generated on the phone.
 Nothing leaves the phone until the person is connected to a drone and chooses to
 upload. Uploads go to the victim plane (`POST /checkin`, chapter 06) over plain
 HTTP, which is the accepted-open plane (chapter 05).
+
+## Auto-open, and a report that was not a bug
+
+The app can bring itself to the front when a drone is sighted, if the person
+has agreed to it. A tester reported that the setting appeared to do nothing.
+
+There was no defect in that path. Tests now drive the same callback the radio
+drives and confirm a sighting opens the screen when the setting is on, does
+nothing when it is off, and does nothing before the person has been asked. The
+explanation is almost certainly the watch toggle bug fixed alongside it: the
+scan was never running, so no sighting ever arrived, and a feature that is
+never reached looks identical to a broken one from the outside.
+
+The per-node cooldown that stops it reopening forever is covered in chapter 15.
 
 ## The BLE watch, and why it finally works
 

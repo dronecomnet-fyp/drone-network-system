@@ -6,21 +6,42 @@ chapter assumes them.
 
 ## What is done
 
-All the software that can be built and tested without the physical fleet is
-done and verified:
+The software is done, and unlike earlier drafts of this chapter, **it has now
+been run on the physical fleet with testers**. That round produced eighteen
+findings, all closed; `docs/FIELD_BACKLOG.md` records each one and what turned
+out to be true about it.
 
 - The node backend (both planes, schema v3, DTN sync, aux bridge, crypto),
-  passing 28 pytest tests.
+  passing 91 pytest tests.
 - The deploy tooling: one setup script, per-node configs, systemd units, the
-  fleet CA, the firewall, and the browsable runbooks.
+  fleet CA, the firewall, the optional front panel, and the browsable runbooks.
 - The aux firmware (compiles clean; six bench tests documented).
-- The three apps (GCC 41 tests and analyze-clean; rescue and emergency apps
-  analyze-clean).
+- The three apps (GCC 90 tests, rescue 16, emergency 23, all analyze-clean).
 - The system drone control: the MAVLink gateway, the GCC MAVLink service, and
   the fleet manager (demo and real), all bench-verified props-off.
-- The mission layer: mission planning, the AI advisor, rescuer tracking, live
-  operations.
+- The mission layer: mission planning with operator intent, the AI advisor,
+  rescuer tracking, live operations, per-mission victim portal options.
 - The product website, live on GitHub Pages with a seeded Supabase backend.
+- Phone apps published through the GitHub release channel, currently
+  `phone-apps-v4`.
+
+### What field testing changed about our confidence
+
+Worth reading before you trust any figure in this handbook. Three of the
+eighteen findings were not the bugs they appeared to be:
+
+- Two nodes "not syncing" was **USB power**, not software. The battery
+  arrangement as tested cannot reliably run a Pi plus the AR9271 plus the aux
+  module (chapter 14).
+- "Auto-open does not work" was a symptom of a different bug entirely: the
+  watch never armed, so no sighting ever arrived.
+- "The Nodes tab never shows peers" was correct behaviour with no peers to
+  show, on top of an empty-state message that could not be told apart from a
+  hardware failure.
+
+The general lesson, and it is the useful one for whoever comes next: **most of
+the reported bugs were about not being able to tell two situations apart**, not
+about wrong computation.
 
 ## What is not done, and why
 
@@ -28,10 +49,17 @@ Most open items are **hardware-gated**: they need the physical drones, radios,
 and flight controller assembled and on the bench. They are not blocked by
 software.
 
-- **Fleet bring-up on real hardware.** The node setup, the two-node mesh, the
-  DRONE_S bring-up, and the aux flashing have runbooks (`deploy/*.html`,
-  `firmware/aux1/windows_bringup.html`) but must be executed on the physical
-  cards and verified against `deploy/VERIFY.md` and `firmware/aux1/TESTS.md`.
+- **The latest node update on all three nodes.** The LoRa event log and the
+  portal-options endpoint need `git pull` plus a service restart per node
+  (`docs/node_update_lora_log.html`). Until that is done, the emergency app
+  falls back to its built-in option list against an un-updated node.
+- **A real fallback test since the LoRa log shipped.** Pull power from one
+  Pi while leaving its aux module powered, and confirm the Degraded tab on a
+  GCC joined to ANOTHER node shows it. Do it on mains power, not the battery
+  pack.
+- **A node power supply that actually works.** A 3 A class supply or a powered
+  hub for the AR9271. This is the single most important open hardware item:
+  everything else assumes the node stays up.
 - **Python deps re-verified on the Pi.** The Bookworm / Python 3.11 environment
   should be confirmed against the pinned `requirements.txt` (VERIFY.md step 0).
 - **Integration tests on the assembled fleet (file 07, T1-T9).** The security

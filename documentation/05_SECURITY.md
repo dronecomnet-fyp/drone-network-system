@@ -60,7 +60,8 @@ Phase 2 derives three keys from one `NODE_MASTER_SECRET` using HKDF-SHA256
 (`backend/crypto_keys.py`):
 
 - **K_MSG** signs replicated records (messages, personnel, announcements,
-  gs_messages, checkins, personnel_locations). Verified at every sync.
+  gs_messages, checkins, personnel_locations, message_replies, lora_events).
+  Verified at every sync.
 - **K_SYNC** authenticates inter-node traffic: the `X-Node-Auth` header on sync
   pulls, and the signature on presence beacons.
 - **K_TOKEN** signs personnel session tokens.
@@ -147,6 +148,43 @@ logged out whenever they touched an HQ-only endpoint.
 
 The static HQ API key still exists but is demoted to a clearly-labelled
 break-glass credential for when the personnel table is empty (a fresh fleet).
+
+### Enrolment: carrying your own credential
+
+A rescuer issued credentials at DRONE_A could not sign in at DRONE_B until the
+two nodes had synced, which in a delay-tolerant network may be never. The fix
+is that the RECORD travels with the person: the GCC renders their signed
+personnel record into a QR, the phone presents it to whichever node it is
+joined to (`POST /enrol`), and that node verifies it through the same
+`ingest_personnel` path sync uses.
+
+This adds no new trust. A forged record is rejected exactly as a forged sync
+record would be, because it is the same verification against the same K_MSG,
+and nothing is believed merely because a phone presented it. What it does add
+is a second delivery route for a record the fleet was always going to accept.
+
+### The PIN inside the QR: a deliberate weakening
+
+The operator asked for sign-in to be one scan with no typing, on the grounds
+that a rescuer in gloves and rain will not reliably type a six-digit PIN. The
+sign-in QR therefore carries the PIN alongside the signed record.
+
+Stated plainly, because it is a real reduction in posture: **anyone who
+photographs that code while it is displayed has that rescuer's full
+credentials until the mission ends.** Three things bound the damage:
+
+1. **Credentials are scoped to a mission.** Every personnel record carries a
+   `mission_id`, and a node running a different mission rejects them at login.
+   Activating a new mission in the GCC therefore retires every credential
+   issued under the old one at a stroke.
+2. The GCC's issue dialog warns the operator not to leave the code on screen.
+3. The PIN screen remains as the fallback, so the scan path is a convenience
+   rather than the only way in.
+
+Confidence: High that the mechanism works as described; Moderate that mission
+scoping is tight enough in practice, since it depends on operators actually
+switching missions between deployments. That dependency is the honest weak
+point and belongs in any assessment of this decision.
 
 ## Mechanism 5: rate limits and audit
 

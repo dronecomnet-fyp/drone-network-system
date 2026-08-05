@@ -60,6 +60,11 @@ explains are, in order of precedence:
 When this handbook and the code disagree, the code wins; then please fix the
 handbook.
 
+**Currency.** This handbook is current to `docs/CHANGES.md` item 47 and the
+field-backlog round of 5 August 2026. If CHANGES has grown past 47 and nothing
+here mentions the newer items, the gap is real: check the code before trusting
+a chapter on anything recent.
+
 ## Conventions used here
 
 - Code is cited as `path/file.py` or `path/file.dart:function`, relative to

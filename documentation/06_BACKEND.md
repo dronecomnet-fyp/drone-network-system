@@ -47,9 +47,19 @@ Key tables:
   pin_iterations, role RESCUE_TEAM|HQ, status ACTIVE|REVOKED, updated_at,
   signature).
 - `personnel_locations`: latest position per rescuer (chapter 12).
+- `message_replies`: a rescuer's or HQ's reply to a victim message, keyed by
+  `victim_device_id` as well as `msg_id` so a whole conversation can be read
+  without a join. Replicated, because the victim may next meet a different
+  drone from the one the reply was written on.
+- `lora_events`: every LoRa frame a node hears, with signal strength, the
+  position and battery a fallback beacon carried, and the last victim message
+  the downed node was still holding. Replicated, and pruned to 2000 rows by
+  the sync daemon every twentieth cycle: a node down for a day beacons about
+  2900 times and every node in earshot keeps a copy. See chapter 04 for why
+  its primary key is derived from content rather than random.
 - `announcements`, `checkins`, `gs_messages`: as their names suggest.
 - `node_health`: local telemetry snapshots (not replicated; latest-per-node is
-  computed at read time).
+  computed at read time). Pruned to the newest 50 rows per node.
 - `sync_cursor` and a peer-counter table: sync bookkeeping (chapter 04).
 
 Every replicated write is signed at ingest with K_MSG (`sign_record`); every
@@ -64,6 +74,13 @@ On the victim plane (`http_app.py`, port 80):
   per IP and against a global cap, signed and stored.
 - `POST /checkin`: an emergency-app check-in; `sos=true` also creates a normal
   message so it appears in the rescue feed.
+- `GET /portal-options`: the situation options this node is currently serving,
+  so the emergency app offers the SAME choices as the captive portal rather
+  than a copy compiled into the app (chapter 10).
+- `GET /my-conversation/{device_id}`: a victim reading replies to their own
+  messages. Device-scoped, and it returns only that device's thread.
+- `GET /area-map`: positions only, never content or ids, for the victim app's
+  map of drones, other people needing help, and rescuers (chapter 10).
 
 On the authenticated plane (`api.py`, port 8443):
 
@@ -76,6 +93,18 @@ On the authenticated plane (`api.py`, port 8443):
   reports.
 - `POST /personnel-location`, `GET /personnel-locations`: rescuer location
   heartbeat (chapter 12).
+- `POST /enrol`: admits a signed personnel record that a rescuer's own phone
+  carried here, so someone issued credentials at one drone can sign in at a
+  drone that has never synced with it. The record is verified through the same
+  `ingest_personnel` path sync uses, so nothing is trusted merely because a
+  phone presented it (chapter 05).
+- `POST /messages/{id}/reply`, `GET /conversations/{device_id}`: replying to a
+  victim and reading their thread.
+- `GET /lora-events`: the fleet's LoRa log, newest first, for the GCC's
+  Degraded tab (chapter 08). Readable by rescuers as well as HQ, because a
+  rescuer standing near a downed drone is best placed to act on it.
+- `GET /mission-config` (any authenticated role), `POST /mission-config` (HQ):
+  what this node serves victims, and pushing a new set (chapter 12).
 - `GET /health`: a real status payload (aux GPS/battery, uptime, message and
   table counts, alive peers, degraded nodes). Public, so the GCC can watch a
   node come into range before logging in.
@@ -110,7 +139,9 @@ Talks to the ESP32-C3 aux module over a serial line (newline-delimited JSON). It
   narrow sudoers rule that permits only `date -u -s` (chapter 14), audit-logging
   the old and new time;
 - records LoRa fallback receptions as degraded-node health, so a dead peer
-  shows up (chapter 04);
+  shows up (chapter 04), and logs every frame it hears into `lora_events`
+  behind a broad exception guard, so a failure in the log can never take the
+  bridge down with it;
 - pushes new-message summaries and other events down to the aux module.
 
 It exits cleanly if no serial device is configured, which is the case on a node

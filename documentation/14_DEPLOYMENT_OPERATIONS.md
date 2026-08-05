@@ -52,6 +52,7 @@ clean-rebuild decision (chapter 03) was made for.
 | `rescue-mesh-firewall.service` | applies the nftables rules |
 | `dtn-net.service` | oneshot: brings up the IBSS mesh interface at boot |
 | `rescue-mesh-runtime.service` | prepares the `/run/rescue-mesh` state dir |
+| `rescue-mesh-indicator.service` | the front-panel beep and lights (opt in with `INDICATOR=true`) |
 
 The Phase 1 `switcher.py` and `ble_discovery.py` are retired to
 `backend/archived/` and their units are not installed.
@@ -92,6 +93,10 @@ gates (the same design system throughout). Start here for any hands-on task:
 | `deploy/windows_mesh_bringup.html` | bring up the two-node DTN mesh |
 | `deploy/windows_drone_s_bringup.html` | bring up DRONE_S as a full node + gateway |
 | `deploy/node_update_locations.html` | roll the rescuer-location update to each node |
+| `deploy/windows_node_update.html` | general node update procedure |
+| `deploy/windows_degraded_fix.html` | the DEGRADED-forever fix and fallback recovery |
+| `deploy/windows_full_rollout.html` | the whole fleet, A + B + S, in one pass |
+| `docs/node_update_lora_log.html` | the LoRa event log and portal-options round |
 | `deploy/mission_layer_check.html` | verify the whole mission layer end to end |
 | `firmware/aux1/windows_bringup.html` | flash and test the aux module |
 | `gcc_app/windows_gcc_bringup.html` | build and run the GCC |
@@ -100,6 +105,48 @@ gates (the same design system throughout). Start here for any hands-on task:
 
 And `deploy/VERIFY.md` is the acceptance checklist for a rebuilt node,
 `deploy/README.md` the blank-card walkthrough.
+
+## The front panel: switch, beep, lights
+
+`deploy/files/node_indicator.py`, wired as documented in `docs/NODE_PANEL.md`:
+a power switch for the whole node, a buzzer on GPIO17, a green READY lamp on
+GPIO27, an amber MESH lamp on GPIO22, and an optional shutdown button on GPIO3.
+
+The amber lamp is the useful one. It is lit when this node can currently see at
+least one peer, so a dead USB WiFi adapter, the exact failure below, shows as
+an unlit lamp immediately instead of being found by reading sync logs an hour
+later.
+
+Two limits stated deliberately rather than discovered later:
+
+- **It cannot indicate anything once the Pi is dead**, which is exactly the
+  LoRa fallback case. The panel lives on the Pi because every XIAO signal pin
+  is already allocated, so a failed node goes dark locally while still
+  reporting itself to the fleet over LoRa.
+- **Cutting power to a running Pi will eventually corrupt the SD card.** The
+  GPIO3 button and the `gpio-shutdown` overlay give a clean shutdown, and the
+  same button wakes a halted Pi. Fitting a bare switch without it is a choice
+  to accept that risk.
+
+## Power: what the field actually taught us
+
+Two nodes stopped syncing during testing. Every software theory was wrong. The
+adapter had browned out and dropped off the USB bus, so `wlan1` did not exist,
+the IBSS cell could not form, and the two databases quietly diverged.
+
+Carry these forward:
+
+- **The battery arrangement as tested cannot reliably power a node.** A Pi plus
+  the AR9271 (roughly 400 to 500 mA) plus the aux module needs a 3 A class
+  supply, or the adapter needs a powered hub. Swapping to a phone charger fixed
+  it immediately and completely. Confidence: High, it reproduced and the fix
+  was decisive.
+- **The failure is silent from the application's point of view.** Sync kept
+  logging `SYNC_OK` with `imported=0`, which reads as healthy, because a node
+  with no peers has nothing to import and cannot tell "nobody has anything new"
+  apart from "I cannot see anybody".
+- **Check the interface exists before investigating sync logic.**
+  `iw dev wlan1 info` is the first command, not the last.
 
 ## The order to bring up a fleet
 

@@ -127,6 +127,8 @@ Defined in `backend/models.py` (`REPLICATED_TABLES`) and enforced in
 | `announcements` | `id` | append-only by primary key |
 | `gs_messages` | `id` | append-only by primary key |
 | `checkins` | `id` | append-only by primary key |
+| `message_replies` | `id` | append-only by primary key |
+| `lora_events` | `id` | append-only by primary key |
 
 "Append-only by primary key" means: if the id already exists, keep what we
 have; otherwise insert. "Newest wins" and "CLAIMED beats NEW" implement the
@@ -134,6 +136,26 @@ operational logic (a claimed message must not be un-claimed by a stale copy; a
 revoked credential must not be un-revoked). Every ingest verifies the signature
 first; failure isolation is per-table, so one bad table does not stop the
 others.
+
+### Two tables that were nearly not replicated
+
+`message_replies` and `lora_events` both looked at first like local records,
+and the reasoning for replicating them anyway is the same in both cases: the
+node that HOLDS the information is not the node the reader is standing at.
+
+A reply written to a victim at DRONE_A is useless if that victim next walks
+past DRONE_B, so replies replicate like the messages they answer. A LoRa
+fallback beacon is heard by whichever node is nearest the failure, and HQ may
+be joined to a different one, so the event log replicates too. Contrast
+`node_health`, which is deliberately NOT replicated: it is a node's opinion
+about itself and its neighbours right now, and a stale copy of that opinion
+arriving from three hops away is worse than no copy.
+
+`lora_events` derives its primary key from the frame content plus which node
+heard it, rather than a random uuid. A frame replicated back to a node that
+already has it then collides on the key and is ignored, while the SAME frame
+heard independently by two nodes produces two rows on purpose: two receptions
+are better evidence than one, and the GCC shows both receivers.
 
 ## When a node dies: LoRa fallback
 
