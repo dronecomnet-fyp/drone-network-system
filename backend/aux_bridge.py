@@ -35,6 +35,7 @@ Outbound (Pi -> module):
 import json
 import shlex
 import subprocess
+import signal
 import sys
 import time
 from datetime import datetime, timezone
@@ -298,6 +299,28 @@ class AuxBridge:
                     pass
 
 
+def _announce_shutdown(bridge):
+    """Tell the aux module the Pi is going down ON PURPOSE.
+
+    Without this, switching a node off looks exactly like a crash. The two
+    sub-units have separate batteries by design, so cutting power to the Pi
+    leaves the aux module running, missing heartbeats, and eventually
+    telling the whole fleet that this node has FAILED. That is correct
+    behaviour for a crash and wrong for an operator flipping a switch.
+
+    Best effort by design. If the serial write fails, the worst case is the
+    old behaviour: one or two fallback beacons that the fleet expires by
+    itself after FALLBACK_EXPIRY. Never let a courtesy message hold up a
+    shutdown.
+    """
+    try:
+        bridge.send({"type": "shutdown"})
+        audit_logger.info("AUX_SHUTDOWN_NOTICE_SENT")
+    except Exception as e:  # noqa: BLE001
+        audit_logger.warning(
+            f"AUX_SHUTDOWN_NOTICE_FAIL | reason={type(e).__name__}")
+
+
 def main():
     if not config.AUX_SERIAL:
         # DRONE_S case (file 08): no aux module, exit cleanly, /health will
@@ -311,7 +334,18 @@ def main():
     # init_db BEFORE constructing the bridge: __init__ reads the messages
     # table for the last rowid, which must exist on a fresh node.
     models.init_db()
-    AuxBridge().run()
+    bridge = AuxBridge()
+
+    # systemd sends SIGTERM on "systemctl stop" and on a full halt, so this
+    # one handler covers both the operator stopping the service and the Pi
+    # being shut down with the panel button.
+    def _on_term(signum, _frame):
+        _announce_shutdown(bridge)
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, _on_term)
+    signal.signal(signal.SIGINT, _on_term)
+    bridge.run()
 
 
 if __name__ == "__main__":

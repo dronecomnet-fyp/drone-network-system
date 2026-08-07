@@ -903,3 +903,57 @@ Phase 1 security docs) is flagged here, never silently drifted.
     lands. Nothing in the UI claims the model is thinking step by step,
     because it is not, and a progress display that invents activity would
     be worse than a spinner.
+
+48. **The front panel switch must cut BOTH batteries, and the Pi now says
+    goodbye before it halts (field backlog #1, correcting the first
+    version of that work).** The panel guide originally said to wire the
+    power switch into the Raspberry Pi's supply. The operator spotted the
+    consequence before anything was soldered.
+
+    The two sub-units have separate batteries deliberately: that is the
+    whole fault-tolerance design. Cutting the Pi's supply alone leaves the
+    aux module running, missing heartbeats, and concluding the Pi has
+    crashed, so it starts transmitting LoRa fallback beacons announcing a
+    node failure. A deliberate power-off was indistinguishable from a
+    crash, and the fleet would raise an alarm for a drone somebody simply
+    switched off.
+
+    Two changes, because the hardware fix alone is not enough:
+
+    - **A DPST switch** cutting both battery positives on one lever, so
+      both sub-units die together and the aux module never gets the chance
+      to reach a wrong conclusion.
+    - **A planned-shutdown notice.** The recommended power-down is still a
+      clean shutdown first, to protect the SD card, and during that halt
+      the Pi is down while the aux module is powered: the same trap. The
+      aux bridge now sends `{"type":"shutdown"}` on SIGTERM, which systemd
+      raises both on `systemctl stop` and on a full halt, and the module
+      suppresses fallback for five minutes.
+
+    The grace window is bounded rather than indefinite, and that is the
+    part worth defending. An unbounded flag would mean one stray message
+    could silently disable the fallback beacon for the rest of a flight,
+    and the beacon is the only thing that module exists to do. Five
+    minutes covers a clean halt plus somebody walking to the switch; after
+    it expires the module behaves normally, so a node accidentally left
+    powered still reports itself.
+
+    Verified without hardware by `tools/aux_shutdown_notice_test.py`,
+    which runs the real bridge against a pty, sends SIGTERM the way
+    systemd does, and asserts the module was told. Requires reflashing
+    both aux modules; without it a clean shutdown still produces one
+    spurious alert that the fleet clears itself.
+
+49. **Adapters can be moved between nodes without breaking the mesh
+    (`DTN_MAC_ALT`).** The fleet has three nodes and two AR9271 adapters,
+    so adapters get swapped. Each node pins its adapter to the name
+    `wlan1` by MAC through a systemd `.link` file, so a moved adapter came
+    up under a kernel-assigned name instead: `dtn-net` then found no
+    `wlan1`, the cell never formed, and from a laptop it looked exactly
+    like a sync bug. That is the same failure signature that already cost
+    an evening (item 40).
+
+    `systemd.link` accepts a whitespace-separated MAC list, so the node
+    conf gained an optional `DTN_MAC_ALT`. Listing every adapter the fleet
+    owns on every node makes them physically interchangeable with no
+    reconfiguration.

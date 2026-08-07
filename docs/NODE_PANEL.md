@@ -28,7 +28,7 @@ accepted deliberately rather than overlooked.
 
 | Part | Spec | Notes |
 |------|------|-------|
-| Power switch | SPST latching rocker or toggle, **5 A** rating | Must carry the whole node. Do not use a 1 A signal switch |
+| Power switch | **DPST** latching rocker, **5 A**, 6 terminals | Must cut BOTH batteries. See the warning below. Do not use a 3-terminal SPST |
 | Buzzer | **Active** 3.3 V, roughly 12 mm | Active means it makes its own tone from a HIGH level. A PASSIVE buzzer needs a PWM tone and will stay silent with this code |
 | LED green | 3 mm or 5 mm | READY |
 | LED amber | 3 mm or 5 mm | MESH |
@@ -64,12 +64,53 @@ Button (optional, safe shutdown)
 The LED long leg is the positive one. The resistor can sit on either side
 of the LED; it limits current either way.
 
-### The power switch
+### The power switch: it must cut BOTH batteries
 
-Wire the switch **in series with the positive supply lead** feeding the Pi,
-before the Pi's power input. It carries the full node current, which is why
-the 5 A rating matters: the Pi plus the AR9271 adapter plus the aux module
-is comfortably over what a small signal switch will survive.
+This corrects the first version of this document, which said to switch the
+Pi's supply only. That is wrong, and the reason is worth understanding.
+
+The two sub-units have separate batteries by design. Cut power to the Pi
+alone and the aux module keeps running on Battery B, misses heartbeats,
+concludes the Pi has crashed, and starts transmitting LoRa fallback
+beacons announcing that this node has FAILED. A deliberate power-off
+became indistinguishable from a crash, and the fleet raised an alarm for
+a drone somebody simply switched off.
+
+So: a **DPST** switch, one lever operating two isolated poles.
+
+```text
+Pole 1:  Battery A (+)  ->  buck converter  ->  Raspberry Pi
+Pole 2:  Battery B (+)  ->  XIAO ESP32-C3 BAT+ pad
+```
+
+Keep the two grounds separate. They are already linked for signal purposes
+by the USB cable between the Pi and the XIAO, and bonding them creates a
+loop that can carry current between the packs.
+
+Check with a multimeter before trusting the switch: with it ON, pole 1 and
+pole 2 must read OPEN against each other. If they are connected, the part
+is not DPST and you have bridged a 2S pack to a 1S cell.
+
+The 5 A rating still matters for pole 1: the Pi plus the AR9271 adapter is
+comfortably over what a small signal switch will survive.
+
+### The shutdown notice
+
+Even with a DPST switch, the recommended power-down is a clean shutdown
+first, then the switch. During those seconds the Pi is halted while the
+aux module is still powered, which is the same trap.
+
+The aux bridge therefore sends `{"type":"shutdown"}` to the aux module on
+SIGTERM, and the module suppresses fallback for five minutes. Bounded
+rather than indefinite on purpose: a suppression flag that never expires
+would let one stray message silently disable the fallback beacon for the
+rest of a flight, and the beacon is the only thing this module exists to
+do.
+
+**This needs the current firmware on both aux modules.** Without the
+reflash, a clean shutdown still produces one spurious degraded alert,
+which the fleet clears by itself after `FALLBACK_EXPIRY`. Verify the
+mechanism without hardware using `tools/aux_shutdown_notice_test.py`.
 
 ## Read this before fitting a bare power switch
 

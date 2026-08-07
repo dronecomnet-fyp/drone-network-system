@@ -124,9 +124,24 @@ MACAddress=$ONBOARD_MAC
 [Link]
 Name=wlan0
 EOF
+# DTN_MAC_ALT lets a node accept a SECOND adapter as wlan1. The fleet has
+# fewer AR9271 adapters than nodes, so adapters get moved between nodes,
+# and a moved adapter whose MAC is not matched here comes up under a
+# kernel-assigned name instead. dtn-net then finds no wlan1, the mesh
+# never forms, and from the laptop it looks exactly like a sync bug. That
+# failure has already cost this project an evening once.
+#
+# systemd .link accepts a whitespace-separated MAC list, so listing every
+# adapter the fleet owns makes them physically interchangeable with no
+# reconfiguration.
+DTN_MAC_MATCH="$DTN_MAC"
+if [[ -n "${DTN_MAC_ALT:-}" ]]; then
+    DTN_MAC_MATCH="$DTN_MAC $DTN_MAC_ALT"
+    echo "  wlan1 will also accept: $DTN_MAC_ALT"
+fi
 cat > /etc/systemd/network/11-dtn-wifi.link <<EOF
 [Match]
-MACAddress=$DTN_MAC
+MACAddress=$DTN_MAC_MATCH
 [Link]
 Name=wlan1
 EOF

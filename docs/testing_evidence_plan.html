@@ -137,6 +137,14 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
   </header>
 
   <div class="note warn" style="max-width:none;">
+    <b>Written for two USB WiFi adapters, not three.</b> The fleet has three nodes but only two
+    AR9271 adapters, so at most two nodes can be on the mesh at any moment. Section E works
+    through exactly which tests that affects, which is fewer than it sounds: only two of the
+    forty-four items need a swap, and one of them arguably becomes a BETTER test because of it.
+    Read section E before session 3.
+  </div>
+
+  <div class="note warn" style="max-width:none;">
     <b>The order is not arbitrary.</b> Screenshots come after seeding, because a figure
     captioned "the victim message feed" showing an empty list proves nothing. The Degraded tab
     can only be photographed while a node is actually degraded, so it sits inside the fallback
@@ -157,6 +165,7 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
       <li><a href="#s4"><span class="n">4</span>Field, half a day</a></li>
       <li><a href="#s5"><span class="n">5</span>Endurance, overnight</a></li>
       <li><a href="#s6"><span class="n">6</span>The recording, 1 h</a></li>
+      <li><a href="#adapters"><span class="n">E</span>Working with two adapters</a></li>
       <li><a href="#index"><span class="n">C</span>Evidence index</a></li>
       <li><a href="#wrong"><span class="n">D</span>When a result disagrees</a></li>
     </ol>
@@ -218,7 +227,8 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
     <div class="fieldtable-wrap">
       <table class="fieldtable">
         <tr><th>Item</th><th>Why</th><th>Sessions</th></tr>
-        <tr><td>3 assembled nodes (A, B, S)</td><td>Two-hop sync needs three</td><td>2, 3, 4</td></tr>
+        <tr><td>3 assembled nodes (A, B, S)</td><td>Store-and-forward needs three node identities, even though only two can be on the mesh at once</td><td>2, 3, 4</td></tr>
+        <tr><td><b>2 AR9271 USB WiFi adapters</b></td><td>All the fleet has. Section E has the swap procedure and the one-time config change that makes them interchangeable</td><td>2, 3, 4, 5, 6</td></tr>
         <tr><td><b>3 A class power supply or phone charger per node</b></td><td>The battery pack cannot sustain a node. This is the finding that broke the last session</td><td>all</td></tr>
         <tr><td>Battery packs, charged</td><td>Only for the endurance session, where the battery IS the subject</td><td>5</td></tr>
         <tr><td>Windows laptop with the GCC built</td><td>Every GCC screenshot</td><td>1, 2, 3, 4</td></tr>
@@ -262,6 +272,8 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
       grey grid. Do this now, not in session 2 with the camera out.</li>
       <li><b>Clear the databases</b> if you want clean counts. The nodes hold nothing worth
       keeping from earlier testing.</li>
+      <li><b>Do the two-adapter config change</b> in section E step 1. It is a one-time edit
+      per node and it prevents the most confusing failure in this whole plan.</li>
       <li><b>Decide your test site</b> for session 4 and check you can get 300 m of clear
       ground.</li>
     </ol>
@@ -433,7 +445,8 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
       <li>Submit a message on DRONE_A through the captive portal. Note the second.</li>
       <li>Watch the count increase on B. Note the second. That difference is one hop.</li>
       <li><b>Twenty trials.</b> It is quick and the spread is the interesting part.</li>
-      <li>Then move B out of range of A but in range of S, and do ten more. That is two hops.</li>
+      <li>For the two-hop case, use the store-and-forward procedure in section E. It needs an
+      adapter swap and takes about ten minutes per trial, so do five, not twenty.</li>
     </ol>
 
     <div class="readout">
@@ -452,7 +465,9 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
     LoRa, the log, replication and the GCC in one event. <b>Five trials.</b></p>
 
     <ol class="steps">
-      <li>Three nodes up, GCC joined to <b>A</b>, DRONE_B is the victim of the test.</li>
+      <li>Adapters in <b>A</b> and <b>S</b>. GCC joined to <b>S</b>. DRONE_B is the victim of
+      the test and needs <b>no adapter at all</b>, because its Pi will be off. See section E:
+      this is the test the two-adapter limit actually improves.</li>
       <li>Start a stopwatch and <b>pull power from B's Raspberry Pi only</b>, leaving its aux
       module powered.</li>
       <li>Record: aux enters fallback, A logs <code class="inline">FALLBACK_BEACON</code>, GCC
@@ -640,6 +655,163 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
   </section>
 
   <p class="part">Part C &middot; After</p>
+
+  <section class="stage" id="adapters">
+    <div class="stage-head"><span class="stage-num">E</span><h2 class="stage-title">Working with two adapters</h2></div>
+
+    <p>Three nodes, two AR9271 USB WiFi adapters. Only two nodes can be on the mesh backbone at
+    any one time. Here is exactly what that costs and how to work around it.</p>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>Test</th><th>Nodes on the mesh</th><th>Affected?</th></tr>
+        <tr><td>EV-23 peer card screenshot</td><td>2</td><td>No</td></tr>
+        <tr><td>EV-25 one-hop sync convergence</td><td>2</td><td>No</td></tr>
+        <tr><td>EV-26 to EV-30 fallback</td><td>2 (the dead node needs none)</td><td>No, and it gets better</td></tr>
+        <tr><td>EV-34 mesh range</td><td>2</td><td>No</td></tr>
+        <tr><td>EV-41 to EV-43 endurance</td><td>2</td><td>No</td></tr>
+        <tr><td>EV-44 the recording</td><td>2</td><td>No</td></tr>
+        <tr><td><b>Two-hop convergence</b></td><td>3 simultaneously</td><td><b>Yes, use E3</b></td></tr>
+        <tr><td><b>Three-node partition and heal</b></td><td>3 simultaneously</td><td><b>Yes, use E4</b></td></tr>
+      </table>
+    </div>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">E1. Do this first: make the adapters interchangeable</h3>
+
+    <div class="gatebox">
+      <div class="label">Skip this and you will lose an afternoon</div>
+      <p>Each node pins its adapter to the name <code class="inline">wlan1</code> <b>by MAC
+      address</b>. Move an adapter to a different node and it comes up under a kernel-assigned
+      name instead. The mesh service then finds no <code class="inline">wlan1</code>, the cell
+      never forms, and from the laptop this looks exactly like a sync bug. That failure has
+      already cost this project an evening once.</p>
+    </div>
+
+    <p>The fix is one edit per node. Get both adapter MAC addresses first: plug each into any
+    node in turn and run <code class="inline">ip link</code>, or read
+    <code class="inline">cat /sys/class/net/wlan1/address</code>.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on EACH of the three nodes</span></div>
+<pre><span class="prompt">$</span> ssh drone@10.42.0.1
+<span class="prompt">$</span> cd ~/rescue-mesh
+<span class="prompt">$</span> git pull
+<span class="prompt">$</span> nano deploy/nodes/drone_a.conf     <span class="comment"># or _b, or _s</span>
+
+<span class="comment"># Set BOTH lines to the two adapter MACs. Same two values on all</span>
+<span class="comment"># three nodes: whichever adapter is plugged in becomes wlan1.</span>
+DTN_MAC=00:c0:ca:aa:bb:cc
+DTN_MAC_ALT=00:c0:ca:dd:ee:ff
+
+<span class="prompt">$</span> cd deploy &amp;&amp; sudo ./setup_node.sh a    <span class="comment"># or b, or s</span>
+<span class="prompt">$</span> sudo reboot</pre>
+    </div>
+
+    <div class="readout">
+      <div class="label">Confirm on each node, with either adapter plugged in</div>
+      <pre>iw dev wlan1 info</pre>
+      <div class="hint">It must print interface details. If it says "No such device", the MAC in the conf does not match the adapter you have plugged in. Fix that before going any further; every measurement after this point depends on it.</div>
+    </div>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">E2. The swap procedure</h3>
+
+    <ol class="steps">
+      <li>Shut the source node down cleanly (panel button, wait for green out, or
+      <code class="inline">sudo poweroff</code>).</li>
+      <li>Unplug the adapter and plug it into the destination node.</li>
+      <li>Power the destination node up.</li>
+      <li><b>Run <code class="inline">iw dev wlan1 info</code> before doing anything else.</b>
+      Every time. It takes two seconds and it is the check that stops you measuring nothing.</li>
+    </ol>
+
+    <div class="note">
+      <b>Do not hot-swap into a running node.</b> The interface naming is applied at boot, so an
+      adapter plugged into a running Pi may come up under the wrong name even with E1 done.
+    </div>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">E3. Two-hop convergence, the better version</h3>
+
+    <p>Three nodes in one room is a poor test of a delay-tolerant network anyway, because
+    nothing ever has to be carried. With two adapters you are forced into a test that is closer
+    to the real thing: <b>A and B never meet, and the message still arrives.</b></p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">one trial, about 10 minutes</span></div>
+<pre>1.  Adapters in A and S. B has none and is powered off.
+2.  Submit a message on A through the captive portal. Note the time.
+3.  Wait for it to reach S (watch S's health count). Note the time.
+        <span class="comment">that is hop 1</span>
+
+4.  Cleanly shut down A. Move A's adapter to B. Power B up.
+        <span class="comment">A is now off. A and B have never been on the mesh together.</span>
+
+5.  Confirm on B:  iw dev wlan1 info
+6.  Wait for the message to reach B from S. Note the time.
+        <span class="comment">that is hop 2</span>
+
+7.  Verify on B that the message content and its ORIGIN NODE are intact.</pre>
+    </div>
+
+    <div class="readout">
+      <div class="label">EV-25b: record this table, five trials</div>
+      <pre>| Trial | Hop 1 A to S (s) | Carry gap (mm:ss) | Hop 2 S to B (s) | Origin preserved |
+|-------|------------------|-------------------|------------------|------------------|
+| 1     |                  |                   |                  |                  |</pre>
+      <div class="hint">The "origin preserved" column is the important one. It shows the record still names A as its origin after travelling through S, which is what proves store-and-forward rather than S inventing a copy.</div>
+    </div>
+
+    <div class="note warn">
+      <b>Write this up as a strength, not a compromise.</b> Two nodes that were never in contact
+      exchanged data through a third that carried it. That is the defining property of a
+      delay-tolerant network and it is more convincing evidence than three nodes syncing on one
+      desk. Say in the report that the adapter shortage forced the stronger test.
+    </div>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">E4. Partition and heal, with two nodes</h3>
+
+    <p>The original plan called for isolating one of three nodes. With two adapters, unplugging
+    one adapter IS the partition, and the test still demonstrates what matters.</p>
+
+    <ol class="steps">
+      <li>A and S on the mesh, both with adapters, synced and quiet.</li>
+      <li><b>Unplug S's adapter.</b> The partition has begun. Note the time.</li>
+      <li>Create data on BOTH sides while they are separated: a victim message on each, and
+      claim a message on one of them.</li>
+      <li>Plug S's adapter back in and reboot S.</li>
+      <li>Watch both nodes until every table matches. Record how many sync cycles it took.</li>
+    </ol>
+
+    <div class="readout">
+      <div class="label">EV-25c: the convergence check</div>
+      <pre>| Table               | On A after heal | On S after heal | Match |
+|---------------------|-----------------|-----------------|-------|
+| messages            |                 |                 |       |
+| personnel           |                 |                 |       |
+| announcements       |                 |                 |       |
+| gs_messages         |                 |                 |       |
+| checkins            |                 |                 |       |
+| personnel_locations |                 |                 |       |
+| message_replies     |                 |                 |       |
+| lora_events         |                 |                 |       |</pre>
+      <div class="hint">All eight replicated tables, not just messages. Read the counts from <code class="inline">curl -sk https://127.0.0.1:8443/health</code> on each node. The claim you made during the partition must survive: a claimed message must not revert to unclaimed.</div>
+    </div>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">E5. Why the fallback test gets better</h3>
+
+    <p>The fallback test needs a node whose Pi is dead. <b>A dead Pi does not need a WiFi
+    adapter.</b> So with adapters in A and S and none in B, you can run the test exactly as
+    designed, and you gain something:</p>
+
+    <p>Put the GCC on <b>S</b>, and let <b>A</b> be the node that physically hears B's LoRa
+    beacon. The GCC then learns about the failure only because A heard it and the log
+    replicated to S. That demonstrates the design decision behind the LoRa event log, which is
+    that the node nearest a failure is not necessarily the node the operator is standing at.
+    With three adapters you would probably have put the GCC on A and never shown it.</p>
+
+    <div class="note">
+      <b>Mention this explicitly in the report.</b> It is a concrete demonstration of why that
+      table replicates while node health deliberately does not.</div>
+  </section>
 
   <section class="stage" id="index">
     <div class="stage-head"><span class="stage-num">C</span><h2 class="stage-title">Evidence index</h2></div>

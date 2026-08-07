@@ -161,6 +161,24 @@ static const uint16_t BLE_ADV_MAX = 1600;  // -> 1000 ms
 static const bool FALLBACK_IS_TERMINAL = false;
 static const uint8_t FALLBACK_RECOVERY_PINGS = 3;
 
+// Planned shutdown (front panel work, field backlog #1).
+//
+// The two sub-units are powered SEPARATELY on purpose, which is the whole
+// fault-tolerance design. The side effect nobody thought about until the
+// panel was designed: switching a node off deliberately kills the Pi while
+// this module is still running, so it misses heartbeats, concludes the Pi
+// has crashed, and starts telling the entire fleet that this node has
+// FAILED. An intentional power-down was indistinguishable from a failure.
+//
+// The Pi now says goodbye before it halts, and we suppress fallback for a
+// grace window rather than forever. Forever would mean one stray message
+// could silently disable the fallback beacon for the rest of the flight,
+// which is the one thing this module exists to do. Five minutes is long
+// enough to cover a clean halt plus somebody walking over to flip the
+// switch, and short enough that a node left powered by mistake still
+// reports itself.
+static const uint32_t SHUTDOWN_GRACE_MS = 300000;
+
 enum class Mode { NORMAL, FALLBACK };
 
 // ---------------------------------------------------------------------------
@@ -186,6 +204,10 @@ uint32_t lastSensorSendMs = 0;
 uint32_t lastBeaconMs = 0;
 uint32_t lastGpsTimeSendMs = 0;
 uint8_t recoveryPings = 0;   // consecutive pings heard while in FALLBACK
+
+// Non-zero while a planned shutdown is being honoured. Absolute millis()
+// deadline, not a countdown, so it needs no servicing in the loop.
+uint32_t shutdownGraceUntilMs = 0;
 bool loraOk = false;
 bool inaOk = false;
 String serialLine;
@@ -402,10 +424,24 @@ static void handleLine(const String& line) {
   if (strcmp(type, "ping") == 0) {
     lastPingMs = millis();
     firstPingSeen = true;
+    // A ping means the Pi is alive after all, so whatever shutdown it
+    // announced either did not happen or it has already come back.
+    shutdownGraceUntilMs = 0;
     // In FALLBACK these count toward recovery. Consecutive is the point:
     // the counter resets on the timeout check below, so one stray ping
     // from a Pi that is still flapping cannot pull us back to NORMAL.
     if (mode == Mode::FALLBACK && recoveryPings < 255) recoveryPings++;
+
+  } else if (strcmp(type, "shutdown") == 0) {
+    // The Pi is going down on purpose. Do not treat the coming silence as
+    // a failure. Acknowledged so the bridge can log that we heard it: a
+    // shutdown notice that never arrived is exactly the case where the
+    // operator will wonder why the fleet reported a failure anyway.
+    shutdownGraceUntilMs = millis() + SHUTDOWN_GRACE_MS;
+    JsonDocument ack;
+    ack["type"] = "shutdown_ack";
+    ack["grace_s"] = SHUTDOWN_GRACE_MS / 1000;
+    sendJson(ack);
 
   } else if (strcmp(type, "last_msg") == 0) {
     cachedMsgId = doc["msg_id"] | "none";
@@ -572,6 +608,13 @@ void loop() {
       sendBattery();
     }
     sendGpsTimeIfValid();
+
+    // An announced shutdown suppresses the transition, but only until the
+    // grace window expires. See SHUTDOWN_GRACE_MS on why it is bounded.
+    if (shutdownGraceUntilMs != 0) {
+      if ((int32_t)(now - shutdownGraceUntilMs) < 0) return;
+      shutdownGraceUntilMs = 0;  // window expired, resume normal behaviour
+    }
 
     uint32_t timeout = firstPingSeen ? PING_TIMEOUT_MS : FIRST_PING_GRACE_MS;
     if (now - lastPingMs > timeout) {

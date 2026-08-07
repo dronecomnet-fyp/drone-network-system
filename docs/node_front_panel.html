@@ -1,4 +1,4 @@
-<title>Node Front Panel: Switch, Beep and Lamps</title>
+<title>Node Front Panel: Switch, Beep and Lamps (rev 2)</title>
 <style>
 @font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
 
@@ -125,122 +125,298 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
 .sw.btn, .pin.btn { background: color-mix(in srgb, var(--wire) 26%, transparent); border-color: var(--wire); }
 .sw.gnd, .pin.gnd { background: color-mix(in srgb, var(--ink) 12%, transparent); border-color: var(--wire); }
 .sw.avoid, .pin.avoid { background: color-mix(in srgb, var(--stop) 18%, transparent); border-color: var(--stop); }
+.stage h3 { color: var(--accent-strong); letter-spacing: 0.02em; }
 @media (max-width: 560px) { .hdr { min-width: 20rem; } .pin { font-size: 0.66rem; } }
 </style>
 
 <div class="wrap">
 
   <header class="masthead">
-    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; Field backlog #1 &middot; Node front panel</div>
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; Node front panel &middot; Revision 2</div>
     <h1 class="title">Power Switch, Beep<br>and Status Lamps</h1>
-    <p class="dek">What to buy, exactly where to solder it, and what each light means. The software is already written and shipped; this is the hardware half. About 40 minutes per node with a soldering iron.</p>
+    <p class="dek">Everything to buy, exactly where every wire goes, and why the switch has to be a two-pole type. Written for someone who has not worked on this project before. About 90 minutes per node with a soldering iron.</p>
     <div class="meta-row">
-      <span><b>Per node cost</b> under 500 LKR</span>
-      <span><b>Pins used</b> 4 of 40, all free</span>
-      <span><b>Code</b> already on the node</span>
-      <span><b>Risk</b> read stage 4 first</span>
+      <span><b>Per node</b> under 800 LKR</span>
+      <span><b>Switch</b> DPST, 5 A, not SPST</span>
+      <span><b>Needs</b> a firmware reflash</span>
+      <span><b>Skill</b> basic soldering</span>
     </div>
     <div class="loop">
       <span class="n">buy parts</span><span class="ar">&rarr;</span>
-      <span class="n hi">solder 3 pins + GND</span><span class="ar">&rarr;</span>
-      <span class="n">switch in the supply lead</span><span class="ar">&rarr;</span>
-      <span class="n">INDICATOR=true</span><span class="ar">&rarr;</span>
-      <span class="n hi">two beeps and a green lamp</span>
+      <span class="n hi">reflash aux module</span><span class="ar">&rarr;</span>
+      <span class="n">solder panel</span><span class="ar">&rarr;</span>
+      <span class="n hi">DPST in BOTH battery leads</span><span class="ar">&rarr;</span>
+      <span class="n">enable in software</span><span class="ar">&rarr;</span>
+      <span class="n">test</span>
     </div>
   </header>
 
   <div class="note warn" style="max-width:none;">
-    <b>The amber lamp is the reason to build this.</b> It is lit whenever the node can
-    currently see at least one peer. The failure that took two nodes out during testing, a
-    USB Wi-Fi adapter browning out and dropping off the bus, shows up here instantly as an
-    unlit amber lamp. Without it, that failure is only visible by reading sync logs, which is
-    how it cost an evening.
+    <b>Revision 2 corrects a real design fault in revision 1.</b> The first version of this
+    guide said to wire the switch into the Raspberry Pi's supply. That is wrong, and stage 1
+    explains why in detail: it would make every deliberate power-off look to the whole fleet
+    like the node had crashed. If you already built a panel to the old guide, stage 1 tells you
+    what to change.
   </div>
 
   <nav class="index">
     <p class="index-title">Stages</p>
     <ol>
-      <li><a href="#s1"><span class="n">1</span>What it does</a></li>
-      <li><a href="#s2"><span class="n">2</span>Parts to buy</a></li>
-      <li><a href="#s3"><span class="n">3</span>Where each wire goes</a></li>
-      <li><a href="#s4"><span class="n">4</span>The switch, and the SD card</a></li>
-      <li><a href="#s5"><span class="n">5</span>Turn it on in software</a></li>
-      <li><a href="#s6"><span class="n">6</span>Test it</a></li>
-      <li><a href="#s7"><span class="n">7</span>If nothing happens</a></li>
-      <li><a href="#s8"><span class="n">8</span>What it cannot do</a></li>
+      <li><a href="#s1"><span class="n">1</span>Why the switch must be two-pole</a></li>
+      <li><a href="#s2"><span class="n">2</span>What the panel does</a></li>
+      <li><a href="#s3"><span class="n">3</span>Exact shopping list</a></li>
+      <li><a href="#s4"><span class="n">4</span>Resistors: why, and which</a></li>
+      <li><a href="#s5"><span class="n">5</span>Wiring: the signal side</a></li>
+      <li><a href="#s6"><span class="n">6</span>Wiring: the power side</a></li>
+      <li><a href="#s7"><span class="n">7</span>Reflash the aux module</a></li>
+      <li><a href="#s8"><span class="n">8</span>Enable it on the Pi</a></li>
+      <li><a href="#s9"><span class="n">9</span>How to switch a node off</a></li>
+      <li><a href="#s10"><span class="n">10</span>Test it</a></li>
+      <li><a href="#s11"><span class="n">11</span>Troubleshooting</a></li>
+      <li><a href="#s12"><span class="n">12</span>What it cannot do</a></li>
     </ol>
   </nav>
 
-  <p class="part">Part one &middot; The design</p>
+  <p class="part">Part one &middot; The design problem</p>
 
-  <section class="stage" id="s1">
-    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">What it does, and why it is on the Pi</h2></div>
+  <section class="stage gate" id="s1">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">Why the switch must be two-pole</h2></div>
 
-    <p>Three things: a physical power switch for the whole node, a beep when the node
-    becomes ready, and two lamps that tell you the node's state from across a field
-    without opening a laptop.</p>
+    <p><b>Read this before buying a switch.</b> Getting it wrong does not damage anything, but
+    it makes the system lie to you, which is worse.</p>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.4rem 0 0.6rem;">How a node is powered</h3>
+
+    <p>Each node is two independent computers with two independent batteries. This is
+    deliberate and it is the core of the project's fault tolerance:</p>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>Sub-unit</th><th>Runs on</th><th>Powers</th><th>Runtime</th></tr>
+        <tr><td><b>Main Compute Unit</b></td><td>Battery A, 2S LiPo, via a buck converter to 5 V</td><td>Raspberry Pi 4B and the USB WiFi adapter</td><td>Shorter</td></tr>
+        <tr><td><b>Auxiliary Module</b></td><td>Battery B, 1S LiPo, direct to the XIAO board</td><td>ESP32-C3, GPS, LoRa radio, battery monitor</td><td>Much longer, on purpose</td></tr>
+      </table>
+    </div>
+
+    <p>The aux module outlives the Pi so that when the Pi dies, the aux module can still tell
+    the rest of the fleet where the drone is over its long-range LoRa radio. That is the whole
+    point of the design.</p>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">The fault in revision 1</h3>
+
+    <p>The aux module works out whether the Pi is alive by listening for a heartbeat over the
+    USB cable between them. No heartbeat for 15 seconds means the Pi has crashed.</p>
+
+    <p>Now put a single-pole switch in the Pi's supply only, and flip it:</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">what actually happens</span></div>
+<pre>  operator flips the switch
+        &darr;
+  Pi loses power, heartbeat stops
+        &darr;
+  aux module is STILL RUNNING on Battery B
+        &darr;
+  15 s later: "the Pi has crashed"
+        &darr;
+  starts transmitting LoRa fallback beacons
+        &darr;
+  neighbouring drone hears them, logs them, replicates them
+        &darr;
+  <span class="comment">GCC shows: DRONE_A FAILED, Pi down, aux beaconing</span>
+
+  <span class="comment">...for a node somebody deliberately switched off.</span></pre>
+    </div>
+
+    <p>Nothing breaks, but the fleet has been told a failure occurred, an operator gets an
+    alarm, and someone may walk out to a drone that is simply turned off.</p>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">The fix, in two parts</h3>
+
+    <ol class="steps">
+      <li><b>A DPST switch, cutting both batteries at once.</b> DPST means Double Pole Single
+      Throw: one lever operating two completely separate switches inside one body. Pole 1 cuts
+      Battery A, pole 2 cuts Battery B, simultaneously. Both sub-units die together and the aux
+      module never gets the chance to reach a wrong conclusion.</li>
+
+      <li><b>A shutdown notice in software.</b> Even with a DPST switch, the recommended way to
+      power down is to shut the Pi down cleanly FIRST, then flip the switch, which protects the
+      SD card. During those few seconds the Pi is halted while the aux module is still powered,
+      which is the same trap again. So the Pi now sends the aux module a
+      <code class="inline">shutdown</code> message just before it halts, and the aux module
+      suppresses fallback for five minutes.</li>
+    </ol>
+
+    <div class="note">
+      <b>Why five minutes and not forever.</b> A suppression flag that never expires means one
+      stray message could silently disable the fallback beacon for the rest of a flight, and
+      the beacon is the one thing this module exists to do. Five minutes covers a clean halt
+      plus somebody walking over to the switch. After that the module goes back to normal
+      behaviour, so a node accidentally left powered still reports itself.
+    </div>
+
+    <div class="gatebox">
+      <div class="label">If you already built a revision 1 panel</div>
+      <p>Replace the SPST switch with a DPST one and route Battery B's positive lead through
+      the second pole. Nothing else changes on the panel. You also need the firmware reflash in
+      stage 7. Until you do both, expect a spurious "node failed" alert every time you switch a
+      node off; it clears itself after about two minutes.</p>
+    </div>
+  </section>
+
+  <section class="stage" id="s2">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">What the panel does</h2></div>
 
     <div class="fieldtable-wrap">
       <table class="fieldtable">
         <tr><th>Light</th><th>State</th><th>Meaning</th></tr>
         <tr><td>Green</td><td>blinking</td><td>Booting. Services have not answered yet</td></tr>
         <tr><td>Green</td><td>solid</td><td>Node is ready. Safe to walk away</td></tr>
-        <tr><td>Green</td><td>off after a long boot</td><td>Services failed to start. One long beep accompanies this</td></tr>
-        <tr><td>Amber</td><td>solid</td><td>This node can see at least one peer right now</td></tr>
-        <tr><td>Amber</td><td>off</td><td>No peers visible. Normal in a DTN, or a dead radio</td></tr>
+        <tr><td>Green</td><td>off after a long boot</td><td>Services failed to start. One long beep with it</td></tr>
+        <tr><td>Amber</td><td>solid</td><td>This node can see at least one other drone right now</td></tr>
+        <tr><td>Amber</td><td>off</td><td>No other drone visible. Normal sometimes, see below</td></tr>
       </table>
     </div>
 
-    <p>Beeps: two short ones when the node first becomes ready, once. One long beep if it
-    gives up waiting. Nothing after that, deliberately, because anything that beeps
-    repeatedly gets muted or unplugged.</p>
+    <p>Beeps: two short ones when the node first becomes ready, once. One long beep if it gives
+    up waiting. Nothing after that, deliberately, because anything that beeps repeatedly gets
+    muted or unplugged.</p>
 
-    <div class="note">
-      <b>Why the Pi and not the aux module.</b> The aux module was the first instinct, since
-      it survives the Pi dying and could therefore beep during LoRa fallback. It is not
-      possible: every XIAO ESP32-C3 signal pin is already allocated (CHANGES item 10, where
-      LoRa MISO had to move to the last spare). Adding a buzzer would mean giving up a LoRa
-      line. The operator also chose the Pi independently.
+    <div class="note warn">
+      <b>The amber lamp is the reason to build this.</b> The network is delay-tolerant, so
+      drones being briefly out of contact is normal. But a dead USB WiFi adapter looks exactly
+      the same from the software side, and that failure has already cost this project an
+      evening of debugging. With the lamp, you see it instantly from across a field.
     </div>
   </section>
 
-  <p class="part">Part two &middot; Building it</p>
+  <p class="part">Part two &middot; Buying and building</p>
 
-  <section class="stage" id="s2">
-    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">Parts to buy, per node</h2></div>
+  <section class="stage" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Exact shopping list, per node</h2></div>
+
+    <p>Quantities are for ONE node. For all three nodes, multiply by three. Prices are rough
+    Sri Lankan retail as a sanity check, not quotes.</p>
 
     <div class="fieldtable-wrap">
       <table class="fieldtable">
-        <tr><th>Part</th><th>Spec</th><th>Why this spec</th></tr>
-        <tr><td>Power switch</td><td>SPST latching rocker or toggle, <b>5 A</b></td><td>It carries the whole node. A 1 A signal switch will not survive the Pi plus the AR9271 plus the aux module</td></tr>
-        <tr><td>Buzzer</td><td><b>ACTIVE</b> 3.3 V, about 12 mm</td><td>Active means it makes its own tone from a HIGH level. A passive one needs a PWM tone and will stay completely silent with this code</td></tr>
-        <tr><td>LED, green</td><td>3 mm or 5 mm</td><td>READY</td></tr>
-        <tr><td>LED, amber</td><td>3 mm or 5 mm</td><td>MESH. Any colour that is clearly not the green one</td></tr>
-        <tr><td>Resistors</td><td>2 x 220 to 330 ohm</td><td>One per LED. Do not omit these: a bare LED on a GPIO pin can damage the pin</td></tr>
-        <tr><td>Momentary button</td><td>small tactile, normally open</td><td>Optional but strongly recommended. Stage 4 explains why</td></tr>
-        <tr><td>Wire</td><td>22 AWG stranded</td><td>Stranded survives vibration on an airframe; solid core work-hardens and snaps</td></tr>
+        <tr><th>#</th><th>Part</th><th>Exact spec to ask for</th><th>Qty</th><th>~LKR</th></tr>
+        <tr>
+          <td>1</td><td><b>DPST rocker switch</b></td>
+          <td>"DPST rocker switch, 6 pin, 250 V 5 A" or "KCD4 DPST". <b>6 terminals, not 3.</b> DPDT with 6 pins also works, just use one side of each pole</td>
+          <td>1</td><td>150</td>
+        </tr>
+        <tr>
+          <td>2</td><td><b>Active buzzer</b></td>
+          <td>"ACTIVE buzzer 3.3 V" or "3 V active buzzer module". Must say ACTIVE. Roughly 12 mm</td>
+          <td>1</td><td>60</td>
+        </tr>
+        <tr>
+          <td>3</td><td>LED, green</td><td>5 mm diffused green</td><td>1</td><td>10</td>
+        </tr>
+        <tr>
+          <td>4</td><td>LED, amber or yellow</td><td>5 mm diffused. Any colour clearly not green</td><td>1</td><td>10</td>
+        </tr>
+        <tr>
+          <td>5</td><td><b>Resistors</b></td><td>220 ohm, quarter watt, carbon film. Buy 10, they cost nothing and you will lose some</td><td>2 used</td><td>20</td>
+        </tr>
+        <tr>
+          <td>6</td><td>Momentary push button</td><td>"6x6 mm tactile push button" or a panel-mount momentary. <b>Momentary, not latching</b></td><td>1</td><td>30</td>
+        </tr>
+        <tr>
+          <td>7</td><td>Dupont jumper wires, female-to-female</td><td>20 cm. Lets you connect to the Pi header with no soldering on the Pi itself</td><td>8</td><td>100</td>
+        </tr>
+        <tr>
+          <td>8</td><td>Hookup wire</td><td>22 AWG stranded, red and black, 1 m each</td><td>-</td><td>150</td>
+        </tr>
+        <tr>
+          <td>9</td><td>Heat shrink tubing</td><td>2 mm and 4 mm assortment</td><td>-</td><td>100</td>
+        </tr>
+        <tr>
+          <td>10</td><td>Solder and flux</td><td>60/40 leaded is easiest for hand soldering</td><td>-</td><td>-</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="gatebox">
+      <div class="label">Three ways to buy the wrong thing</div>
+      <p><b>An SPST switch.</b> Three terminals instead of six. It only cuts one battery. This
+      is the fault stage 1 exists to prevent.</p>
+      <p><b>A PASSIVE buzzer.</b> Passive buzzers need a rapidly switching signal to make sound
+      and will stay completely silent with this code. If the shop cannot tell you which it is:
+      briefly touch it across a 3 V coin cell. Active buzzers beep. Passive ones click once.</p>
+      <p><b>A latching push button.</b> The shutdown button must spring back when released. A
+      latching one holds the line low and the Pi will shut down again the moment it boots.</p>
+    </div>
+
+    <div class="note">
+      <b>Check the switch current rating covers the whole node.</b> The Pi plus the USB WiFi
+      adapter plus the aux module can pull well over 2 A in bursts, so 5 A gives sensible
+      headroom. A small signal switch rated 0.5 A will overheat and eventually weld its
+      contacts closed.
+    </div>
+  </section>
+
+  <section class="stage" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Resistors: why, and which value</h2></div>
+
+    <p><b>Yes, you need them, one per LED.</b> An LED is not a resistor. Connected straight
+    across a voltage it draws as much current as the source will give, which destroys the LED,
+    the GPIO pin, or both. The resistor is what sets the current.</p>
+
+    <p>The calculation, so you can adapt it if you use different LEDs:</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">Ohm's law for an LED</span></div>
+<pre>R = (V_supply - V_forward) / I_desired
+
+  V_supply   = 3.3 V      <span class="comment">Raspberry Pi GPIO output</span>
+  V_forward  = 2.0 V      <span class="comment">typical green or amber LED drop</span>
+  I_desired  = 6 mA       <span class="comment">bright enough, well inside limits</span>
+
+R = (3.3 - 2.0) / 0.006 = 217 ohm   -&gt;  <span class="comment">use the standard 220 ohm</span></pre>
+    </div>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>Resistor</th><th>Current</th><th>Verdict</th></tr>
+        <tr><td>150 ohm</td><td>8.7 mA</td><td>Brighter, still safe. Use if the lamps must be visible in direct sun</td></tr>
+        <tr><td><b>220 ohm</b></td><td><b>5.9 mA</b></td><td><b>Recommended.</b> Clearly visible in shade and indoors</td></tr>
+        <tr><td>330 ohm</td><td>3.9 mA</td><td>Works, dimmer. Fine indoors, poor outdoors</td></tr>
+        <tr><td>none</td><td>uncontrolled</td><td>Damages the LED and can damage the GPIO pin</td></tr>
       </table>
     </div>
 
     <div class="note">
-      <b>Check the buzzer current.</b> Anything drawing over roughly 25 mA needs a transistor
-      rather than a direct GPIO connection. Most small 3.3 V active buzzers are well under
-      that, but read the datasheet before wiring it straight to a pin.
+      <b>Why not more current for a brighter lamp?</b> A Raspberry Pi GPIO pin is rated for
+      16 mA, and 50 mA total across all pins. Two lamps at 6 mA plus a buzzer is comfortably
+      inside that. Pushing each lamp to 15 mA would work but leaves no margin, and margin is
+      what stops a marginal design failing in the heat.
+    </div>
+
+    <div class="note warn">
+      <b>The buzzer does not get a resistor.</b> An active buzzer has its own driver circuit
+      and expects the full 3.3 V. Adding a resistor makes it quiet or silent. Do check its
+      datasheet current: if it draws more than about 25 mA it needs a transistor rather than a
+      direct GPIO connection, though most small 3.3 V buzzers are well under that.
     </div>
   </section>
 
-  <section class="stage" id="s3">
-    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Where each wire goes</h2></div>
+  <section class="stage" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Wiring: the signal side</h2></div>
 
-    <p>Four signal connections and four grounds. The diagram is the Raspberry Pi 40-pin
-    header as you look down at the board with the USB ports towards you. Pin 1 is the
-    top-left, marked with a square pad on the board.</p>
+    <p>Four connections to the Raspberry Pi's 40-pin header. Use female-to-female Dupont wires
+    so nothing has to be soldered to the Pi itself.</p>
+
+    <p>Hold the Pi with the USB ports facing you. <b>Pin 1 is the top-left</b>, and has a square
+    solder pad on the underside of the board. Pin numbers run left-right in pairs going down:
+    1 and 2 on the top row, then 3 and 4, and so on.</p>
 
     <div class="hdr-wrap">
       <div class="hdr-legend">
-        <span><i class="sw buz"></i>buzzer</span>
-        <span><i class="sw grn"></i>green LED</span>
-        <span><i class="sw amb"></i>amber LED</span>
+        <span><i class="sw buz"></i>buzzer +</span>
+        <span><i class="sw grn"></i>green LED +</span>
+        <span><i class="sw amb"></i>amber LED +</span>
         <span><i class="sw btn"></i>button</span>
         <span><i class="sw gnd"></i>ground</span>
         <span><i class="sw avoid"></i>do not use</span>
@@ -269,166 +445,288 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
       </div>
     </div>
 
-    <div class="note">
-      <b>Pins 8 and 10 are marked do-not-use for a reason.</b> That is GPIO14/15, the UART
-      DRONE_S uses for its flight controller. It is the only GPIO peripheral in the whole
-      design, and the four pins above are chosen to stay clear of it, so this panel is
-      identical on all three nodes.
-    </div>
-
     <div class="term">
-      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">the same thing, as a list</span></div>
-<pre>Buzzer      +   -&gt; pin 11  (GPIO17)
-Buzzer      -   -&gt; pin 9   (GND)
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">connection list</span></div>
+<pre>BUZZER
+  + (marked, or the longer leg)  -&gt;  pin 11  (GPIO17)
+  -                              -&gt;  pin 9   (GND)
 
-Green LED   +   -&gt; pin 13  (GPIO27)  through a 220-330 ohm resistor
-Green LED   -   -&gt; pin 14  (GND)
+GREEN LED  "READY"
+  long leg (+)  -&gt; 220R resistor -&gt;  pin 13  (GPIO27)
+  short leg (-)                  -&gt;  pin 14  (GND)
 
-Amber LED   +   -&gt; pin 15  (GPIO22)  through a 220-330 ohm resistor
-Amber LED   -   -&gt; pin 20  (GND)
+AMBER LED  "MESH"
+  long leg (+)  -&gt; 220R resistor -&gt;  pin 15  (GPIO22)
+  short leg (-)                  -&gt;  pin 20  (GND)
 
-Button (optional, safe shutdown)
-        one leg -&gt; pin 5   (GPIO3)
-        other   -&gt; pin 6   (GND)</pre>
+PUSH BUTTON  (clean shutdown / wake)
+  either leg                     -&gt;  pin 5   (GPIO3)
+  other leg                      -&gt;  pin 6   (GND)</pre>
     </div>
 
     <div class="note">
-      <b>The LED long leg is the positive one.</b> The resistor can sit on either side of the
-      LED; it limits current the same either way. If a lamp never lights, this is the first
-      thing to check.
-    </div>
-  </section>
-
-  <section class="stage gate" id="s4">
-    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">The switch, and the thing that will bite you</h2></div>
-
-    <p>Wire the switch <b>in series with the positive supply lead</b> feeding the Pi, before
-    the Pi's power input. It carries the full node current, which is why the 5 A rating
-    matters.</p>
-
-    <div class="gatebox">
-      <div class="label">Read this before fitting a bare power switch</div>
-      <p>Cutting power to a running Pi is an unclean shutdown. Do it repeatedly and the SD
-      card <b>will</b> eventually corrupt. That is not theoretical here: these nodes already
-      lose power in the field, and one has already been taken down by a USB brownout.</p>
-    </div>
-
-    <p>Two ways to live with it, in order of preference:</p>
-
-    <ol class="steps">
-      <li><b>Fit the optional button on GPIO3.</b> Press it to shut down cleanly, wait for the
-      green lamp to go out, then flip the switch. GPIO3 is special: the same button also
-      WAKES a halted Pi, so one button does both jobs. Enable it by adding one line to
-      <code class="inline">/boot/firmware/config.txt</code>:
-        <div class="term" style="margin-top:0.6rem;">
-          <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">/boot/firmware/config.txt</span></div>
-<pre>dtoverlay=gpio-shutdown,gpio_pin=3,active_low=1,gpio_pull=up</pre>
-        </div>
-      </li>
-      <li><b>Accept the risk</b> and keep a spare flashed SD card in the kit. Reasonable for a
-      demo, poor for a deployment.</li>
-    </ol>
-  </section>
-
-  <p class="part">Part three &middot; Software and testing</p>
-
-  <section class="stage" id="s5">
-    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Turn it on in software</h2></div>
-
-    <p>The code is already on the node. Every node conf now ships with the switch present
-    and set to false, so you are changing one word.</p>
-
-    <div class="term">
-      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on the node</span></div>
-<pre><span class="prompt">$</span> cd ~/rescue-mesh
-<span class="prompt">$</span> git pull
-
-<span class="comment"># Edit this node's conf: deploy/nodes/drone_a.conf (or _b, or _s)</span>
-<span class="comment"># Change INDICATOR=false to INDICATOR=true</span>
-<span class="prompt">$</span> nano deploy/nodes/drone_a.conf
-
-<span class="prompt">$</span> cd deploy
-<span class="prompt">$</span> sudo ./setup_node.sh a          <span class="comment"># or b, or s</span>
-<span class="prompt">$</span> sudo systemctl status rescue-mesh-indicator</pre>
+      <b>Pins 8 and 10 are marked do-not-use.</b> That is GPIO14 and GPIO15, the serial port
+      the system drone uses to talk to its flight controller. The four pins chosen above stay
+      clear of it, so this exact panel works identically on all three nodes.
     </div>
 
     <div class="note">
-      <b>The setup script installs <code class="inline">python3-gpiozero</code> for you</b>
-      when INDICATOR is true, so there is no separate apt step to forget. It only installs it
-      on nodes that ask for it, since a node with no panel fitted has no use for the library.
+      <b>Which LED leg is positive?</b> The longer leg. If the legs have been trimmed, look for
+      a flat notch on the plastic rim: the flat side is negative. The resistor can go on either
+      leg; it limits current the same way round.
     </div>
   </section>
 
   <section class="stage gate" id="s6">
-    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Test it</h2></div>
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Wiring: the power side</h2></div>
 
-    <p>You do not need to reboot to test. Restarting the service replays the whole startup
-    sequence.</p>
+    <p>This is the part that stage 1 is about. Take your time and get it right.</p>
+
+    <p>A DPST switch has six terminals in two rows of three, or two isolated pairs. The two
+    poles are electrically separate: they share only the lever. Pole 1 handles Battery A, pole
+    2 handles Battery B, and <b>the two battery circuits must never touch each other.</b></p>
 
     <div class="term">
-      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on the node</span></div>
-<pre><span class="prompt">$</span> sudo systemctl restart rescue-mesh-indicator</pre>
-    </div>
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">both batteries through one lever</span></div>
+<pre>POLE 1  (Battery A, the bigger load)
 
-    <div class="readout">
-      <div class="label">Expected, within a few seconds</div>
-      <pre>green lamp blinks, then goes solid
-two short beeps
-amber lamp lights IF another node is currently in range</pre>
-      <div class="hint">Amber staying dark is not a failure on its own. With one node powered
-      there is nothing to see. Power a second node and it should light within about
-      10 seconds, which is also the cleanest proof the mesh is up.</div>
+  Battery A  (+) ────► switch pole 1 in
+                       switch pole 1 out ────► buck converter IN+
+  Battery A  (-) ──────────────────────────► buck converter IN-
+
+  buck converter OUT (5 V) ──────────────────► Raspberry Pi power input
+
+
+POLE 2  (Battery B, the aux module)
+
+  Battery B  (+) ────► switch pole 2 in
+                       switch pole 2 out ────► XIAO ESP32-C3  BAT+ pad
+  Battery B  (-) ──────────────────────────► XIAO ESP32-C3  BAT- pad
+
+
+  <span class="comment">The two grounds stay separate. Do NOT bond them.</span></pre>
     </div>
 
     <div class="gatebox">
-      <div class="label">The one test worth doing properly</div>
-      <p>With two nodes up and both amber lamps lit, unplug the USB Wi-Fi adapter from one of
-      them. Both amber lamps should go out within about 10 seconds. That is the exact field
-      failure this panel exists to make visible, and confirming it now means you will
-      recognise it instantly later.</p>
+      <div class="label">Do not join the two battery grounds</div>
+      <p>Keeping them separate is what makes the sub-units electrically independent, which is
+      the fault-tolerance claim the whole design rests on. They are already linked for signal
+      purposes through the USB cable between the Pi and the XIAO, and that is sufficient. Adding
+      a second ground path creates a loop that can carry current between the packs.</p>
+    </div>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">Check the switch before you trust it</h3>
+
+    <p>Multimeter on continuity mode, before anything is connected to batteries:</p>
+
+    <ol class="steps">
+      <li>Switch OFF. Every terminal should read open against every other terminal.</li>
+      <li>Switch ON. You should find exactly two separate pairs that read continuous. If you
+      find three terminals connected together, that is one pole of a DPDT with a common; use
+      the common and one outer terminal per pole.</li>
+      <li>Switch ON, then probe between pole 1 and pole 2. It <b>must</b> read open. If the two
+      poles are connected, the switch is not DPST and you have bridged your two batteries.</li>
+    </ol>
+
+    <div class="note warn">
+      <b>Do that third check.</b> It is the one that catches a mislabelled switch, and bridging
+      a 2S pack to a 1S pack will damage the 1S cell.
     </div>
   </section>
 
-  <section class="stage" id="s7">
-    <div class="stage-head"><span class="stage-num">07</span><h2 class="stage-title">If nothing happens</h2></div>
+  <p class="part">Part three &middot; Software</p>
 
-    <div class="fieldtable-wrap">
-      <table class="fieldtable">
-        <tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr>
-        <tr><td>No sound at all, lamps fine</td><td>A PASSIVE buzzer is fitted where an active one is needed</td><td>Replace it. A passive buzzer needs a PWM tone and will never sound with this code</td></tr>
-        <tr><td>Service dies immediately</td><td><code class="inline">python3-gpiozero</code> missing, or a pin already in use</td><td><code class="inline">journalctl -u rescue-mesh-indicator -n 20</code>. If you enabled the panel by hand rather than through setup_node.sh, install the library</td></tr>
-        <tr><td>A lamp never lights</td><td>Wired backwards</td><td>The long leg goes to the GPIO side, through the resistor</td></tr>
-        <tr><td>Green blinks forever</td><td>The API genuinely is not answering</td><td>That is the lamp doing its job. <code class="inline">systemctl status rescue-mesh-api</code></td></tr>
-        <tr><td>Amber never lights</td><td>Either genuinely no peers, or the USB adapter has dropped off the bus</td><td><code class="inline">iw dev wlan1 info</code> before suspecting the lamp or the sync</td></tr>
-        <tr><td>Everything works, then dies on battery</td><td>Not this circuit. The lamps draw about 20 mA</td><td>The node needs a 3 A class supply. This is a known limit, not a new fault</td></tr>
-      </table>
+  <section class="stage" id="s7">
+    <div class="stage-head"><span class="stage-num">07</span><h2 class="stage-title">Reflash the aux module</h2></div>
+
+    <p>The shutdown notice from stage 1 needs the current firmware on the aux module. Do this
+    for <b>both</b> aux modules (DRONE_A and DRONE_B). DRONE_S has no aux module and needs
+    nothing here.</p>
+
+    <p>This runs from a laptop with PlatformIO installed, with the XIAO connected by USB-C.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">laptop, repository root</span></div>
+<pre><span class="prompt">$</span> git pull
+<span class="prompt">$</span> cd firmware/aux1
+<span class="prompt">$</span> pio run -t upload
+
+<span class="comment"># Repeat with the second module plugged in. The firmware is IDENTICAL</span>
+<span class="comment"># on both; the node identity is stored on the board, not compiled in,</span>
+<span class="comment"># so there is nothing to change between the two uploads.</span></pre>
+    </div>
+
+    <div class="readout">
+      <div class="label">Confirm it took</div>
+      <pre>pio device monitor</pre>
+      <div class="hint">You should see JSON lines with gps and battery types. Press Ctrl+C to exit. If the port is busy, unplug the module from the Pi first: only one program can hold the serial port.</div>
+    </div>
+
+    <div class="note">
+      <b>Without this reflash the panel still works.</b> You just get one spurious "node failed"
+      alert each time you switch a node off cleanly, and it clears itself after about two
+      minutes. Reflashing removes it entirely.
     </div>
   </section>
 
   <section class="stage" id="s8">
-    <div class="stage-head"><span class="stage-num">08</span><h2 class="stage-title">What it cannot do, stated plainly</h2></div>
+    <div class="stage-head"><span class="stage-num">08</span><h2 class="stage-title">Enable it on the Pi</h2></div>
 
-    <p>The panel runs on the Raspberry Pi. <b>It therefore cannot indicate anything once the
-    Pi is dead</b>, which is exactly the LoRa fallback case: a failed node goes dark
-    locally.</p>
+    <p>Do this on each node that has a panel fitted. Connect to the node's WiFi first; every
+    node answers on <code class="inline">10.42.0.1</code> from a device joined to it.</p>
 
-    <p>The aux module still reports that condition to the rest of the fleet over LoRa, so the
-    GCC's Degraded tab sees it and a neighbouring drone logs every beacon. But nobody
-    standing next to the failed drone will know from looking at it. This was accepted
-    deliberately rather than overlooked, and it is the direct cost of the pin shortage on the
-    aux side.</p>
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on the node</span></div>
+<pre><span class="prompt">$</span> ssh drone@10.42.0.1
+<span class="prompt">$</span> cd ~/rescue-mesh
+<span class="prompt">$</span> git pull
 
-    <div class="note">
-      <b>If you ever want local indication of a dead Pi</b>, it has to move to the aux module,
-      which means freeing a XIAO pin, which means giving up a LoRa line or adding an I2C GPIO
-      expander. That is a real project, not an afternoon, and it is recorded as future work
-      rather than a gap.
+<span class="comment"># Open this node's config. Use drone_b.conf or drone_s.conf as appropriate.</span>
+<span class="prompt">$</span> nano deploy/nodes/drone_a.conf
+
+<span class="comment"># Find this line and change false to true:</span>
+<span class="comment">#     INDICATOR=false     ->     INDICATOR=true</span>
+<span class="comment"># Ctrl+O to save, Enter, Ctrl+X to exit nano.</span>
+
+<span class="prompt">$</span> cd deploy
+<span class="prompt">$</span> sudo ./setup_node.sh a        <span class="comment"># use b or s for the other nodes</span></pre>
     </div>
+
+    <p>Then enable the shutdown button, which is a separate one-line change:</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on the node</span></div>
+<pre><span class="prompt">$</span> sudo nano /boot/firmware/config.txt
+
+<span class="comment"># Add this line at the end of the file:</span>
+dtoverlay=gpio-shutdown,gpio_pin=3,active_low=1,gpio_pull=up
+
+<span class="prompt">$</span> sudo reboot</pre>
+    </div>
+
+    <div class="readout">
+      <div class="label">Expected after the reboot</div>
+      <pre>green lamp blinks while booting, then goes solid
+two short beeps
+amber lamp lights if another drone is currently in range</pre>
+      <div class="hint">The setup script installs the <code class="inline">python3-gpiozero</code> library automatically when INDICATOR is true, so there is no separate install step.</div>
+    </div>
+  </section>
+
+  <section class="stage" id="s9">
+    <div class="stage-head"><span class="stage-num">09</span><h2 class="stage-title">How to switch a node off</h2></div>
+
+    <p>Two ways. Use the first one.</p>
+
+    <div class="ui">
+      <div class="label">Correct: clean shutdown, then switch</div>
+      <dl>
+        <dt>1</dt><dd>Press and release the panel button.</dd>
+        <dt>2</dt><dd>Wait for the green lamp to go out. Usually 10 to 20 seconds.</dd>
+        <dt>3</dt><dd>Flip the DPST switch to OFF.</dd>
+      </dl>
+    </div>
+
+    <p>Behind the scenes, step 1 makes the Pi tell the aux module the shutdown is planned, so
+    no fallback alert is raised. Step 2 lets the filesystem finish writing, which is what
+    protects the SD card. Step 3 cuts both batteries together.</p>
+
+    <div class="ui">
+      <div class="label">Acceptable in a hurry: switch only</div>
+      <dl>
+        <dt>1</dt><dd>Flip the DPST switch to OFF.</dd>
+      </dl>
+    </div>
+
+    <p>Both sub-units die at the same instant, so no false alert is raised. The cost is an
+    unclean filesystem shutdown, which is survivable occasionally and corrupts the SD card
+    eventually if you make a habit of it.</p>
+
+    <div class="gatebox">
+      <div class="label">Never do this</div>
+      <p>Do not cut only Battery A, and do not unplug only the Pi while the aux module runs,
+      unless you are deliberately testing the fallback behaviour. That is precisely the
+      condition that generates a genuine failure alert, which is correct: from the fleet's point
+      of view a Pi with no power IS a failed Pi.</p>
+    </div>
+
+    <p><b>Turning it back on:</b> flip the switch to ON. If the Pi was halted with the button
+    but power was left on, press the same button to wake it.</p>
+  </section>
+
+  <section class="stage gate" id="s10">
+    <div class="stage-head"><span class="stage-num">10</span><h2 class="stage-title">Test it</h2></div>
+
+    <p>Five tests, in order. The last two are the ones that prove the revision 2 fix works.</p>
+
+    <ol class="steps">
+      <li><b>Lamps and beep.</b> <code class="inline">sudo systemctl restart
+      rescue-mesh-indicator</code>. Expect blink, solid green, two beeps.</li>
+
+      <li><b>Amber tracks the mesh.</b> With two nodes up, both amber lamps should be lit.
+      Unplug the USB WiFi adapter from one; both should go out within about 10 seconds. Plug it
+      back in and they should return. <b>This is the test worth doing properly</b>, because it
+      is the exact field failure the lamp exists to reveal.</li>
+
+      <li><b>Clean shutdown.</b> Press the button. Green should go out within about 20 seconds
+      and the Pi should stop responding to ping.</li>
+
+      <li><b>No false alarm on a clean shutdown.</b> With a second node running and a GCC
+      connected to it, do a clean shutdown on the first node. Watch the GCC's Degraded tab for
+      two minutes. <b>It must stay empty.</b> If a degraded entry appears, the aux module did
+      not get the shutdown notice: check that stage 7's reflash was done on that module.</li>
+
+      <li><b>Real failures still alarm.</b> Now pull power from the Pi ONLY, leaving the aux
+      module running. Within about a minute the GCC should show that node as degraded. This
+      confirms that suppressing the planned case did not break the genuine one.</li>
+    </ol>
+
+    <div class="note warn">
+      <b>Tests 4 and 5 are a pair and both are needed.</b> Test 4 alone would also pass if you
+      had accidentally disabled fallback altogether, which would silently remove the project's
+      main fault-tolerance feature. Test 5 is what rules that out.
+    </div>
+  </section>
+
+  <section class="stage" id="s11">
+    <div class="stage-head"><span class="stage-num">11</span><h2 class="stage-title">Troubleshooting</h2></div>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr>
+        <tr><td>No sound, lamps fine</td><td>Passive buzzer fitted</td><td>Replace with an ACTIVE buzzer. A passive one cannot work with this code</td></tr>
+        <tr><td>Service will not start</td><td>Pins in use, or gpiozero missing because the panel was enabled by hand</td><td><code class="inline">journalctl -u rescue-mesh-indicator -n 20</code></td></tr>
+        <tr><td>A lamp never lights</td><td>LED backwards</td><td>Long leg to the GPIO side, through the resistor</td></tr>
+        <tr><td>Both lamps very dim</td><td>Resistor value too high</td><td>330 ohm and above is dim outdoors. Fit 220 ohm</td></tr>
+        <tr><td>Green blinks forever</td><td>The API genuinely is not answering</td><td>That is the lamp doing its job. <code class="inline">systemctl status rescue-mesh-api</code></td></tr>
+        <tr><td>Amber never lights</td><td>Genuinely no peers, or the USB adapter has dropped off</td><td><code class="inline">iw dev wlan1 info</code> before suspecting the lamp</td></tr>
+        <tr><td>Pi shuts down again right after booting</td><td>A latching button is holding GPIO3 low</td><td>Replace with a momentary button</td></tr>
+        <tr><td>Button does nothing</td><td>The overlay line is missing or misspelled</td><td>Check <code class="inline">/boot/firmware/config.txt</code> and reboot</td></tr>
+        <tr><td>False "node failed" on every clean shutdown</td><td>Aux module still on old firmware</td><td>Stage 7 reflash for that module</td></tr>
+        <tr><td>Switch gets warm</td><td>Under-rated switch</td><td>Stop using it. Fit a 5 A part before it welds shut</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="stage" id="s12">
+    <div class="stage-head"><span class="stage-num">12</span><h2 class="stage-title">What it cannot do</h2></div>
+
+    <p>The panel runs on the Raspberry Pi, so <b>it cannot show anything once the Pi is
+    dead</b>, which is exactly the fallback case. A genuinely failed node goes dark locally.</p>
+
+    <p>The aux module still reports the failure to the rest of the fleet over LoRa, so the GCC
+    sees it and a neighbouring drone logs every beacon. But nobody standing next to the failed
+    drone learns anything from looking at it.</p>
+
+    <p>This was accepted deliberately rather than overlooked. Moving the lamps to the aux
+    module, which does survive the Pi, would mean freeing a pin on the XIAO, and every signal
+    pin is already allocated. It would cost a LoRa line or need an I2C expander, which is a
+    project rather than an afternoon.</p>
   </section>
 
 </div>
 
 <footer>
-  Rescue Mesh &middot; front panel build plan &middot; field backlog #1<br>
-  Software: deploy/files/node_indicator.py, deploy/systemd/rescue-mesh-indicator.service. Reference: docs/NODE_PANEL.md.
+  Rescue Mesh &middot; node front panel, revision 2 &middot; 7 August 2026<br>
+  Code: deploy/files/node_indicator.py, firmware/aux1/src/main.cpp. Reference: docs/NODE_PANEL.md. Verify the shutdown notice: tools/aux_shutdown_notice_test.py.
 </footer>
