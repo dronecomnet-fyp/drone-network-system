@@ -1,0 +1,714 @@
+<title>Testing Session Plan and Evidence Capture List</title>
+<style>
+@font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
+
+:root {
+  --ink: #1b2028; --paper: #f6f4ef; --paper-raised: #eeebe3; --line: #d8d3c6;
+  --wire: #5b6b7a; --accent: #d9711c; --accent-strong: #b85c14;
+  --pass: #1f8f5b; --pass-bg: #e4f4ec; --stop: #c23a3a; --stop-bg: #fbe9e7;
+  --term-bg: #14181e; --term-fg: #e6e2d6; --term-dim: #8a93a3; --code-fg: #2a2f38;
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+  --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+  --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+  --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+  --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+    --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+    --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+    --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+body { font-family: var(--sans); font-size: 16px; line-height: 1.6; padding: 0 0 6rem; }
+::selection { background: var(--accent); color: #14181e; }
+a { color: var(--accent-strong); }
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; }
+
+.masthead { border-bottom: 1px solid var(--line); padding: 2.6rem 0 1.8rem; margin-bottom: 2.2rem; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--wire); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+h1.title { font-family: var(--mono); font-size: 1.9rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6rem; }
+.dek { max-width: 46ch; color: var(--wire); font-size: 1.02rem; margin: 0; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1.4rem; font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+.meta-row b { color: var(--ink); font-weight: 600; }
+
+/* the loop diagram */
+.loop { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1.5rem; padding: 0.9rem 1rem; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; font-family: var(--mono); font-size: 0.76rem; }
+.loop .n { padding: 0.2rem 0.55rem; border-radius: 5px; background: var(--paper); border: 1px solid var(--line); white-space: nowrap; }
+.loop .n.hi { border-color: var(--accent); color: var(--accent-strong); }
+.loop .ar { color: var(--wire); }
+
+.index { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin-bottom: 2.6rem; }
+.index-title { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--wire); margin: 0 0 0.7rem; }
+.index ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.25rem 1rem; }
+.index li a { display: flex; gap: 0.55rem; align-items: baseline; text-decoration: none; color: var(--ink); font-size: 0.88rem; padding: 0.2rem 0; }
+.index li a:hover { color: var(--accent-strong); }
+.index .n { font-family: var(--mono); color: var(--wire); font-size: 0.78rem; min-width: 1.4em; }
+
+.part { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-strong); border-top: 1px solid var(--line); padding-top: 1.4rem; margin: 0 0 1.6rem; }
+
+.stage { border-left: 3px solid var(--line); padding: 0 0 0 1.3rem; margin-bottom: 2.9rem; scroll-margin-top: 1.5rem; }
+.stage.gate { border-left-color: var(--stop); }
+.stage-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 0.85rem; }
+.stage-num { font-family: var(--mono); font-size: 0.85rem; color: var(--wire); background: var(--paper-raised); border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.6rem; flex-shrink: 0; }
+h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+.stage ul, .stage ol.steps { margin: 0 0 1rem; padding-left: 1.25rem; max-width: 60ch; }
+.stage li { margin-bottom: 0.4rem; }
+.stage li:last-child { margin-bottom: 0; }
+
+.term { background: var(--term-bg); border-radius: 8px; margin: 0 0 1rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000); }
+.term-bar { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.term-bar .cap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--term-dim); margin-left: 0.3rem; }
+.term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
+.term-bar .led.r { background: #e5645c; } .term-bar .led.y { background: #e5b84f; } .term-bar .led.g { background: #57c273; }
+.term pre { margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg); }
+.term .prompt { color: var(--term-dim); }
+.term .comment { color: var(--term-dim); font-style: italic; }
+
+code.inline { font-family: var(--mono); font-size: 0.88em; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 4px; padding: 0.05rem 0.35rem; color: var(--code-fg); }
+
+.readout { background: var(--pass-bg); border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line)); border-radius: 8px; padding: 0.9rem 1.1rem 1rem; margin: 0 0 1rem; }
+.readout .label { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pass); margin-bottom: 0.55rem; }
+.readout pre, .readout code { font-family: var(--mono); font-size: 0.85rem; color: var(--code-fg); white-space: pre-wrap; word-break: break-word; margin: 0; }
+.readout .hint { font-family: var(--sans); font-size: 0.85rem; color: var(--wire); margin-top: 0.55rem; white-space: normal; }
+
+.gatebox { background: var(--stop-bg); border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line)); border-radius: 8px; padding: 0.95rem 1.1rem 1.05rem; margin: 0 0 0.4rem; }
+.gatebox .label { font-family: var(--mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.gatebox p { margin: 0; max-width: 58ch; font-size: 0.95rem; }
+
+.ui { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px; padding: 0.9rem 1.1rem; margin: 0 0 1rem; }
+.ui .label { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 0.5rem; }
+.ui dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 0.9rem; font-size: 0.9rem; }
+.ui dt { font-family: var(--mono); font-size: 0.82rem; color: var(--wire); }
+.ui dd { margin: 0; }
+
+.note { border: 1px dashed var(--line); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.88rem; color: var(--wire); margin: 0 0 1rem; max-width: 60ch; }
+.note b { color: var(--ink); }
+.note.warn { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+.fieldtable-wrap { overflow-x: auto; margin-bottom: 1rem; }
+table.fieldtable { border-collapse: collapse; width: 100%; font-size: 0.85rem; min-width: 30rem; }
+table.fieldtable th, table.fieldtable td { text-align: left; padding: 0.45rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.fieldtable th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wire); font-weight: 600; }
+
+footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+
+@media (max-width: 640px) {
+  h1.title { font-size: 1.55rem; }
+  .index ol { grid-template-columns: 1fr; }
+  .ui dl { grid-template-columns: 1fr; gap: 0.1rem 0; }
+  .ui dt { margin-top: 0.5rem; }
+}
+</style>
+<style>
+.stage h3 { color: var(--accent-strong); letter-spacing: 0.02em; }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; FYP report &middot; Chapter 6 evidence plan</div>
+    <h1 class="title">Testing Session Plan<br>and Evidence Capture List</h1>
+    <p class="dek">Every measurement to take and every image to capture for the Testing and Results chapter, in the order they have to happen. Forty-four numbered items. Work down the list and you finish with a complete chapter's worth of evidence and nothing to re-shoot.</p>
+    <div class="meta-row">
+      <span><b>Total time</b> about 2 days, split into 6 sessions</span>
+      <span><b>People</b> 2 (3 for the field session)</span>
+      <span><b>Output</b> 44 evidence files + 9 filled tables</span>
+    </div>
+    <div class="loop">
+      <span class="n">0 prepare</span><span class="ar">&rarr;</span>
+      <span class="n">1 test suites</span><span class="ar">&rarr;</span>
+      <span class="n hi">2 screenshots</span><span class="ar">&rarr;</span>
+      <span class="n">3 bench</span><span class="ar">&rarr;</span>
+      <span class="n hi">4 field</span><span class="ar">&rarr;</span>
+      <span class="n">5 endurance</span><span class="ar">&rarr;</span>
+      <span class="n">6 the recording</span>
+    </div>
+  </header>
+
+  <div class="note warn" style="max-width:none;">
+    <b>The order is not arbitrary.</b> Screenshots come after seeding, because a figure
+    captioned "the victim message feed" showing an empty list proves nothing. The Degraded tab
+    can only be photographed while a node is actually degraded, so it sits inside the fallback
+    measurement rather than in the screenshot session. Field range work needs the battery
+    question settled first, because a range test on a browning-out adapter measures the wrong
+    thing entirely.
+  </div>
+
+  <nav class="index">
+    <p class="index-title">Sessions</p>
+    <ol>
+      <li><a href="#rules"><span class="n">A</span>Rules and naming</a></li>
+      <li><a href="#kit"><span class="n">B</span>Equipment checklist</a></li>
+      <li><a href="#s0"><span class="n">0</span>Prepare, 30 min</a></li>
+      <li><a href="#s1"><span class="n">1</span>Test suites, 45 min</a></li>
+      <li><a href="#s2"><span class="n">2</span>Seed and screenshots, 2 h</a></li>
+      <li><a href="#s3"><span class="n">3</span>Bench measurements, 2.5 h</a></li>
+      <li><a href="#s4"><span class="n">4</span>Field, half a day</a></li>
+      <li><a href="#s5"><span class="n">5</span>Endurance, overnight</a></li>
+      <li><a href="#s6"><span class="n">6</span>The recording, 1 h</a></li>
+      <li><a href="#index"><span class="n">C</span>Evidence index</a></li>
+      <li><a href="#wrong"><span class="n">D</span>When a result disagrees</a></li>
+    </ol>
+  </nav>
+
+  <p class="part">Part A &middot; Before anything</p>
+
+  <section class="stage" id="rules">
+    <div class="stage-head"><span class="stage-num">A</span><h2 class="stage-title">Rules and naming</h2></div>
+
+    <p>Five rules. Breaking any of them means re-shooting later, which is the one thing this
+    plan exists to prevent.</p>
+
+    <ol class="steps">
+      <li><b>One naming scheme.</b> <code class="inline">EV-NN-short-name.png</code>, matching
+      the ID in this document. <code class="inline">EV-14-gcc-degraded-tab.png</code>. Your
+      teammate can then drop a figure into the report without asking which file is which.</li>
+
+      <li><b>Log every capture as you take it.</b> The log sheet is below. Date, evidence ID,
+      node ids, git commit, power source. A screenshot with no recorded conditions is an
+      illustration; with them it is evidence.</li>
+
+      <li><b>Never real personal data.</b> Demo names, demo device ids, invented message text.
+      If a real phone number or name appears in a frame, that image cannot go in the report.</li>
+
+      <li><b>Consistent capture settings.</b> GCC window at 1600 x 1000 for every screenshot.
+      Same theme throughout, do not mix light and dark. Phone screenshots in the same
+      orientation.</li>
+
+      <li><b>Three trials minimum</b> for anything with a number attached. Report all three
+      and the median. One measurement is an anecdote.</li>
+    </ol>
+
+    <div class="ui">
+      <div class="label">The log sheet, copy this into a file before you start</div>
+      <dl>
+        <dt>Filename</dt><dd><code class="inline">docs/test_log.md</code> already exists as a template. Append to it, do not start a new one.</dd>
+      </dl>
+    </div>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">one row per capture</span></div>
+<pre>| EV   | Date       | Commit  | Nodes    | Power        | File                        | Notes |
+|------|------------|---------|----------|--------------|-----------------------------|-------|
+| EV-01| 2026-08-06 | c08e17d | -        | -            | EV-01-backend-tests.png     |       |
+| EV-14| 2026-08-06 | c08e17d | A,B      | mains 3A     | EV-14-gcc-degraded-tab.png  | B Pi pulled 14:32 |</pre>
+    </div>
+
+    <div class="note">
+      <b>Get the commit hash once, at the start of each session:</b>
+      <code class="inline">git rev-parse --short HEAD</code>. If you pull mid-session, note
+      the new hash against everything after it.
+    </div>
+  </section>
+
+  <section class="stage" id="kit">
+    <div class="stage-head"><span class="stage-num">B</span><h2 class="stage-title">Equipment checklist</h2></div>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>Item</th><th>Why</th><th>Sessions</th></tr>
+        <tr><td>3 assembled nodes (A, B, S)</td><td>Two-hop sync needs three</td><td>2, 3, 4</td></tr>
+        <tr><td><b>3 A class power supply or phone charger per node</b></td><td>The battery pack cannot sustain a node. This is the finding that broke the last session</td><td>all</td></tr>
+        <tr><td>Battery packs, charged</td><td>Only for the endurance session, where the battery IS the subject</td><td>5</td></tr>
+        <tr><td>Windows laptop with the GCC built</td><td>Every GCC screenshot</td><td>1, 2, 3, 4</td></tr>
+        <tr><td>2 Android phones</td><td>One victim, one rescuer. Three is better</td><td>2, 3, 4, 6</td></tr>
+        <tr><td>Multimeter</td><td>INA3221 accuracy check</td><td>3</td></tr>
+        <tr><td>Measuring wheel or a GPS distance app</td><td>Range tests. Pacing is not good enough</td><td>4</td></tr>
+        <tr><td>MBTiles file for your test area</td><td>The map is blank without it and every map screenshot is wasted</td><td>2</td></tr>
+        <tr><td>Screen recorder on the laptop and phones</td><td>Session 6</td><td>6</td></tr>
+        <tr><td>Notebook and pen</td><td>Field timings. Do not trust yourself to remember</td><td>3, 4</td></tr>
+        <tr><td>Open ground, roughly 300 m clear</td><td>Mesh range test</td><td>4</td></tr>
+      </table>
+    </div>
+
+    <div class="gatebox">
+      <div class="label">Do not start session 4 without this</div>
+      <p>A 3 A supply, or a powered USB hub for the AR9271. The last field session lost an
+      evening to an adapter browning out and dropping off the USB bus, which looks exactly like
+      a sync bug from the laptop. Every range figure taken in that state is worthless.</p>
+    </div>
+  </section>
+
+  <p class="part">Part B &middot; The sessions</p>
+
+  <section class="stage" id="s0">
+    <div class="stage-head"><span class="stage-num">00</span><h2 class="stage-title">Prepare, 30 minutes, at a desk</h2></div>
+
+    <p>Nothing captured here. This is making sure the next five sessions are not wasted.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">laptop</span></div>
+<pre><span class="prompt">$</span> git pull
+<span class="prompt">$</span> git rev-parse --short HEAD      <span class="comment"># write this in the log sheet</span></pre>
+    </div>
+
+    <ol class="steps">
+      <li><b>Update all three nodes</b> if you have not since the last round:
+      <code class="inline">docs/node_update_lora_log.html</code>. Six minutes each.</li>
+      <li><b>Install the current APKs</b> on both phones from the phone-apps-v4 release.</li>
+      <li><b>Rebuild the GCC</b>: <code class="inline">flutter build windows --release</code>.</li>
+      <li><b>Load the MBTiles file</b> into GCC Settings and confirm the map draws tiles, not a
+      grey grid. Do this now, not in session 2 with the camera out.</li>
+      <li><b>Clear the databases</b> if you want clean counts. The nodes hold nothing worth
+      keeping from earlier testing.</li>
+      <li><b>Decide your test site</b> for session 4 and check you can get 300 m of clear
+      ground.</li>
+    </ol>
+  </section>
+
+  <section class="stage" id="s1">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">Test suites, 45 minutes, at a desk</h2></div>
+
+    <p>Six terminal captures. Take these before touching hardware, so a hardware problem later
+    cannot delay the chapter's easiest evidence.</p>
+
+    <div class="note">
+      <b>Terminal capture settings:</b> clear the scrollback first, make the font large enough
+      to read when the image is half a page wide, and <b>keep the command itself in the
+      frame</b>. A pass count with no visible command is not reproducible.
+    </div>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>EV</th><th>Command</th><th>Frame must show</th></tr>
+        <tr><td><b>EV-01</b></td><td><code class="inline">cd backend &amp;&amp; .venv/bin/pytest -q</code></td><td>The command and <code class="inline">91 passed</code></td></tr>
+        <tr><td><b>EV-02</b></td><td><code class="inline">cd gcc_app &amp;&amp; flutter test</code></td><td>The command and <code class="inline">All tests passed!</code> with +90</td></tr>
+        <tr><td><b>EV-03</b></td><td><code class="inline">cd rescue_app &amp;&amp; flutter test</code></td><td>+16</td></tr>
+        <tr><td><b>EV-04</b></td><td><code class="inline">cd emergency_app &amp;&amp; flutter test</code></td><td>+23</td></tr>
+        <tr><td><b>EV-05</b></td><td><code class="inline">cd shared_dart &amp;&amp; dart test</code></td><td>+23</td></tr>
+        <tr><td><b>EV-06</b></td><td><code class="inline">.venv/bin/pytest tests/ -v | head -40</code></td><td>Individual test NAMES. This is the one that shows what is actually being tested</td></tr>
+      </table>
+    </div>
+
+    <div class="readout">
+      <div class="label">Fill this table for the report while you are here</div>
+      <pre>| Suite          | Files | Tests | Result |
+|----------------|-------|-------|--------|
+| backend        | 10    | 91    |        |
+| gcc_app        | 9     | 90    |        |
+| rescue_app     | 3     | 16    |        |
+| emergency_app  | 2     | 23    |        |
+| shared_dart    | -     | 23    |        |
+| TOTAL          |       | 243   |        |</pre>
+      <div class="hint">Per-file breakdowns are already in <code class="inline">docs/REPORT_TESTING.md</code> Part 1. Do not retype them, cite them.</div>
+    </div>
+  </section>
+
+  <section class="stage" id="s2">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">Seed and screenshots, 2 hours</h2></div>
+
+    <p>Eighteen images. This is the session that fixes the report's biggest presentational
+    weakness: it currently has no UI screenshots at all.</p>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.4rem 0 0.6rem;">2a. Seed the data first</h3>
+
+    <p>Join the laptop to DRONE_A's Wi-Fi, then:</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">laptop, on RESCUE_A</span></div>
+<pre><span class="prompt">$</span> python3 tools/seed_demo_data.py
+
+<span class="comment"># About 2.5 minutes. It paces itself to 13 s between writes because</span>
+<span class="comment"># the victim plane rate-limits to 5 per minute per IP. That pause is</span>
+<span class="comment"># the limiter working, not the script hanging.</span></pre>
+    </div>
+
+    <p>Then, by hand in the GCC, because these are not public-plane records:</p>
+
+    <ol class="steps">
+      <li>Log in as HQ. Issue <b>three personnel credentials</b> with realistic role names.</li>
+      <li>Post <b>two announcements</b>, one NORMAL and one URGENT.</li>
+      <li>Create a mission: name it, pick a disaster type, add two or three challenges.</li>
+      <li><b>Draw the operation area</b> over ground your MBTiles file actually covers.</li>
+      <li>Add <b>four drones</b>: two by unit id, one volunteer with a module attached, one
+      minimal. Add two spare modules.</li>
+      <li>Place the GCC, draw <b>two advance arrows</b> with notes, circle <b>one suspected
+      area</b>.</li>
+      <li>Add <b>four placements</b> with different roles, so the map has coverage circles.</li>
+      <li>Sign a rescuer in on the second phone and let it report location for a few minutes,
+      so rescuer pins appear.</li>
+    </ol>
+
+    <div class="note warn">
+      <b>Do this seeding once and screenshot everything in one sitting.</b> Data ages: every
+      screen shows a data age, and a set of figures where one says "3s" and another says "47m"
+      looks careless.
+    </div>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">2b. Victim-facing, 5 images</h3>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>EV</th><th>What</th><th>Frame must show</th><th>Report section</th></tr>
+        <tr><td><b>EV-07</b></td><td>Captive portal on a phone browser</td><td>The big tappable option buttons, urgent ones at the top, nothing requiring typing</td><td>3.2.1 / 5.1</td></tr>
+        <tr><td><b>EV-08</b></td><td>Portal after submitting</td><td>The confirmation wording, which says the DRONE has it, not the rescue team</td><td>5.1</td></tr>
+        <tr><td><b>EV-09</b></td><td>Emergency app SOS screen</td><td>Options fetched from the node, the location switch ON, the optional note box</td><td>3.2.5 / 5.7</td></tr>
+        <tr><td><b>EV-10</b></td><td>Emergency app conversation</td><td>A reply from a rescuer and the honest delivery state</td><td>5.7</td></tr>
+        <tr><td><b>EV-11</b></td><td>Emergency app area map</td><td>Drones, other victims, rescuers as positions with no content</td><td>5.7</td></tr>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>EV-07 and EV-09 are a pair and should sit side by side in the report.</b> They are the
+      same options, one served to a browser and one to the app, from the same node config. That
+      is the argument for fetching the list instead of hardcoding it, and two images make it
+      instantly.
+    </div>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">2c. Rescue app, 3 images</h3>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>EV</th><th>What</th><th>Frame must show</th><th>Report section</th></tr>
+        <tr><td><b>EV-12</b></td><td>Victim requests feed</td><td>Mixed NEW and CLAIMED, ages, location chips, the unclaimed badge</td><td>5.5.3</td></tr>
+        <tr><td><b>EV-13</b></td><td>Scan sign-in screen</td><td>The camera view with the aiming box and the instruction line</td><td>5.5 / new section</td></tr>
+        <tr><td><b>EV-14</b></td><td>Login screen</td><td>SCAN offered first, the "or type your PIN" divider below it</td><td>5.5</td></tr>
+      </table>
+    </div>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">2d. GCC, 10 images</h3>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>EV</th><th>What</th><th>Frame must show</th><th>Report section</th></tr>
+        <tr><td><b>EV-15</b></td><td>Operations map, everything on</td><td>Offline tiles, victims, checkins, rescuers, node, placements. The Layers button reading "Layers"</td><td>5.6.3</td></tr>
+        <tr><td><b>EV-16</b></td><td>Layers dialog open</td><td>Per-layer counts beside each name</td><td>5.6.3</td></tr>
+        <tr><td><b>EV-17</b></td><td>Map with layers hidden</td><td>The button now reading "N layer(s) hidden" in orange. Pairs with EV-15</td><td>5.6.3</td></tr>
+        <tr><td><b>EV-18</b></td><td>Mission planning mode</td><td>Area polygon shaded, placements with coverage circles, GCC marker, advance arrows, suspected circle</td><td>new mission section</td></tr>
+        <tr><td><b>EV-19</b></td><td>Mission tab, top</td><td>The numbered steps, the area card marked done</td><td>new mission section</td></tr>
+        <tr><td><b>EV-20</b></td><td>Mission tab, resources</td><td>Drone cards with the drawn quadcopter, module chips, one mid-drag if you can</td><td>new mission section</td></tr>
+        <tr><td><b>EV-21</b></td><td>AI advisor progress dialog, mid-run</td><td>The four steps with one active and a placement count. Needs an API key set</td><td>new AI section</td></tr>
+        <tr><td><b>EV-22</b></td><td>Live Ops</td><td>Stat tiles with data ages, the fleet board</td><td>5.6</td></tr>
+        <tr><td><b>EV-23</b></td><td>Nodes tab</td><td>Connected node card plus at least one PEER card, with beacon age and details age separate</td><td>5.6.4</td></tr>
+        <tr><td><b>EV-24</b></td><td>Personnel issue dialog</td><td>The QR, the PIN, and the warning not to leave it on screen</td><td>security section</td></tr>
+      </table>
+    </div>
+
+    <div class="gatebox">
+      <div class="label">EV-23 needs two nodes actually talking</div>
+      <p>Power up DRONE_B before this one and confirm the peer card appears. If the peers area
+      shows the empty state instead, do not photograph it as "the Nodes tab": check
+      <code class="inline">iw dev wlan1 info</code> on both nodes first. An empty peers list is
+      either normal DTN behaviour or a dead adapter, and the whole point of that empty state's
+      wording is that you cannot tell which from the screen.</p>
+    </div>
+
+    <div class="note">
+      <b>EV-21 is optional but valuable.</b> It is the image that supports the honesty argument
+      about the progress display: three real steps and one labelled as placing rather than
+      receiving. If no AI key is available, skip it and make the argument in text.
+    </div>
+  </section>
+
+  <section class="stage" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Bench measurements, 2.5 hours</h2></div>
+
+    <p>Four measurements and eight captures, all indoors with nodes on mains. These are the
+    numbers the report has none of.</p>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.4rem 0 0.6rem;">3a. Sync convergence (measurement M3)</h3>
+
+    <p>The headline DTN number. Three nodes in range, GCC watching.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on DRONE_B, watching for A's message</span></div>
+<pre><span class="prompt">$</span> while true; do \
+    printf "%s %s\n" "$(date +%T)" \
+    "$(curl -sk https://127.0.0.1:8443/health | grep -o '\"messages\":[0-9]*')"; \
+    sleep 1; done</pre>
+    </div>
+
+    <ol class="steps">
+      <li>Submit a message on DRONE_A through the captive portal. Note the second.</li>
+      <li>Watch the count increase on B. Note the second. That difference is one hop.</li>
+      <li><b>Twenty trials.</b> It is quick and the spread is the interesting part.</li>
+      <li>Then move B out of range of A but in range of S, and do ten more. That is two hops.</li>
+    </ol>
+
+    <div class="readout">
+      <div class="label">EV-25: photograph this terminal mid-run</div>
+      <pre>| Trial | A to B (s) | A to S (s) | Two-hop via S (s) |
+|-------|-----------|-----------|-------------------|
+| 1     |           |           |                   |
+| ...   |           |           |                   |
+| median|           |           |                   |</pre>
+      <div class="hint">Predicted: median near 15 s, worst case near 30 s, because SYNC_INTERVAL is 30 s and submissions land uniformly within a cycle. <b>If your median lands near 15, say so explicitly in the report</b>: it shows the mechanism behaves as modelled rather than by luck.</div>
+    </div>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">3b. Fallback and recovery (measurement M4)</h3>
+
+    <p>The single most valuable sequence in the session, because it exercises the aux module,
+    LoRa, the log, replication and the GCC in one event. <b>Five trials.</b></p>
+
+    <ol class="steps">
+      <li>Three nodes up, GCC joined to <b>A</b>, DRONE_B is the victim of the test.</li>
+      <li>Start a stopwatch and <b>pull power from B's Raspberry Pi only</b>, leaving its aux
+      module powered.</li>
+      <li>Record: aux enters fallback, A logs <code class="inline">FALLBACK_BEACON</code>, GCC
+      shows B degraded, Degraded tab shows the carried message.</li>
+      <li>Restore power. Record time until B returns to NORMAL and leaves the degraded list.</li>
+    </ol>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>EV</th><th>Capture</th><th>Frame must show</th></tr>
+        <tr><td><b>EV-26</b></td><td>GCC Degraded tab, during</td><td>B listed, beacon age, RSSI, battery, the last victim message it was carrying</td></tr>
+        <tr><td><b>EV-27</b></td><td>Map during fallback</td><td>B's marker in red. Blinking will not show in a still, so note it in the caption</td></tr>
+        <tr><td><b>EV-28</b></td><td>The raw LoRa log</td><td>Several beacon rows with heard-by and signal strength</td></tr>
+        <tr><td><b>EV-29</b></td><td>Degraded tab after recovery</td><td>B under "Recovered", proving it cleared itself</td></tr>
+        <tr><td><b>EV-30</b></td><td>Terminal on A</td><td><code class="inline">journalctl -u rescue-mesh-auxbridge -n 20</code> with FALLBACK_BEACON lines</td></tr>
+      </table>
+    </div>
+
+    <div class="note warn">
+      <b>EV-29 matters more than it looks.</b> Automatic recovery is a design change made
+      because one-way fallback caused a real bug: a node that recovered from a service restart
+      stayed marked DOWN forever. The report currently describes the OLD one-way behaviour as a
+      deliberate choice. This image is the evidence for the correction.
+    </div>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">3c. Battery monitor accuracy (measurement M8)</h3>
+
+    <ol class="steps">
+      <li>Multimeter on Battery A terminals. Compare against the voltage in
+      <code class="inline">/health</code>. Five points across a discharge.</li>
+      <li>Same for Battery B.</li>
+      <li><b>Then disconnect Battery B entirely</b> and check what the node reports. If it says
+      about 4.18 V rather than absent, <code class="inline">BATT_B_PRESENT</code> is not set
+      correctly in that module's firmware. That is field backlog #8 and it is worth a paragraph
+      either way: an unconnected INA3221 input floats near the supply rail and cannot be told
+      from a full cell by voltage alone.</li>
+    </ol>
+
+    <div class="readout">
+      <div class="label">EV-31: photograph the multimeter and the screen together in one frame</div>
+      <pre>| Point | Multimeter (V) | Reported (V) | Error (V) | Error (%) |
+|-------|----------------|--------------|-----------|-----------|</pre>
+      <div class="hint">One image showing both readings at once is far stronger evidence than two separate images.</div>
+    </div>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">3d. GPS acquisition (measurement M9)</h3>
+
+    <p><b>EV-32:</b> five cold starts with the antenna outdoors. Time from power-on to first
+    fix, and to <code class="inline">clock_source</code> flipping from
+    <code class="inline">relative</code> to <code class="inline">gps</code> in
+    <code class="inline">/health</code>. Compare against the NEO-6M datasheet figure of 27 s
+    cold. A difference either way is a legitimate finding.</p>
+  </section>
+
+  <section class="stage gate" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Field session, half a day, 3 people</h2></div>
+
+    <p>Three range measurements. Pick a day with no rain and record the weather, because range
+    figures are site and condition specific and the report has to say so.</p>
+
+    <div class="gatebox">
+      <div class="label">Check this at every single measurement point</div>
+      <p><code class="inline">iw dev wlan1 info</code> on the node being carried. If the
+      interface has vanished, that is a power failure and every reading since the last good
+      check is void. This is not paranoia: it is exactly what went wrong last time, and it was
+      invisible from the laptop.</p>
+    </div>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>EV</th><th>Measurement</th><th>Method</th></tr>
+        <tr><td><b>EV-33</b></td><td>User AP range (M1)</td><td>Walk away from a fixed node. Every 10 m to 50 m, then every 25 m. Record RSSI, portal loads, submit succeeds. Three bearings. Stop after three consecutive failures</td></tr>
+        <tr><td><b>EV-34</b></td><td>Mesh range (M2)</td><td>Node A fixed, carry B. At each distance create a message on B, wait 60 s, check it reached A. Record signal both ends</td></tr>
+        <tr><td><b>EV-35</b></td><td>LoRa fallback range (M5)</td><td>One aux module in fallback, carried. Read RSSI and SNR straight out of the receiving node's <code class="inline">/lora-events</code></td></tr>
+      </table>
+    </div>
+
+    <div class="note warn">
+      <b>State the transmit power for EV-35 in the caption.</b> LoRa is deliberately at the
+      library minimum, not the module's +20 dBm rating, pending TRCSL confirmation for 915 MHz.
+      A range figure at an unconfirmed power is not defensible. Measured at minimum power, it
+      is a lower bound, and that is a perfectly good result.
+    </div>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>EV</th><th>Photograph</th><th>Why the report needs it</th></tr>
+        <tr><td><b>EV-36</b></td><td>A node deployed in the open, antennas visible</td><td>Shows the hardware exists outside a lab bench</td></tr>
+        <tr><td><b>EV-37</b></td><td>Node mounted on a drone</td><td>Chapter 4 claims a drone payload and currently shows only diagrams</td></tr>
+        <tr><td><b>EV-38</b></td><td>Enclosure open, both sub-units visible</td><td>Chapter 4 section 4.5 is an empty heading. This is the figure that fills it</td></tr>
+        <tr><td><b>EV-39</b></td><td>Aux module close-up: XIAO, GPS, LoRa, INA3221</td><td>Section 4.4 has a diagram, no photograph</td></tr>
+        <tr><td><b>EV-40</b></td><td>Front panel with lamps lit</td><td>Green solid and amber lit proves the mesh is up in one image</td></tr>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>EV-40 is the cheapest good figure in the whole plan.</b> One photograph of a green and
+      an amber lamp says "this node is ready and can see a peer" without a single line of log
+      output.
+    </div>
+  </section>
+
+  <section class="stage" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Endurance, overnight</h2></div>
+
+    <p>Two long runs. Start them at the end of a day and read the results the next morning.
+    <b>This is the measurement that tests the report's power chapter</b>, which is currently
+    calculated and never verified.</p>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.4rem 0 0.6rem;">5a. Battery A, on the pack (measurement M7)</h3>
+
+    <p>Node fully assembled, all services, a phone connected to the AP, syncing with a peer.
+    Log every 60 seconds until it dies.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on the node under test</span></div>
+<pre><span class="prompt">$</span> while true; do \
+    printf "%s %s wlan1=%s\n" "$(date +%T)" \
+    "$(curl -sk https://127.0.0.1:8443/health | grep -o '\"a_v\":[0-9.]*')" \
+    "$(iw dev wlan1 info >/dev/null 2>&amp;1 &amp;&amp; echo up || echo GONE)"; \
+    sleep 60; done | tee ~/batt_a_run.log</pre>
+    </div>
+
+    <div class="note warn">
+      <b>The <code class="inline">wlan1</code> column is the whole point.</b> If it reads GONE
+      partway through, you have not measured runtime, you have measured time-to-brownout, and
+      that is a different and more important result. Report it as such.
+    </div>
+
+    <p><b>EV-41:</b> the log file itself, plus a plot of voltage against time.</p>
+
+    <div class="readout">
+      <div class="label">Compare against the calculation, do not replace it</div>
+      <pre>| Figure                             | Calculated | Measured | Difference |
+|------------------------------------|------------|----------|------------|
+| Battery A, 2S 2500 mAh prototype   | 1 h 49 m   |          |            |
+| Battery B fallback, 1S 1500 mAh    | 8 h 51 m   |          |            |</pre>
+      <div class="hint">Keeping both columns is the honest presentation. A calculation that turns out optimistic is a finding, not an embarrassment.</div>
+    </div>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">5b. Battery B in fallback</h3>
+
+    <p><b>EV-42:</b> Pi off, aux module in fallback, beaconing until it dies. Have a second
+    node log every beacon it hears, so the death time is recorded automatically in
+    <code class="inline">lora_events</code> without anybody staying awake.</p>
+
+    <p>This one run validates the entire dual-battery argument, which is one of the project's
+    main design claims. Worth the night.</p>
+
+    <p><b>EV-43:</b> repeat 5a on a 3 A supply, at least for two hours, to show the node stays
+    healthy when power is adequate. Together with 5a this makes the power finding concrete
+    rather than anecdotal.</p>
+  </section>
+
+  <section class="stage" id="s6">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">The one continuous recording, 1 hour</h2></div>
+
+    <p><b>EV-44.</b> A single unedited screen recording of the whole pipeline, victim to
+    rescuer, with no cuts. One take. It is the strongest single piece of evidence in the
+    project because it crosses more independently built components than anything else, and a
+    cut in the middle destroys exactly that.</p>
+
+    <ol class="steps">
+      <li>Locked phone. Emergency app armed. Walk into range of a node.</li>
+      <li>Notification appears. Tap it, join the Wi-Fi.</li>
+      <li>Tap two SOS options, leave location on, send.</li>
+      <li>Cut to the GCC: the SOS appears on the map and in Live Ops.</li>
+      <li>Second phone, rescuer: scan the QR from the GCC to sign in, no typing.</li>
+      <li>Rescuer claims the message. Rescuer replies.</li>
+      <li>Back to the victim phone: the reply arrives in the conversation screen.</li>
+    </ol>
+
+    <div class="note">
+      <b>Rehearse it once before recording.</b> The failure mode is fumbling a step and
+      restarting, and by the fourth attempt the data is stale and the ages on screen look
+      wrong. One rehearsal, then one take.
+    </div>
+
+    <div class="gatebox">
+      <div class="label">Also record what does NOT work</div>
+      <p>If a step needs two attempts, keep that in the take and say so. A recording where
+      everything is flawless first time invites the question of how many takes it needed. One
+      visible retry, acknowledged, is more credible than a perfect run.</p>
+    </div>
+  </section>
+
+  <p class="part">Part C &middot; After</p>
+
+  <section class="stage" id="index">
+    <div class="stage-head"><span class="stage-num">C</span><h2 class="stage-title">Evidence index</h2></div>
+
+    <p>Build this table as you go and hand it to whoever assembles the chapter. It is the
+    difference between 44 files in a folder and 44 usable figures.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">docs/evidence_index.md</span></div>
+<pre>| EV    | File                          | Type   | Proves                              | Report section |
+|-------|-------------------------------|--------|-------------------------------------|----------------|
+| EV-01 | EV-01-backend-tests.png       | term   | 91 backend tests pass               | 6.2            |
+| EV-07 | EV-07-captive-portal.png      | screen | Tap-not-type victim portal          | 3.2.1, 5.1     |
+| EV-26 | EV-26-degraded-tab.png        | screen | Fallback visible with carried msg   | 6.4            |
+| EV-41 | EV-41-batt-a-runtime.csv      | data   | Measured vs calculated runtime      | 4.2, 6.5       |
+| EV-44 | EV-44-end-to-end.mp4          | video  | Full pipeline, one take             | 6.4            |</pre>
+    </div>
+
+    <div class="ui">
+      <div class="label">Coverage check before you call it done</div>
+      <dl>
+        <dt>Terminal</dt><dd>6 captures (EV-01 to EV-06)</dd>
+        <dt>Victim UI</dt><dd>5 (EV-07 to EV-11)</dd>
+        <dt>Rescue UI</dt><dd>3 (EV-12 to EV-14)</dd>
+        <dt>GCC UI</dt><dd>10 (EV-15 to EV-24)</dd>
+        <dt>Bench</dt><dd>8 (EV-25 to EV-32)</dd>
+        <dt>Field</dt><dd>8 (EV-33 to EV-40)</dd>
+        <dt>Endurance</dt><dd>3 (EV-41 to EV-43)</dd>
+        <dt>Video</dt><dd>1 (EV-44)</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section class="stage" id="wrong">
+    <div class="stage-head"><span class="stage-num">D</span><h2 class="stage-title">When a result disagrees with the design</h2></div>
+
+    <p>It will, at least once. The instinct is to re-run until it agrees, or to quietly leave it
+    out. Do neither.</p>
+
+    <p>The project already has the best possible example. The power chapter calculates a
+    Battery A runtime and presents it as verified. Field testing found that the arrangement
+    could not reliably power a node at all: the USB Wi-Fi adapter browned out and vanished from
+    the bus, and sync kept logging <code class="inline">SYNC_OK</code> the whole time because a
+    node with no peers has nothing to import. That result is worth more than the calculation it
+    contradicts, because it is the only part of the power analysis that was tested against
+    reality.</p>
+
+    <p>So when a number comes out wrong:</p>
+
+    <ol class="steps">
+      <li><b>Repeat it three times</b> to be sure it is real and not a one-off.</li>
+      <li><b>Record the conditions in full.</b> Most disagreements turn out to be a condition
+      nobody wrote down.</li>
+      <li><b>Report both</b>: the predicted value, the measured value, and the difference.</li>
+      <li><b>Say what it changes.</b> A measurement that changes a design conclusion is the
+      most valuable kind, and saying so is what separates a results chapter from a list of
+      numbers.</li>
+    </ol>
+
+    <div class="note">
+      <b>A results chapter where every measurement confirms the design</b> reads as a chapter
+      where nothing was genuinely tested. One honest disagreement, properly investigated, does
+      more for the report than ten confirmations.
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  Rescue Mesh &middot; testing session plan and evidence capture list &middot; 5 August 2026<br>
+  Measurement methods and expected values: docs/REPORT_TESTING.md. Draft gaps: docs/REPORT_AUDIT.md. Seeding: tools/seed_demo_data.py.
+</footer>
