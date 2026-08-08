@@ -1308,3 +1308,36 @@ Phase 1 security docs) is flagged here, never silently drifted.
     other four being missing firmware, a dead USB port, stale interface
     naming and a duplicated node address. Only this one was purely a
     documentation error.
+
+63. **The audit log could be forged from a radio, and had become binary.**
+    `grep SYNC_OK audit.log` answered "binary file matches" and printed
+    nothing. Chasing the stray bytes found the more serious problem behind
+    them.
+
+    Several audit lines quote content the system did not author: a
+    victim's message, and the last message a LoRa fallback beacon was
+    carrying. That content went into the log unmodified. A newline in it
+    starts a NEW LINE in the audit log, so anyone able to transmit on 915
+    MHz could write entries that look genuine, for example a fabricated
+    `LOGIN_OK`. An audit log writable by the thing it audits is not an
+    audit log.
+
+    Control bytes in the same content were the visible symptom: they made
+    the file binary, so `grep` refused to print matches. During the field
+    session that reinforced a belief that sync was not running, when it
+    was.
+
+    Both are fixed in `audit.py` rather than at the call sites, because
+    there are dozens of call sites and the next one added would repeat the
+    mistake. A logging filter escapes every control character, newlines
+    included, so one event is always exactly one line; lines are capped at
+    2000 characters with the event preserved; and the handler encodes with
+    `errors="backslashreplace"` so an unencodable byte becomes visible text
+    rather than raw output.
+
+    `tests/test_audit_sanitise.py` covers it with a beacon payload that
+    tries to forge a `LOGIN_OK` entry, raw control bytes, an over-long
+    line, and an ordinary line that must pass through untouched.
+
+    The doctor also greps with `-a`, since logs written before this change
+    still contain the old bytes.

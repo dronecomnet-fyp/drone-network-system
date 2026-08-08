@@ -506,7 +506,9 @@ if [ ! -f "$AUDIT_LOG" ]; then
     AUDIT_LOG=$(grep -o 'AUDIT_LOG_FILE=.*' /etc/rescue-mesh/node.env 2>/dev/null | cut -d= -f2)
 fi
 say "     audit log: ${AUDIT_LOG:-NOT FOUND}"
-SYNCLINES=$(grep -c "SYNC_OK\|SYNC_START" "$AUDIT_LOG" 2>/dev/null || echo 0)
+# -a: existing logs may still contain control bytes written before
+# the sanitiser was added, and grep would otherwise refuse to print.
+SYNCLINES=$(grep -ac "SYNC_OK\|SYNC_START" "$AUDIT_LOG" 2>/dev/null || echo 0)
 say "     SYNC lines in the audit log: $SYNCLINES"
 if [ "$SYNCLINES" -eq 0 ] && [ -z "$PEERS" ]; then
     say ""
@@ -528,7 +530,7 @@ elif [ "$SYNCLINES" -eq 0 ]; then
     say "       ping -c2 10.99.0.2          # or .1 / .3"
     say "       curl -sk https://10.99.0.2:8443/health | head -c 80"
 else
-    TABLES=$(tail -400 "$AUDIT_LOG" 2>/dev/null \
+    TABLES=$(tail -400 "$AUDIT_LOG" 2>/dev/null | tr -d "\\000" \
              | grep -o "table=[a-z_]*" | sort -u | sed 's/table=//' | tr '\n' ' ')
     ok "tables seen syncing: $TABLES"
     if ! printf '%s' "$TABLES" | grep -q lora_events; then
