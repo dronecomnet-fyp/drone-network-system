@@ -112,8 +112,33 @@ if [[ -z "${DTN_MAC:-}" ]]; then
     [[ -n "$DTN_MAC" ]] && echo "  detected AR9271 MAC:  $DTN_MAC"
 fi
 if [[ -z "$ONBOARD_MAC" || -z "$DTN_MAC" ]]; then
-    echo "ERROR: could not determine both MACs. Fill ONBOARD_MAC and"
-    echo "DTN_MAC in $CONF_FILE and re-run (file 01 step 3)."
+    echo ""
+    echo "ERROR: could not determine both interface MAC addresses."
+    echo ""
+    [[ -z "$ONBOARD_MAC" ]] && echo "  missing: ONBOARD_MAC (the Pi's built-in WiFi)"
+    if [[ -z "$DTN_MAC" ]]; then
+        echo "  missing: DTN_MAC (the AR9271 USB adapter)"
+        echo ""
+        echo "  No USB WiFi adapter is plugged into THIS node right now."
+        echo "  That is expected if the fleet has fewer adapters than nodes"
+        echo "  and this one is currently in another node."
+        echo ""
+        echo "  You do not need to move it back. Setup only needs to know"
+        echo "  the MAC, not to see the hardware. Fill it in by hand:"
+        echo ""
+        echo "    1. On whichever node has an adapter plugged in, run:"
+        echo "         cat /sys/class/net/wlan1/address"
+        echo "       Do this for BOTH adapters if you have two."
+        echo ""
+        echo "    2. Put them in $CONF_FILE :"
+        echo "         DTN_MAC=<first adapter MAC>"
+        echo "         DTN_MAC_ALT=<second adapter MAC, or leave empty>"
+        echo ""
+        echo "    3. Re-run this script. Listing both MACs on every node"
+        echo "       makes the adapters interchangeable, so you never have"
+        echo "       to touch this again when you swap them."
+    fi
+    echo ""
     exit 1
 fi
 
@@ -353,7 +378,10 @@ systemctl enable rescue-mesh-runtime rescue-mesh-api rescue-portal \
 # the symlink into sys-subsystem-net-devices-wlan1.device.wants/, which
 # needs no special handling here but is worth knowing when debugging why
 # it did or did not run.
-systemctl enable dtn-net >/dev/null
+# reenable, not enable: the [Install] section changed from
+# multi-user.target to the wlan1 device unit, and plain "enable" leaves
+# the old symlink in place, so the unit would be pulled in by both.
+systemctl reenable dtn-net >/dev/null 2>&1 || systemctl enable dtn-net >/dev/null
 if [[ "$DRONE_CONTROL" == "true" ]]; then
     systemctl enable rescue-mesh-mavgw >/dev/null
 fi

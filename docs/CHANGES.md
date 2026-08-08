@@ -999,3 +999,33 @@ Phase 1 security docs) is flagged here, never silently drifted.
     CREATE TABLE, and no orphaned paths. One more asserts the count is 8,
     so adding a table forces a look at the documents that quote that
     number.
+
+52. **Setup no longer refuses to run on a node whose adapter is elsewhere,
+    and `dtn_doctor.sh` diagnoses the whole mesh chain in one command.**
+    Both came straight out of a field session.
+
+    `setup_node.sh` hard-failed with "could not determine both MACs" on a
+    node with no USB adapter plugged in. With three nodes and two
+    adapters, one node always lacks one, so the script could not be run
+    on the node that most needed it. The MAC is only needed as a value to
+    write into a `.link` file; the hardware does not have to be present.
+    The error now says that, and walks through reading the MAC off
+    whichever node currently holds an adapter and filling in `DTN_MAC`
+    and `DTN_MAC_ALT`.
+
+    `systemctl enable dtn-net` also became `reenable`, because item 50
+    changed that unit's `[Install]` section and plain `enable` leaves the
+    old `multi-user.target` symlink in place alongside the new one.
+
+    **`tools/dtn_doctor.sh`** exists because an absent or misconfigured
+    `wlan1` has now presented as a "sync problem" three times (items 40,
+    49, 50). It checks every link from "is the adapter on the USB bus" to
+    "are we actually syncing", stops at the first break, and prints the
+    exact fix. It changes nothing itself.
+
+    The check that would have saved this session outright: **interface
+    mode**. On the node in question `wlan1` existed with the right name
+    but was `type managed`, not `IBSS`, which means nothing had ever
+    configured it. That is invisible in `ip link` output and is the state
+    a node sits in after an adapter is plugged into an already-running
+    board.
