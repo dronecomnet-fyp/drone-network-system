@@ -957,3 +957,45 @@ Phase 1 security docs) is flagged here, never silently drifted.
     conf gained an optional `DTN_MAC_ALT`. Listing every adapter the fleet
     owns on every node makes them physically interchangeable with no
     reconfiguration.
+
+50. **dtn-net follows the interface instead of running once at boot.**
+    Reported from the field while following the node update runbook: the
+    USB WiFi adapter was not detected unless the whole board was
+    rebooted, and the runbook's sync gate returned nothing.
+
+    Both symptoms were the same defect. `dtn-net.service` was a
+    `Type=oneshot` unit wanted by `multi-user.target`, so it ran once,
+    five seconds after boot. With no adapter present at that moment the
+    bring-up script failed, systemd retried, hit its start limit, and gave
+    up permanently. Plugging the adapter in afterwards re-ran nothing, so
+    the node had no IBSS cell, no peers, and therefore no sync log lines
+    at all.
+
+    It is now `BindsTo` and `WantedBy` the `wlan1` device unit, so it
+    starts when the adapter appears and stops when it is removed. Hotplug
+    works, and so does moving an adapter between nodes, which matters
+    because the fleet has fewer adapters than nodes (item 49).
+
+    Two things worth carrying forward from how this was diagnosed:
+
+    - **The gate command in the runbook was not diagnostic.** Grepping the
+      sync log for a table name returns blank both when the table is not
+      registered and when the loop never ran for want of peers. Those are
+      completely different problems and only one is a code bug. The
+      runbook now has a four-step ladder that separates them, and it
+      states which cause is the common one.
+    - **This is the third time an absent `wlan1` has presented as a sync
+      problem** (items 40 and 49 being the others). The interface existing
+      is now the first thing every relevant runbook tells you to check.
+
+51. **`tests/test_sync_wiring.py`: a replicated table must be registered
+    everywhere or fail here.** Adding one means touching five places
+    (`REPLICATED_TABLES`, `_PAYLOAD_FN`, `SYNC_PATHS`, `INGEST_FN`, and a
+    route). Miss one and the symptom is silence in the sync log, which is
+    the worst thing to debug remotely, as item 50 showed.
+
+    Seven tests now assert every table has a payload function, a sync
+    path, an ingest function, a route actually served by the API, a
+    CREATE TABLE, and no orphaned paths. One more asserts the count is 8,
+    so adding a table forces a look at the documents that quote that
+    number.

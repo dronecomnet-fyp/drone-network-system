@@ -345,8 +345,15 @@ fi
 
 echo "[Step 8] Enabling services"
 systemctl daemon-reload
-systemctl enable rescue-mesh-runtime dtn-net rescue-mesh-api rescue-portal \
+systemctl enable rescue-mesh-runtime rescue-mesh-api rescue-portal \
     rescue-mesh-sync rescue-mesh-auxbridge rescue-mesh-firewall >/dev/null
+# dtn-net is enabled separately and deliberately: it is WantedBy the
+# wlan1 device unit rather than multi-user.target, so it starts whenever
+# the adapter appears instead of once at boot. "systemctl enable" writes
+# the symlink into sys-subsystem-net-devices-wlan1.device.wants/, which
+# needs no special handling here but is worth knowing when debugging why
+# it did or did not run.
+systemctl enable dtn-net >/dev/null
 if [[ "$DRONE_CONTROL" == "true" ]]; then
     systemctl enable rescue-mesh-mavgw >/dev/null
 fi

@@ -1,8 +1,3 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Node Update: LoRa Log and Portal Options</title>
 <style>
 @font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
@@ -115,9 +110,6 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
   .ui dt { margin-top: 0.5rem; }
 }
 </style>
-</head>
-<body>
-<div class="wrap-outer">
 <div class="wrap">
 
   <header class="masthead">
@@ -278,7 +270,8 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
 
   <section class="stage gate" id="s5">
     <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Gate: the log replicates between nodes</h2></div>
-    <p>Run this after at least two nodes are updated and can see each other. Watch one sync
+
+    <p>Run this once at least two nodes are updated and can see each other. Watch one sync
     cycle go by; the default interval is 30 seconds.</p>
 
     <div class="term">
@@ -297,11 +290,100 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
     </div>
 
     <div class="gatebox">
-      <div class="label">Stop if there are no SYNC lines at all</div>
-      <p>That is not a problem with this update. It means this node cannot see any peer, and
-      the first thing to check is whether the interface still exists at all:
-      <code class="inline">iw dev wlan1 info</code>. A missing interface is what took two nodes
-      out during testing, and it looks exactly like a sync bug from up here.</p>
+      <div class="label">If the output is blank, do not guess. Work down this ladder</div>
+      <p><b>A blank grep has two completely different causes</b> and the command above cannot
+      tell them apart: either the sync loop does not know about the table, or it never ran
+      because this node has no peers. In practice it is almost always the second. Run the four
+      checks below in order and stop at the first one that fails.</p>
+    </div>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">check 1: is the loop running at all?</span></div>
+<pre><span class="prompt">$</span> journalctl -u rescue-mesh-sync -n 30 --no-pager
+
+<span class="comment"># Drop the grep. You are looking for ANY line like:</span>
+<span class="comment">#   SYNC_START | peer=DRONE_B | ip=10.99.0.2</span>
+<span class="comment">#   SYNC_OK    | peer=DRONE_B | table=messages | ...</span></pre>
+    </div>
+
+    <div class="ui">
+      <div class="label">How to read check 1</div>
+      <dl>
+        <dt>Lines for other tables but never lora_events</dt>
+        <dd>The sync daemon is running OLD code. Go to check 2.</dd>
+        <dt>No SYNC lines at all, only startup messages</dt>
+        <dd>This node sees no peers. Go to check 3. <b>This is the common case.</b></dd>
+        <dt>SYNC_FAIL lines mentioning lora_events</dt>
+        <dd>The loop knows the table but the PEER does not have the endpoint. That peer has not been updated. Repeat stages 02 and 03 on it.</dd>
+      </dl>
+    </div>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">check 2: is the daemon on the new code?</span></div>
+<pre><span class="prompt">$</span> git -C ~/rescue-mesh log -1 --oneline
+<span class="prompt">$</span> systemctl show rescue-mesh-sync -p ActiveEnterTimestamp
+
+<span class="comment"># The service must have STARTED AFTER the git pull. If it started</span>
+<span class="comment"># earlier, the restart in stage 02 did not take:</span>
+<span class="prompt">$</span> sudo systemctl restart rescue-mesh-sync</pre>
+    </div>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">check 3: does this node have any peers?</span></div>
+<pre><span class="prompt">$</span> curl -sk https://127.0.0.1:8443/health | grep -o '"peers":\[[^]]*\]'
+
+<span class="comment"># "peers":[]  means nobody is visible. That is why there are no</span>
+<span class="comment"># sync lines: the loop has nothing to sync WITH.</span></pre>
+    </div>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">check 4: does the mesh interface even exist?</span></div>
+<pre><span class="prompt">$</span> iw dev wlan1 info
+<span class="prompt">$</span> systemctl status dtn-net</pre>
+    </div>
+
+    <div class="ui">
+      <div class="label">How to read check 4</div>
+      <dl>
+        <dt>"No such device"</dt>
+        <dd>The USB adapter is not present, or it came up under a different name. See the box below.</dd>
+        <dt>Interface exists, dtn-net failed</dt>
+        <dd><code class="inline">sudo systemctl restart dtn-net</code>, then re-check <code class="inline">iw dev wlan1 info</code> for <code class="inline">type IBSS</code>.</dd>
+        <dt>Interface exists, type IBSS, still no peers</dt>
+        <dd>Genuinely nobody in range. Check the other node is powered and has completed the same stages.</dd>
+      </dl>
+    </div>
+
+    <div class="gatebox">
+      <div class="label">The adapter is not detected unless the board is rebooted</div>
+      <p>This was a real defect and it is now fixed, but the fix only takes effect after you
+      pull and re-run the setup script.</p>
+      <p><b>What went wrong:</b> <code class="inline">dtn-net</code> used to run once at boot.
+      If the adapter was not plugged in at that moment the script failed, systemd retried a few
+      times, hit its start limit, and gave up permanently. Plugging the adapter in afterwards
+      re-ran nothing, so the node had no mesh, no peers and no sync lines, and the only cure
+      anybody found was rebooting the whole board. That is exactly the symptom you hit.</p>
+      <p><b>The fix:</b> <code class="inline">dtn-net</code> is now bound to the wlan1 interface
+      instead of to boot, so it starts the moment the adapter appears and stops cleanly when it
+      is removed. Hotplug works, and so does moving an adapter between nodes.</p>
+    </div>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">apply the hotplug fix, once per node</span></div>
+<pre><span class="prompt">$</span> cd ~/rescue-mesh &amp;&amp; git pull
+<span class="prompt">$</span> cd deploy &amp;&amp; sudo ./setup_node.sh a     <span class="comment"># or b, or s</span>
+<span class="prompt">$</span> sudo reboot                             <span class="comment"># this reboot is the LAST one you need</span>
+
+<span class="comment"># Afterwards, test it: unplug the adapter, wait 5 s, plug it back in.</span>
+<span class="prompt">$</span> iw dev wlan1 info                       <span class="comment"># should show type IBSS within ~10 s</span></pre>
+    </div>
+
+    <div class="note">
+      <b>If you are swapping adapters between nodes</b>, also set
+      <code class="inline">DTN_MAC_ALT</code> in each node's conf to the second adapter's MAC.
+      Each node pins its adapter to the name <code class="inline">wlan1</code> by MAC address,
+      so an adapter from another node otherwise comes up under a different name and you are
+      back to "No such device" with the adapter sitting right there.
     </div>
   </section>
 
@@ -438,7 +520,3 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
   Rescue Mesh &middot; node update for the field backlog round &middot; 5 August 2026<br>
   Eighteen tester findings closed. Full detail in docs/CHANGES.md items 41 to 47 and docs/FIELD_BACKLOG.md.
 </footer>
-
-</div>
-</body>
-</html>
