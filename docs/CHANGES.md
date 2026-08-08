@@ -1076,3 +1076,25 @@ Phase 1 security docs) is flagged here, never silently drifted.
 
     Verified by stubbing the exact node state that produced the
     contradiction.
+
+55. **`dtn_doctor.sh` now separates "no adapter was ever here" from "the
+    adapter was working and vanished", and installs as `dtn-doctor`.**
+    Both came from the same field session as items 53 and 54.
+
+    The two states look identical at the moment you look: no device in
+    `lsusb`, no `wlan1`. They have completely different causes. Nothing
+    ever enumerated usually means the adapter is physically in another
+    node, which is routine when the fleet has fewer adapters than nodes.
+    An adapter that enumerated earlier this boot and then disappeared is
+    the USB brownout from item 40, and it is a power fault rather than
+    anything to do with software.
+
+    The script now reads `dmesg` for evidence of `ath9k_htc` earlier in
+    the boot, prints the USB disconnect lines when it finds them, and
+    gives the appropriate fix for each case rather than one generic
+    paragraph that covers both badly. It also dumps the full `lsusb` so
+    the operator can see what IS on the bus.
+
+    It is installed to `/usr/local/sbin/dtn-doctor` so it runs from any
+    directory. The relative path caught the operator twice in one session,
+    which is exactly the friction you do not want while diagnosing a node.

@@ -302,6 +302,11 @@ mkdir -p /etc/NetworkManager/conf.d
 cp "$SCRIPT_DIR/files/unmanaged-dtn.conf" /etc/NetworkManager/conf.d/unmanaged-dtn.conf
 install -m 755 "$SCRIPT_DIR/files/dtn-net-up.sh" /usr/local/sbin/dtn-net-up.sh
 install -m 755 "$SCRIPT_DIR/files/node_indicator.py" /usr/local/sbin/node_indicator.py
+# On PATH as "dtn-doctor" so it can be run from any directory. Diagnosing
+# a node usually happens from wherever you happen to be standing, and
+# having to remember a relative path is friction at exactly the wrong
+# moment.
+install -m 755 "$SCRIPT_DIR/../tools/dtn_doctor.sh" /usr/local/sbin/dtn-doctor
 
 # --- Step 8 (file 01): services, sudoers, firewall, Bluetooth off --------------
 

@@ -1,7 +1,10 @@
 #!/bin/bash
 # dtn_doctor.sh: work out why this node has no mesh, in one command.
 #
-# Run on a node:  sudo bash tools/dtn_doctor.sh
+# Run on a node:  sudo dtn-doctor
+#   (setup_node.sh installs it to /usr/local/sbin/dtn-doctor, so it works
+#    from any directory. Before that has been run, from the repo root:
+#    sudo bash tools/dtn_doctor.sh)
 #
 # Why this exists. An absent or misconfigured wlan1 has now presented as a
 # "sync problem" three separate times (CHANGES items 40, 49, 50), and each
@@ -97,14 +100,55 @@ if ! ip link show wlan1 >/dev/null 2>&1; then
             "If the driver above is NOT ath9k_htc, tell the team: the match" \
             "rule in setup_node.sh assumes that driver name."
     fi
-    fix "No USB WiFi adapter is visible to the kernel at all." \
-        "Reseat the adapter, then:  dmesg | tail -20" \
-        "If dmesg shows ath9k_htc firmware errors, install the firmware:" \
-        "    sudo apt install firmware-ath9k-htc" \
+    # Nothing on the bus. The useful question is whether it was EVER on
+    # the bus this boot: "never plugged in" and "was working and vanished"
+    # look identical right now but have completely different fixes, and
+    # the second one is the brownout that already cost this project an
+    # evening.
+    say ""
+    say "  Everything currently on the USB bus:"
+    lsusb 2>/dev/null | sed 's/^/    /'
+    say ""
+
+    SEEN=$(dmesg 2>/dev/null | grep -ci "ath9k_htc\|htc_9271")
+    DROPPED=$(dmesg 2>/dev/null | grep -i "usb.*disconnect\|device descriptor read\|unable to enumerate\|device not accepting address" | tail -5)
+
+    if [ "$SEEN" -gt 0 ]; then
+        say "  ath9k_htc WAS active earlier this boot. Last USB events:"
+        dmesg 2>/dev/null | grep -i "ath9k\|usb.*disconnect\|htc_9271" | tail -8 | sed 's/^/    /'
+        fix "The adapter was working during this boot and has since disappeared from the USB bus. It did not fall out of the driver, it fell off the BUS, which is a power or connection fault rather than a software one. This is the exact failure from CHANGES item 40." \
+            "In order of likelihood:" \
+            "" \
+            "  1. POWER. The Pi plus this adapter plus the aux module needs" \
+            "     a 3 A class supply. A battery pack or a weak charger cannot" \
+            "     sustain it and the adapter browns out and drops off." \
+            "     Move to a known-good 3 A supply and reseat." \
+            "" \
+            "  2. A loose or damaged USB connection. Try a different port." \
+            "" \
+            "  3. A failing adapter. Try the other one to tell the two apart:" \
+            "     if a second adapter survives in the same port and supply," \
+            "     the first adapter is the fault."
+    fi
+
+    if [ -n "$DROPPED" ]; then
+        say "  Recent USB errors in dmesg:"
+        printf '%s\n' "$DROPPED" | sed 's/^/    /'
+        say ""
+    fi
+
+    fix "No USB WiFi adapter has been seen on this node at all this boot. The kernel has never enumerated one, so this is almost certainly physical: nothing is plugged in, or what is plugged in is not powering up." \
+        "  1. Confirm it is actually in THIS node. With fewer adapters than" \
+        "     nodes, the usual answer is that it is in another one." \
         "" \
-        "If it worked a moment ago and has now vanished, this is the USB" \
-        "brownout from CHANGES item 40. Power the node from a 3 A supply," \
-        "not the battery pack."
+        "  2. Reseat it, then watch the kernel see it live:" \
+        "         dmesg -w        # then unplug and replug the adapter" \
+        "     Nothing appearing means no electrical connection at all." \
+        "" \
+        "  3. Try a different USB port and a 3 A supply." \
+        "" \
+        "  4. Try the other adapter in the same port. If that one enumerates," \
+        "     the first adapter is dead."
 fi
 ok "wlan1 exists (MAC $(cat /sys/class/net/wlan1/address 2>/dev/null))"
 
