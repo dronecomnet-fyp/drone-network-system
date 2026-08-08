@@ -306,7 +306,14 @@ install -m 755 "$SCRIPT_DIR/files/node_indicator.py" /usr/local/sbin/node_indica
 # a node usually happens from wherever you happen to be standing, and
 # having to remember a relative path is friction at exactly the wrong
 # moment.
-install -m 755 "$SCRIPT_DIR/../tools/dtn_doctor.sh" /usr/local/sbin/dtn-doctor
+#
+# A SYMLINK, not a copy. The first version copied the file, so "git pull"
+# updated the repository while "sudo dtn-doctor" kept running the version
+# installed at last setup. That is a nasty failure for a diagnostic tool:
+# it silently gives you yesterday's answer, and it wasted a round of field
+# debugging. A symlink means the command is always whatever is in the
+# working tree.
+ln -sfn "$(readlink -f "$SCRIPT_DIR/../tools/dtn_doctor.sh")" /usr/local/sbin/dtn-doctor
 
 # --- Step 8 (file 01): services, sudoers, firewall, Bluetooth off --------------
 

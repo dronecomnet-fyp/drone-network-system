@@ -34,8 +34,14 @@ fix() {
     exit 1
 }
 
+# Printed so a stale copy is obvious. If this does not match the newest
+# commit that touched the script, you are reading an old answer.
+SELF="$(readlink -f "$0" 2>/dev/null)"
+REV="$(git -C "$(dirname "$SELF")" log -1 --format=%h -- "$SELF" 2>/dev/null)"
+
 say "=========================================================="
 say " DTN mesh doctor        node: $(hostname)        $(date +%T)"
+say " script: ${SELF:-unknown}${REV:+   rev $REV}"
 say "=========================================================="
 
 # --- 1. is the adapter physically there ---------------------------------
@@ -165,6 +171,7 @@ DISC=$(dmesg 2>/dev/null | grep -c "usb 1-1.*: USB disconnect")
 PORTERR=$(dmesg 2>/dev/null | grep -ci "Cannot enable. Maybe the USB cable is bad\|unable to enumerate USB device\|attempt power cycle")
 
 say "     USB disconnect events this boot: $DISC"
+[ "$DISC" -gt 0 ] && say "       (your own unplug and replug testing counts here too)"
 say "     port enable failures this boot:  $PORTERR"
 
 # Which physical port is the adapter in, and are the failures specific to

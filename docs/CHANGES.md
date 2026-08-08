@@ -1193,3 +1193,28 @@ Phase 1 security docs) is flagged here, never silently drifted.
     No change to the item 40 finding: that was a different node under
     battery power and the fix there was decisive. Both faults are real and
     they are not the same fault.
+
+59. **`dtn-doctor` was installed as a copy, so `git pull` did not update
+    it.** The operator pulled the per-port diagnosis from item 58, ran
+    `sudo dtn-doctor`, and got the previous version's answer. The new
+    logic was correct and simply was not the code being executed.
+
+    `setup_node.sh` used `install` to place the script at
+    `/usr/local/sbin/dtn-doctor`, so the command kept running whatever
+    version existed at the last setup run. For a diagnostic tool this is a
+    particularly bad failure: it does not error, it confidently gives you
+    a stale answer, and it cost a round of field debugging.
+
+    It is now a symlink into the working tree, so the command is always
+    the current file. The script also prints its own path and the git
+    revision that last touched it, so a stale or unexpected copy is
+    visible in the first three lines of output rather than inferred from
+    missing sections.
+
+    General point worth keeping: any tool installed by copying is a tool
+    that will silently go stale. Anything that changes as often as a
+    diagnostic script belongs on a symlink.
+
+    Also softened a misleading count. The disconnect tally includes the
+    operator's own unplug and replug testing, which during triage is most
+    of it, so the script now says so on the same line.
