@@ -496,8 +496,18 @@ else
         "    sudo systemctl restart rescue-mesh-sync"
 fi
 
-SYNCLINES=$(journalctl -u rescue-mesh-sync -n 60 --no-pager 2>/dev/null | grep -c "SYNC_OK\|SYNC_START")
-say "     SYNC lines in the last 60 log entries: $SYNCLINES"
+# The daemons write to an audit FILE, not to journald. journalctl shows
+# only systemd's own start and stop messages for these units, so a check
+# based on it can never see SYNC_OK and reads as a total sync failure on
+# a perfectly healthy fleet. That mistake was in the runbook gate and
+# cost a long debugging session.
+AUDIT_LOG=/home/drone/rescue-mesh/backend/audit.log
+if [ ! -f "$AUDIT_LOG" ]; then
+    AUDIT_LOG=$(grep -o 'AUDIT_LOG_FILE=.*' /etc/rescue-mesh/node.env 2>/dev/null | cut -d= -f2)
+fi
+say "     audit log: ${AUDIT_LOG:-NOT FOUND}"
+SYNCLINES=$(grep -c "SYNC_OK\|SYNC_START" "$AUDIT_LOG" 2>/dev/null || echo 0)
+say "     SYNC lines in the audit log: $SYNCLINES"
 if [ "$SYNCLINES" -eq 0 ] && [ -z "$PEERS" ]; then
     say ""
     say "     No sync lines, and no peers. Those are consistent: the loop"
@@ -518,7 +528,7 @@ elif [ "$SYNCLINES" -eq 0 ]; then
     say "       ping -c2 10.99.0.2          # or .1 / .3"
     say "       curl -sk https://10.99.0.2:8443/health | head -c 80"
 else
-    TABLES=$(journalctl -u rescue-mesh-sync -n 200 --no-pager 2>/dev/null \
+    TABLES=$(tail -400 "$AUDIT_LOG" 2>/dev/null \
              | grep -o "table=[a-z_]*" | sort -u | sed 's/table=//' | tr '\n' ' ')
     ok "tables seen syncing: $TABLES"
     if ! printf '%s' "$TABLES" | grep -q lora_events; then

@@ -1272,3 +1272,39 @@ Phase 1 security docs) is flagged here, never silently drifted.
     genuine observability finding about the system, not just a run of bad
     luck, and it is why the diagnostic script now checks the whole chain
     rather than any single link.
+
+62. **The runbook's sync gate read the wrong log, and could never have
+    worked.** `journalctl -u rescue-mesh-sync | grep lora_events` was the
+    verification step in the LoRa log runbook, and in the doctor. It
+    returns nothing on a perfectly healthy fleet.
+
+    The daemons do not log to journald. `backend/audit.py` attaches a
+    `FileHandler` writing to `AUDIT_LOG_FILE`, which the setup script
+    points at `backend/audit.log`. `journalctl` for these units therefore
+    shows only systemd's own start and stop messages. Every `SYNC_OK`,
+    `SYNC_START`, `FALLBACK_BEACON` and rejected-record line goes to the
+    file.
+
+    So the gate could not pass under any circumstances, and it was the
+    first step of a long field session that went on to uncover four
+    genuine but unrelated faults. The operator was right each time that
+    something was wrong; the check that started it was simply looking in
+    the wrong place.
+
+    Both the runbook and `dtn_doctor.sh` now read the audit log, resolving
+    the path from `node.env` when the default is not present. Correct
+    commands:
+
+    ```
+    grep SYNC_OK ~/rescue-mesh/backend/audit.log | tail -20
+    grep lora_events ~/rescue-mesh/backend/audit.log | tail -5
+    tail -f ~/rescue-mesh/backend/audit.log
+    ```
+
+    Two things worth carrying into the report. A verification gate that
+    cannot pass is worse than no gate, because it manufactures the
+    appearance of a fault and sends people looking for it. And this is the
+    fifth distinct cause behind "the mesh looks broken" this week, the
+    other four being missing firmware, a dead USB port, stale interface
+    naming and a duplicated node address. Only this one was purely a
+    documentation error.
