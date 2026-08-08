@@ -219,6 +219,46 @@ if dmesg 2>/dev/null | grep -q "htc_9271-1.4.0.fw failed"; then
     fi
 fi
 
+# --- 1c. which naming scheme is this node using? ------------------------
+step "How is wlan1 given its name?"
+LINKFILE=/etc/systemd/network/11-dtn-wifi.link
+if [ ! -f "$LINKFILE" ]; then
+    bad "$LINKFILE does not exist"
+    fix "Nothing is pinning the adapter to the name wlan1. It works right now only by luck of enumeration order, and a reboot or a replug can rename it." \
+        "    cd ~/rescue-mesh/deploy && sudo ./setup_node.sh X    # a, b or s" \
+        "    sudo reboot"
+fi
+MATCH=$(grep -E '^(Driver|MACAddress)=' "$LINKFILE" 2>/dev/null | head -1)
+say "     $LINKFILE matches on: ${MATCH:-nothing}"
+case "$MATCH" in
+    Driver=*)
+        ok "matched by DRIVER: any AR9271 in any port becomes wlan1"
+        ACTUAL=$(basename "$(readlink -f /sys/class/net/wlan1/device/driver 2>/dev/null)" 2>/dev/null)
+        if [ -n "$ACTUAL" ] && [ "$ACTUAL" != "${MATCH#Driver=}" ]; then
+            bad "but the adapter actually uses driver '$ACTUAL'"
+            fix "The rule matches ${MATCH#Driver=} and this adapter uses $ACTUAL, so the name is not coming from the rule. A different adapter, or a different port, may come up unnamed." \
+                "Tell the team the driver is '$ACTUAL' so the match rule in" \
+                "deploy/setup_node.sh can be widened."
+        fi
+        ;;
+    MACAddress=*)
+        warn "matched by MAC ADDRESS: this is the OLD scheme"
+        say ""
+        say "     It works while this exact adapter is fitted. It does NOT"
+        say "     survive swapping adapters, and cheap AR9271 dongles do not"
+        say "     all keep a stable MAC across power cycles, which is what"
+        say "     made interface names swap after a reboot."
+        say ""
+        say "     Fix (safe to do while everything is working):"
+        say "       cd ~/rescue-mesh && git pull"
+        say "       cd deploy && sudo ./setup_node.sh X      # a, b or s"
+        say "       sudo reboot"
+        ;;
+    *)
+        warn "could not read a Match rule from $LINKFILE"
+        ;;
+esac
+
 # --- 2. is the bring-up script installed --------------------------------
 step "Bring-up script installed?"
 if [ -x /usr/local/sbin/dtn-net-up.sh ]; then
