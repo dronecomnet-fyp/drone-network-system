@@ -1128,3 +1128,33 @@ Phase 1 security docs) is flagged here, never silently drifted.
     attempt logs a scary "failed with error -2" that is entirely normal.
     The doctor now says so when the fallback succeeded, instead of
     leaving an alarming line for somebody to chase.
+
+57. **One node procedure replaces five, and the drift that made it
+    necessary.** The three nodes had ended up in different states because
+    each was updated at a different time by a different runbook: DRONE_A
+    naming its adapter by MAC, DRONE_B by driver, DRONE_S untouched this
+    round. Every one of those worked in isolation, which is what made the
+    inconsistency dangerous. It would have surfaced during a measurement,
+    not before one.
+
+    The underlying cause was documentation, not code. Five separate
+    "update" runbooks had accumulated, one per round of changes, and there
+    was no way to know which to follow or whether a node had had all of
+    them. `setup_node.sh` has always been re-runnable and always brought a
+    node to a known state, so those documents were describing a
+    distinction that did not exist.
+
+    `docs/node_reset.html` is now the only node procedure: pull, run the
+    script, reboot, verify with `dtn-doctor`. It states what is preserved
+    (the database, and the fleet master secret, which is read from
+    `deploy/secrets/` rather than regenerated), what is reissued (the node
+    TLS certificate, signed by the same CA, so nothing needs
+    reconfiguring), and repeats the warning never to run
+    `make_fleet_ca.sh` on a node.
+
+    The five superseded runbooks moved to `deploy/archived_runbooks/`
+    rather than being deleted, because they record what each round changed
+    and in what order, which the report needs.
+    `deploy/RUNBOOKS.md` indexes the eight that remain, with the rule that
+    keeps the list short: updating a node and fixing a broken node are the
+    same operation, so new runbooks are only for genuinely new things.

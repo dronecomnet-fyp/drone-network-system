@@ -1,0 +1,425 @@
+<title>Reset Every Node To The Same Known State</title>
+<style>
+@font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
+
+:root {
+  --ink: #1b2028; --paper: #f6f4ef; --paper-raised: #eeebe3; --line: #d8d3c6;
+  --wire: #5b6b7a; --accent: #d9711c; --accent-strong: #b85c14;
+  --pass: #1f8f5b; --pass-bg: #e4f4ec; --stop: #c23a3a; --stop-bg: #fbe9e7;
+  --term-bg: #14181e; --term-fg: #e6e2d6; --term-dim: #8a93a3; --code-fg: #2a2f38;
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+  --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+  --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+  --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+  --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+    --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+    --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+    --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+body { font-family: var(--sans); font-size: 16px; line-height: 1.6; padding: 0 0 6rem; }
+::selection { background: var(--accent); color: #14181e; }
+a { color: var(--accent-strong); }
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; }
+
+.masthead { border-bottom: 1px solid var(--line); padding: 2.6rem 0 1.8rem; margin-bottom: 2.2rem; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--wire); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+h1.title { font-family: var(--mono); font-size: 1.9rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6rem; }
+.dek { max-width: 46ch; color: var(--wire); font-size: 1.02rem; margin: 0; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1.4rem; font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+.meta-row b { color: var(--ink); font-weight: 600; }
+
+/* the loop diagram */
+.loop { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1.5rem; padding: 0.9rem 1rem; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; font-family: var(--mono); font-size: 0.76rem; }
+.loop .n { padding: 0.2rem 0.55rem; border-radius: 5px; background: var(--paper); border: 1px solid var(--line); white-space: nowrap; }
+.loop .n.hi { border-color: var(--accent); color: var(--accent-strong); }
+.loop .ar { color: var(--wire); }
+
+.index { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin-bottom: 2.6rem; }
+.index-title { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--wire); margin: 0 0 0.7rem; }
+.index ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.25rem 1rem; }
+.index li a { display: flex; gap: 0.55rem; align-items: baseline; text-decoration: none; color: var(--ink); font-size: 0.88rem; padding: 0.2rem 0; }
+.index li a:hover { color: var(--accent-strong); }
+.index .n { font-family: var(--mono); color: var(--wire); font-size: 0.78rem; min-width: 1.4em; }
+
+.part { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-strong); border-top: 1px solid var(--line); padding-top: 1.4rem; margin: 0 0 1.6rem; }
+
+.stage { border-left: 3px solid var(--line); padding: 0 0 0 1.3rem; margin-bottom: 2.9rem; scroll-margin-top: 1.5rem; }
+.stage.gate { border-left-color: var(--stop); }
+.stage-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 0.85rem; }
+.stage-num { font-family: var(--mono); font-size: 0.85rem; color: var(--wire); background: var(--paper-raised); border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.6rem; flex-shrink: 0; }
+h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+.stage ul, .stage ol.steps { margin: 0 0 1rem; padding-left: 1.25rem; max-width: 60ch; }
+.stage li { margin-bottom: 0.4rem; }
+.stage li:last-child { margin-bottom: 0; }
+
+.term { background: var(--term-bg); border-radius: 8px; margin: 0 0 1rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000); }
+.term-bar { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.term-bar .cap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--term-dim); margin-left: 0.3rem; }
+.term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
+.term-bar .led.r { background: #e5645c; } .term-bar .led.y { background: #e5b84f; } .term-bar .led.g { background: #57c273; }
+.term pre { margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg); }
+.term .prompt { color: var(--term-dim); }
+.term .comment { color: var(--term-dim); font-style: italic; }
+
+code.inline { font-family: var(--mono); font-size: 0.88em; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 4px; padding: 0.05rem 0.35rem; color: var(--code-fg); }
+
+.readout { background: var(--pass-bg); border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line)); border-radius: 8px; padding: 0.9rem 1.1rem 1rem; margin: 0 0 1rem; }
+.readout .label { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pass); margin-bottom: 0.55rem; }
+.readout pre, .readout code { font-family: var(--mono); font-size: 0.85rem; color: var(--code-fg); white-space: pre-wrap; word-break: break-word; margin: 0; }
+.readout .hint { font-family: var(--sans); font-size: 0.85rem; color: var(--wire); margin-top: 0.55rem; white-space: normal; }
+
+.gatebox { background: var(--stop-bg); border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line)); border-radius: 8px; padding: 0.95rem 1.1rem 1.05rem; margin: 0 0 0.4rem; }
+.gatebox .label { font-family: var(--mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.gatebox p { margin: 0; max-width: 58ch; font-size: 0.95rem; }
+
+.ui { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px; padding: 0.9rem 1.1rem; margin: 0 0 1rem; }
+.ui .label { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 0.5rem; }
+.ui dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 0.9rem; font-size: 0.9rem; }
+.ui dt { font-family: var(--mono); font-size: 0.82rem; color: var(--wire); }
+.ui dd { margin: 0; }
+
+.note { border: 1px dashed var(--line); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.88rem; color: var(--wire); margin: 0 0 1rem; max-width: 60ch; }
+.note b { color: var(--ink); }
+.note.warn { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+.fieldtable-wrap { overflow-x: auto; margin-bottom: 1rem; }
+table.fieldtable { border-collapse: collapse; width: 100%; font-size: 0.85rem; min-width: 30rem; }
+table.fieldtable th, table.fieldtable td { text-align: left; padding: 0.45rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.fieldtable th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wire); font-weight: 600; }
+
+footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+
+@media (max-width: 640px) {
+  h1.title { font-size: 1.55rem; }
+  .index ol { grid-template-columns: 1fr; }
+  .ui dl { grid-template-columns: 1fr; gap: 0.1rem 0; }
+  .ui dt { margin-top: 0.5rem; }
+}
+</style>
+<style>
+.stage h3 { color: var(--accent-strong); letter-spacing: 0.02em; }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; The one node procedure &middot; 8 August 2026</div>
+    <h1 class="title">Reset Every Node<br>To The Same Known State</h1>
+    <p class="dek">One procedure. It replaces five separate update runbooks, works whatever state a node is in, and is safe to run on a node that is already fine. About 10 minutes per node, once per node, and you are done.</p>
+    <div class="meta-row">
+      <span><b>Per node</b> about 10 minutes</span>
+      <span><b>Your data</b> is not touched</span>
+      <span><b>Safe to repeat</b> yes, any number of times</span>
+    </div>
+    <div class="loop">
+      <span class="n">check secrets</span><span class="ar">&rarr;</span>
+      <span class="n">git pull</span><span class="ar">&rarr;</span>
+      <span class="n hi">setup_node.sh</span><span class="ar">&rarr;</span>
+      <span class="n">reboot</span><span class="ar">&rarr;</span>
+      <span class="n hi">dtn_doctor</span><span class="ar">&rarr;</span>
+      <span class="n">next node</span>
+    </div>
+  </header>
+
+  <div class="note warn" style="max-width:none;">
+    <b>Why you need this.</b> The three nodes have drifted apart. Each was updated at a
+    different time by a different procedure, so DRONE_A is naming its adapter one way and
+    DRONE_B another, and DRONE_S has not been touched this round at all. Both of A's and B's
+    ways happen to work today, which is exactly why the difference is dangerous: it only
+    surfaces later, when you swap an adapter or reboot mid-test.
+  </div>
+
+  <nav class="index">
+    <p class="index-title">Contents</p>
+    <ol>
+      <li><a href="#what"><span class="n">1</span>What this does and does not touch</a></li>
+      <li><a href="#warn"><span class="n">2</span>The one command never to run</a></li>
+      <li><a href="#pre"><span class="n">3</span>Before you start</a></li>
+      <li><a href="#node"><span class="n">4</span>The procedure, per node</a></li>
+      <li><a href="#aux"><span class="n">5</span>Aux modules, once each</a></li>
+      <li><a href="#fleet"><span class="n">6</span>Check the fleet agrees</a></li>
+      <li><a href="#state"><span class="n">7</span>What "same state" means</a></li>
+      <li><a href="#trouble"><span class="n">8</span>If a step fails</a></li>
+    </ol>
+  </nav>
+
+  <p class="part">Part one &middot; Understand it first</p>
+
+  <section class="stage" id="what">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">What this does and does not touch</h2></div>
+
+    <p><code class="inline">setup_node.sh</code> is written to be re-runnable. Running it on a
+    working node is a no-op in every way that matters. Running it on a confused node fixes it.
+    That is why there is no longer any such thing as an "update runbook".</p>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>What</th><th>Happens</th></tr>
+        <tr><td><b>Your database</b></td><td><b>Untouched.</b> Messages, personnel, announcements, everything stays</td></tr>
+        <tr><td><b>The fleet master secret</b></td><td><b>Untouched.</b> Read from <code class="inline">deploy/secrets/</code>, never regenerated. All your HMAC keys stay identical fleet-wide</td></tr>
+        <tr><td>Interface naming rules</td><td>Rewritten to the current scheme</td></tr>
+        <tr><td>systemd units</td><td>Reinstalled and re-enabled</td></tr>
+        <tr><td>Helper scripts</td><td>Reinstalled, including <code class="inline">dtn-doctor</code></td></tr>
+        <tr><td>WiFi access point config</td><td>Rewritten</td></tr>
+        <tr><td>Firewall rules</td><td>Reapplied for this node's role</td></tr>
+        <tr><td>Node TLS certificate</td><td><b>Reissued</b>, signed by the same fleet CA</td></tr>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>The reissued certificate is harmless.</b> It is signed by the same fleet CA the apps
+      already trust, so nothing needs reconfiguring. Any app with a live connection simply
+      reconnects. You do not need to reload the CA in the GCC or on the phones.
+    </div>
+  </section>
+
+  <section class="stage gate" id="warn">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">The one command never to run</h2></div>
+
+    <div class="gatebox">
+      <div class="label">Do not run make_fleet_ca.sh</div>
+      <p>Not on DRONE_B, not on DRONE_S, not "just to be safe". It generates a NEW fleet master
+      secret and a NEW certificate authority.</p>
+      <p>If you run it on one node, that node can no longer verify any record from the others,
+      every issued credential stops working, sync rejects everything as forged, and the apps
+      refuse the node's certificate. You would have to rebuild the whole fleet from that new
+      secret.</p>
+      <p>It is run <b>once, ever</b>, on the operator laptop. The other nodes receive a COPY of
+      <code class="inline">deploy/secrets/</code>. That has already been done for this fleet.</p>
+    </div>
+  </section>
+
+  <section class="stage" id="pre">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Before you start, on each node</h2></div>
+
+    <p>The setup script refuses to run without the fleet secrets. Confirm they are present
+    before you begin, so you do not discover it halfway through:</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on the node</span></div>
+<pre><span class="prompt">$</span> ls ~/rescue-mesh/deploy/secrets/
+
+<span class="comment"># You need at least these two:</span>
+<span class="comment">#   fleet_secrets.env</span>
+<span class="comment">#   fleet_ca.key   (and fleet_ca.crt)</span></pre>
+    </div>
+
+    <div class="ui">
+      <div class="label">If the folder is missing or empty</div>
+      <dl>
+        <dt>Do</dt><dd>Copy it from a node that HAS it, or from the operator laptop.</dd>
+        <dt>Do not</dt><dd>Generate a new one. See section 2.</dd>
+      </dl>
+    </div>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">copying secrets, example from DRONE_A</span></div>
+<pre><span class="prompt">$</span> scp -r drone@10.99.0.1:~/rescue-mesh/deploy/secrets ~/rescue-mesh/deploy/
+
+<span class="comment"># Only works while the mesh is up. Otherwise use a USB stick, or copy</span>
+<span class="comment"># from the operator laptop over the node's own WiFi.</span></pre>
+    </div>
+  </section>
+
+  <p class="part">Part two &middot; The procedure</p>
+
+  <section class="stage" id="node">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Run this on each node in turn</h2></div>
+
+    <p>Identical on all three. The only thing that changes is the letter at the end:
+    <code class="inline">a</code>, <code class="inline">b</code> or
+    <code class="inline">s</code>. Do one node completely, verify it, then move on.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">join that node's WiFi, then</span></div>
+<pre><span class="prompt">$</span> ssh drone@10.42.0.1
+
+<span class="prompt">$</span> cd ~/rescue-mesh
+<span class="prompt">$</span> git pull
+
+<span class="prompt">$</span> cd deploy
+<span class="prompt">$</span> sudo ./setup_node.sh a          <span class="comment"># a, b or s</span>
+
+<span class="prompt">$</span> sudo reboot</pre>
+    </div>
+
+    <div class="note">
+      <b>The adapter does not need to be plugged in.</b> The script no longer requires it or
+      its MAC address. A node whose adapter is currently in another node can still be set up
+      completely.
+    </div>
+
+    <p>After the reboot, log back in and check that node on its own:</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on the node, after reboot</span></div>
+<pre><span class="prompt">$</span> sudo dtn-doctor</pre>
+    </div>
+
+    <div class="readout">
+      <div class="label">What a correct node looks like</div>
+      <pre>1. USB WiFi adapter present?          [OK] wlan1 exists
+2. Is the adapter link stable?        [OK] no disconnects this boot
+3. How is wlan1 given its name?       [OK] matched by DRIVER
+4. Bring-up script installed?         [OK]
+5. NetworkManager leaving it alone?   [OK] unmanaged
+6. dtn-net service state?             active / enabled
+7. Is wlan1 in IBSS mode?             [OK] type IBSS
+8. Joined the RESCUE_DTN cell?        [OK] + address assigned</pre>
+      <div class="hint">
+        <b>Line 3 is the one this whole exercise is about.</b> It must say matched by DRIVER on
+        every node. If any node still says matched by MAC ADDRESS, the setup script did not run
+        successfully there: read its output again.
+      </div>
+    </div>
+
+    <div class="note warn">
+      <b>"No peers visible" is expected</b> until at least two nodes have been through this and
+      are powered at the same time. One node on its own can never show a peer, and the sync log
+      will be empty for the same reason. Neither is a fault.
+    </div>
+
+    <p>Now repeat the whole section for the next node. <b>Do not start node two until node one
+    shows a clean doctor result.</b> Fixing one node at a time is much faster than discovering
+    the same mistake three times.</p>
+  </section>
+
+  <section class="stage" id="aux">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Aux modules, once each</h2></div>
+
+    <p>Separate from the Pi work and independent of it. DRONE_A and DRONE_B have aux modules;
+    DRONE_S does not, so it needs nothing here.</p>
+
+    <p>From your laptop with the XIAO connected by USB-C:</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">laptop, repository root</span></div>
+<pre><span class="prompt">$</span> git pull
+<span class="prompt">$</span> cd firmware/aux1
+<span class="prompt">$</span> pio run -t upload
+
+<span class="comment"># Then unplug, connect the second module, and run it again. The</span>
+<span class="comment"># firmware is identical on both: node identity is stored on the</span>
+<span class="comment"># board, not compiled in.</span></pre>
+    </div>
+
+    <p>This carries the planned-shutdown notice, without which switching a node off makes the
+    fleet report it as a failure. Details in the front panel runbook.</p>
+  </section>
+
+  <p class="part">Part three &middot; Confirming</p>
+
+  <section class="stage gate" id="fleet">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Check the fleet agrees</h2></div>
+
+    <p>Once at least two nodes are done and powered at the same time, from either of them:</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on any node</span></div>
+<pre><span class="prompt">$</span> curl -sk https://127.0.0.1:8443/health | grep -o '"node_id":"[^"]*"'
+
+<span class="comment"># Give it 15 seconds after the second node reaches IBSS: presence</span>
+<span class="comment"># beacons go out every 10 s.</span>
+
+<span class="prompt">$</span> journalctl -u rescue-mesh-sync -n 40 --no-pager | grep table=</pre>
+    </div>
+
+    <div class="readout">
+      <div class="label">Expected</div>
+      <pre>SYNC_OK | peer=DRONE_B | table=messages       | imported=0 | ...
+SYNC_OK | peer=DRONE_B | table=personnel      | imported=0 | ...
+        ... eight tables, ending with ...
+SYNC_OK | peer=DRONE_B | table=lora_events    | imported=0 | ...</pre>
+      <div class="hint">
+        <b>Eight tables</b> is the number to count. <code class="inline">imported=0</code> is
+        correct when both nodes already agree. If you see fewer than eight, or
+        <code class="inline">SYNC_FAIL</code> on any of them, the peer is on older code: run
+        section 4 on that node.
+      </div>
+    </div>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">The interchangeability test</h3>
+
+    <p>Worth doing once, because it proves the naming fix and takes two minutes. Swap the
+    adapters between two nodes, then on each:</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on each node after the swap</span></div>
+<pre><span class="prompt">$</span> iw dev wlan1 info      <span class="comment"># type IBSS, on both, with nothing edited</span></pre>
+    </div>
+
+    <p>If both nodes come back up with a working <code class="inline">wlan1</code> and you
+    changed no configuration anywhere, the fleet is consistent and adapters are now
+    interchangeable. That is the end state this runbook exists to reach.</p>
+  </section>
+
+  <section class="stage" id="state">
+    <div class="stage-head"><span class="stage-num">07</span><h2 class="stage-title">What "same state" means</h2></div>
+
+    <p>After section 4 has been run on all three, every node has exactly this. Use it as a
+    checklist if you suspect one has drifted again.</p>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>Thing</th><th>Identical on every node</th><th>Differs per node</th></tr>
+        <tr><td>Interface naming</td><td>wlan0 by MAC, wlan1 by driver</td><td>The onboard MAC</td></tr>
+        <tr><td>Mesh cell</td><td>SSID RESCUE_DTN, channel 6, BSSID 02:12:34:56:78:9a</td><td>The 10.99.0.x address</td></tr>
+        <tr><td>User access point</td><td>5 GHz, 10.42.0.1</td><td>SSID RESCUE_A / B / S</td></tr>
+        <tr><td>Fleet master secret</td><td>Yes, byte for byte</td><td>Nothing</td></tr>
+        <tr><td>Certificate authority</td><td>Same fleet CA</td><td>Each node's own cert</td></tr>
+        <tr><td>Replicated tables</td><td>All eight registered</td><td>Their contents, until synced</td></tr>
+        <tr><td>Services</td><td>Same set enabled</td><td>MAVLink gateway on DRONE_S only</td></tr>
+        <tr><td>Aux module</td><td>Same firmware</td><td>None on DRONE_S</td></tr>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>Different databases are not drift.</b> Nodes are supposed to hold different records
+      until they meet and sync. That is what a delay-tolerant network is. Only the
+      CONFIGURATION has to match.
+    </div>
+  </section>
+
+  <section class="stage" id="trouble">
+    <div class="stage-head"><span class="stage-num">08</span><h2 class="stage-title">If a step fails</h2></div>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>Symptom</th><th>Meaning</th><th>Do</th></tr>
+        <tr><td>Script stops: fleet secrets missing</td><td><code class="inline">deploy/secrets/</code> is not on this node</td><td>Copy it from another node. Never generate a new one</td></tr>
+        <tr><td>Script stops: onboard MAC undetermined</td><td>The Pi's built-in WiFi is not visible</td><td><code class="inline">ip link show</code>. If wlan0 is missing, that is a bigger hardware problem</td></tr>
+        <tr><td>Doctor line 3 still says MAC</td><td>The script did not complete</td><td>Re-run it and read the output to the end</td></tr>
+        <tr><td>No wlan1 after reboot</td><td>Adapter absent, or not enumerating</td><td>Doctor will say which. If it reports port enable failures, that is electrical: 3 A supply, then a powered hub</td></tr>
+        <tr><td>wlan1 present but type managed</td><td>dtn-net has not run since the adapter appeared</td><td><code class="inline">sudo systemctl restart dtn-net</code>. If that is needed after every boot, re-run section 4</td></tr>
+        <tr><td>Fewer than eight tables syncing</td><td>The peer is on older code</td><td>Run section 4 on the peer</td></tr>
+        <tr><td><code class="inline">sudo dtn-doctor</code> not found</td><td>Section 4 has not run on this node yet</td><td>Use <code class="inline">sudo bash tools/dtn_doctor.sh</code> from the repo root</td></tr>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>One node at a time, always.</b> Most of the confusion in this project came from
+      changing two things and then trying to work out which one broke. Finish and verify a
+      node before touching the next.
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  Rescue Mesh &middot; the one node procedure &middot; 8 August 2026<br>
+  Index of every runbook: deploy/RUNBOOKS.md. Diagnosis: tools/dtn_doctor.sh. Superseded update runbooks: deploy/archived_runbooks/.
+</footer>

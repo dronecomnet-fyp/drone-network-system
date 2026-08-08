@@ -135,6 +135,15 @@ footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border
     that nobody has started yet.
   </div>
 
+  <div class="note warn" style="max-width:none;">
+    <b>The nodes have drifted apart, and there is now one procedure to fix that.</b> Each node
+    was updated at a different time by a different runbook, so DRONE_A names its adapter one
+    way and DRONE_B another, and DRONE_S has not been touched this round. Run
+    <code class="inline">docs/node_reset.html</code> on all three before any measurement work.
+    Five superseded update runbooks have been archived and
+    <code class="inline">deploy/RUNBOOKS.md</code> indexes what is left.
+  </div>
+
   <nav class="index">
     <p class="index-title">Contents</p>
     <ol>
