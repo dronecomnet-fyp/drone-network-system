@@ -1,0 +1,133 @@
+# Field backlog, round 2: tester findings, 2026-08-09
+
+Twelve findings from the second tester round, after the fleet was brought
+up and the mesh verified. Recorded before fixing so nothing is lost, and
+graded by whether it stops someone using the system.
+
+Status key: TODO, DOING, DONE, NEEDS HARDWARE (cannot be confirmed
+without a bench test).
+
+## Blocking: someone cannot do their job
+
+| # | Finding | Status |
+|---|---------|--------|
+| 2.1 | AI suggestion leaves a banner with no Close, Approve or Discard. The app has to be restarted | DONE |
+| 2.2 | Rescuers can only log in on the node the GCC is joined to, and the QR cannot be scanned | DONE |
+| 2.3 | Both mobile apps appear to lose their session when closed and reopened | TODO |
+
+## Bugs
+
+| # | Finding | Status |
+|---|---------|--------|
+| 2.4 | Degraded tab shows nothing during a real LoRa fallback (Pi unplugged, aux on battery) | TODO |
+| 2.5 | Battery B shows a changing voltage with the battery physically removed, in several places | TODO |
+| 2.6 | A reply sent without claiming still shows the victim "the drone has your message" rather than a read state | TODO |
+| 2.7 | HQ uplink: the rescue app can send field reports, the GCC has nowhere to read them | TODO |
+| 2.8 | Unconfirmed: does a BLE sighting actually raise a notification in the victim app | NEEDS HARDWARE |
+
+## Improvements
+
+| # | Finding | Status |
+|---|---------|--------|
+| 2.9 | Victim app location logging: on every app open, and much more often once emergency mode is on, including immediately at the moment it is switched on | TODO |
+| 2.10 | Mission planning: the operator enters a lot and none of it persists. Needs save, a deploy action, and a reset afterwards | TODO |
+| 2.11 | Live Ops should show the current plan as clear numbered steps, each one navigating to the tab that does it | TODO |
+| 2.12 | The AI advisor should propose the WHOLE mission layout, not only drone placements | TODO |
+
+---
+
+## Notes on specific items
+
+### 2.1, what actually went wrong
+
+Three mistakes stacked, and any one alone would have been survivable.
+
+The dialog was opened with `barrierDismissible: false` and **no actions**,
+relying entirely on the caller to pop it. The caller then switched tabs
+while it was open, disposing the Mission screen that owned the context.
+The next line was `if (!context.mounted) return;`, so the function
+returned before ever reaching the `pop()`.
+
+Fixed at all three layers rather than only the one that failed: the
+dialog now always draws its own Close button, the root navigator is
+captured before any `await`, and the tab switch happens after the close.
+The follow-up summary also gained Approve and Discard.
+
+The general rule taken from it: **a modal must always carry its own exit,
+regardless of what the surrounding code intends to do.**
+
+### 2.2, two reports that were one bug
+
+"Rescuers must be on the same node as the GCC" and "nobody can scan the
+QR" were the same defect.
+
+`_signin_blob` base64-encoded the record, embedded that string inside
+another JSON object, and base64-encoded the result. Double encoding
+inflates by a third, giving about 880 characters. That needs QR version
+25, which is 117 modules across, and at 220 px that is 1.9 pixels per
+module. Phone cameras need at least 3.
+
+So the code never scanned, everyone fell back to typing a PIN, and a PIN
+only authenticates on a node that already holds the record. The
+cross-node feature was built, tested, and unreachable in the field.
+
+Now the record travels as an object rather than a nested string and the
+payload is deflated: about 430 characters, version 15, rendered at 380 px
+with the lowest error correction. Roughly 5 pixels per module.
+
+Both ends now assert the **size**, not just correctness. Adding one field
+to the personnel record would otherwise quietly break it again.
+
+### 2.4, what to check first
+
+The Degraded tab reads `lora_events`, which is populated by the aux
+bridge when it receives a fallback beacon over LoRa. Three separate
+things must work, and the tab shows nothing if any of them fails:
+
+1. The aux module must actually enter FALLBACK and transmit. It waits 15
+   seconds of missed heartbeats first.
+2. A **different** node must receive the beacon on its own LoRa radio and
+   log it. A node cannot hear itself.
+3. The GCC must be joined to a node that has the record, either the one
+   that heard it or one it has since synced with.
+
+Worth ruling out before touching code: transmit power is deliberately at
+the library minimum pending TRCSL confirmation, so the practical range
+may be very short. Two modules on the same bench should still hear each
+other.
+
+The diagnostic is `grep -a FALLBACK_BEACON audit.log` on the receiving
+node. If that line is absent the problem is radio or firmware; if it is
+present but the tab is empty the problem is in the app.
+
+### 2.5, why this keeps coming back
+
+An unconnected INA3221 input floats near the supply rail and reads about
+4.18 V, which is indistinguishable from a healthy cell by voltage alone.
+The firmware needs to be told a battery is absent; it cannot infer it.
+
+`BATT_B_PRESENT` exists in the firmware for exactly this. The likely
+cause is that the modules have not been reflashed since it was added, or
+that the flag is set true on a module with no Battery B fitted.
+
+The finding that it appears "in several places" is the more useful half:
+the value is shown on the Nodes tab, in Live Ops, on peer cards, in the
+Degraded tab and in the LoRa beacon itself. Whatever the fix, it has to
+be at the source, not per screen.
+
+### 2.6, what the victim should see
+
+Current behaviour is correct only while no reply exists: the app says the
+drone holds the message, because at that point nobody has read it and
+claiming otherwise would be dishonest.
+
+Once a rescuer replies, a human demonstrably has read it, whether or not
+they pressed Claim. Replying is stronger evidence of attention than
+claiming is. So a reply should move the victim's view to a read state,
+and claiming should not be a precondition for that.
+
+### 2.10 and 2.11, treat together
+
+Both are about the mission having a lifecycle rather than being a screen
+full of fields. Save, deploy, reset, and a visible sequence of what
+happens next. Worth designing as one thing rather than two features.
