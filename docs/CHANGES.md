@@ -1158,3 +1158,38 @@ Phase 1 security docs) is flagged here, never silently drifted.
     `deploy/RUNBOOKS.md` indexes the eight that remain, with the rule that
     keeps the list short: updating a node and fixing a broken node are the
     same operation, so new runbooks are only for genuinely new things.
+
+58. **The DRONE_B adapter fault is a single faulty USB port, not a power
+    brownout. My earlier diagnosis was wrong.** The operator established
+    it by testing directly rather than reasoning from logs: the adapter
+    works in every other port on the same board, including replug, and
+    fails in one specific port. On that port it enumerates at boot and
+    then fails on every hot replug.
+
+    That pattern is diagnostic. A hub powers all of its ports once during
+    startup, which a marginal port can survive; a hot insert requires that
+    port to perform its own powered reset, which it cannot. Hence "works
+    at boot, dead on replug" for one port while the rest of the board is
+    fine.
+
+    Recording the mistake because it matters for how this project
+    diagnoses things. I read `Cannot enable. Maybe the USB cable is bad?`
+    plus `attempt power cycle` and matched it to item 40's brownout, which
+    was a real failure on this hardware. That gave a plausible story that
+    fitted the evidence I had, and I recommended a 3 A supply and a
+    powered hub on the strength of it. The evidence I did not have was the
+    other three ports, and one direct comparison settled what a lot of log
+    reading had not. **The same error string has more than one cause, and
+    the cheap experiment beats the confident inference.**
+
+    `dtn_doctor.sh` now makes the distinction itself: it reports which USB
+    path the adapter is on, collects which ports have reported enable
+    failures, and if they are all on ONE port says so explicitly, with
+    "move the adapter and label the bad port" rather than "buy a bigger
+    supply". Failures spread across several ports still point at the
+    supply. It also mentions `rpi-eeprom-update -a` as a cheap one-off,
+    since the VL805 firmware handles port power and reset.
+
+    No change to the item 40 finding: that was a different node under
+    battery power and the fix there was decisive. Both faults are real and
+    they are not the same fault.

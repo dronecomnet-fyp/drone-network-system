@@ -167,6 +167,47 @@ PORTERR=$(dmesg 2>/dev/null | grep -ci "Cannot enable. Maybe the USB cable is ba
 say "     USB disconnect events this boot: $DISC"
 say "     port enable failures this boot:  $PORTERR"
 
+# Which physical port is the adapter in, and are the failures specific to
+# ONE port or spread across several? That distinction is the whole
+# diagnosis. Errors on one port mean that port is faulty and the fix is to
+# move the adapter. Errors across several ports mean the supply cannot
+# hold the load, which is a completely different problem with a completely
+# different fix.
+USBPATH=$(basename "$(dirname "$(readlink -f /sys/class/net/wlan1/device 2>/dev/null)")" 2>/dev/null)
+case "$USBPATH" in
+    *-*.*)  HUB="${USBPATH%.*}"; PORTNUM="${USBPATH##*.}"
+            CURPORT="${HUB}-port${PORTNUM}" ;;
+    *)      CURPORT="" ;;
+esac
+case "$USBPATH" in
+    ""|"."|"/") ;;  # sysfs unreadable, say nothing rather than print junk
+    *) say "     adapter is on USB path: $USBPATH${CURPORT:+  (that is $CURPORT)}" ;;
+esac
+
+BADPORTS=$(dmesg 2>/dev/null | grep -io "usb [0-9-]*-port[0-9]*: Cannot enable\|usb [0-9-]*-port[0-9]*: unable to enumerate" \
+           | grep -o "[0-9-]*-port[0-9]*" | sort -u | tr '\n' ' ')
+[ -n "$BADPORTS" ] && say "     ports reporting enable failures: $BADPORTS"
+NBADPORTS=$(printf '%s' "$BADPORTS" | wc -w | tr -d ' ')
+
+if [ "$PORTERR" -gt 0 ] && [ "$NBADPORTS" = "1" ]; then
+    bad "one specific USB port is failing to enable devices"
+    fix "The failures are all on a SINGLE port ($BADPORTS), not spread across the board. That is a faulty port, not a power problem. A port in this state typically works when the device is present at boot, because the hub powers every port once during startup, and then fails on replug, because a hot insert needs the port to do its own powered reset and this one cannot." \
+        "  1. MOVE THE ADAPTER to a different port and leave it there." \
+        "     Confirm with an unplug and replug: a good port re-enumerates" \
+        "     within a couple of seconds." \
+        "" \
+        "  2. LABEL THE BAD PORT physically, with tape or a marker. This" \
+        "     will otherwise be rediscovered by whoever picks the node up" \
+        "     next, and it costs hours each time." \
+        "" \
+        "  3. Optionally, once: update the Pi USB controller firmware." \
+        "     It occasionally fixes port-enable faults and is cheap to try." \
+        "         sudo rpi-eeprom-update -a  &&  sudo reboot" \
+        "" \
+        "You do NOT need a powered hub or a bigger supply for this fault." \
+        "The other ports on this board work, which rules out the supply."
+fi
+
 if [ "$PORTERR" -gt 0 ]; then
     bad "the USB port has failed to enable the device $PORTERR time(s)"
     say ""
