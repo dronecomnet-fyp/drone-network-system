@@ -519,7 +519,26 @@ class NodeHealth {
 /// POST /auth/login response.
 class AuthSession {
   final String token;
-  final int expiresAt; // epoch seconds
+
+  /// Epoch seconds ON THE ISSUING NODE'S CLOCK. Not comparable with this
+  /// device's clock, see [localExpiresAt].
+  final int expiresAt;
+
+  /// Epoch seconds on THIS DEVICE'S clock, computed once at login as
+  /// "now here" plus the token's remaining lifetime.
+  ///
+  /// This exists because the two clocks disagree. A node without a GPS
+  /// fix runs on relative time restored from its last shutdown, so it can
+  /// be hours or days behind a phone. Comparing the node's absolute
+  /// deadline against the phone's clock made freshly issued tokens look
+  /// already expired, and the app dropped the session on every restart.
+  /// Testers reported that as "it logs me out when I reopen it".
+  ///
+  /// Zero means unknown, which is the case for a session stored before
+  /// this existed, or one issued by an older node. The getter falls back
+  /// to the node's value then, which is the old behaviour.
+  final int localExpiresAt;
+
   final String personnelId;
   final String role;
   final String name;
@@ -527,17 +546,41 @@ class AuthSession {
   const AuthSession({
     required this.token,
     required this.expiresAt,
+    this.localExpiresAt = 0,
     required this.personnelId,
     required this.role,
     required this.name,
   });
 
-  bool get isExpired =>
-      DateTime.now().millisecondsSinceEpoch ~/ 1000 >= expiresAt;
+  bool get isExpired {
+    final nowLocal = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    if (localExpiresAt > 0) return nowLocal >= localExpiresAt;
+    return nowLocal >= expiresAt;
+  }
+
+  /// Build from a login response, converting the node's deadline into
+  /// this device's frame using the server clock it reported.
+  factory AuthSession.fromLoginResponse(Map<String, dynamic> json) {
+    final expires = _toInt(json['expires_at']);
+    final serverNow = _toInt(json['server_time']);
+    final nowLocal = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    // Only usable if the node told us its clock. Older nodes do not.
+    final localExpiry =
+        serverNow > 0 ? nowLocal + (expires - serverNow) : 0;
+    return AuthSession(
+      token: json['token'] as String,
+      expiresAt: expires,
+      localExpiresAt: localExpiry,
+      personnelId: (json['personnel_id'] ?? '') as String,
+      role: (json['role'] ?? 'RESCUE_TEAM') as String,
+      name: (json['name'] ?? '') as String,
+    );
+  }
 
   factory AuthSession.fromJson(Map<String, dynamic> json) => AuthSession(
         token: json['token'] as String,
         expiresAt: _toInt(json['expires_at']),
+        localExpiresAt: _toInt(json['local_expires_at']),
         personnelId: (json['personnel_id'] ?? '') as String,
         role: (json['role'] ?? 'RESCUE_TEAM') as String,
         name: (json['name'] ?? '') as String,
@@ -546,6 +589,7 @@ class AuthSession {
   Map<String, dynamic> toJson() => {
         'token': token,
         'expires_at': expiresAt,
+        'local_expires_at': localExpiresAt,
         'personnel_id': personnelId,
         'role': role,
         'name': name,

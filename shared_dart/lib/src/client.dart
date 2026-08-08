@@ -141,7 +141,7 @@ class RescueMeshClient {
       'personnel_id': personnelId,
       'pin': pin,
     });
-    final session = AuthSession.fromJson(data as Map<String, dynamic>);
+    final session = AuthSession.fromLoginResponse(data as Map<String, dynamic>);
     sessionToken = session.token;
     return session;
   }

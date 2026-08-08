@@ -1390,3 +1390,35 @@ Phase 1 security docs) is flagged here, never silently drifted.
     correctness: the backend asserts a code stays under 600 characters and
     the app asserts the same, because this is a bug that comes back
     silently the moment somebody adds a field to the record.
+
+66. **Apps appeared to log themselves out on restart. The cause was two
+    clocks disagreeing, not missing persistence.** The session was already
+    stored in `flutter_secure_storage` and reloaded correctly.
+
+    Tokens carry `exp` computed on the NODE's clock, and the client tested
+    it against the PHONE's clock. A node with no GPS fix runs on relative
+    time restored from its last shutdown, which is exactly the state the
+    fleet is in indoors, so its clock drifts behind by hours or days. A
+    freshly issued 24 hour token then looks already expired to the phone,
+    `SessionStore.load()` clears it, and the rescuer is back at the login
+    screen every time they reopen the app.
+
+    The login response now includes `server_time`, the node's own clock at
+    the moment of issue, so the client can work out the token's remaining
+    LIFETIME rather than trusting an absolute deadline set by a clock it
+    cannot see. `AuthSession` stores a second deadline in the device's own
+    frame and checks that instead.
+
+    Deliberately not a tolerance window. A fudge factor would have hidden
+    the skew and still failed once it exceeded whatever margin was chosen.
+    Converting between frames is correct at any skew, and a genuinely
+    spent token is still expired, which has its own test.
+
+    Sessions saved before this, and nodes too old to send `server_time`,
+    fall back to the previous behaviour rather than breaking.
+
+    Worth noting for the report: this is the second bug caused by nodes
+    running on relative time, after the message timestamps that needed
+    `time_source`. A fleet with no RTC and no NTP has to treat "the other
+    end's clock" as untrusted input everywhere, not just where it is
+    displayed.

@@ -24,6 +24,7 @@ import html
 import json
 import zlib
 import ssl
+import time
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -785,6 +786,16 @@ def login(login_input: LoginInput, request: Request):
     return {
         "token": token["token"],
         "expires_at": token["expires_at"],
+        # The node's own clock at the moment of issue, so the client can
+        # work out the token's LIFETIME rather than trusting an absolute
+        # deadline set by a clock it cannot see.
+        #
+        # A node without a GPS fix runs on relative time restored from its
+        # last shutdown, so its clock can be hours or days behind a
+        # phone's. The phone then reads a freshly issued token as already
+        # expired and drops the session on every app restart, which is
+        # exactly what testers reported as "the app logs me out".
+        "server_time": int(time.time()),
         "personnel_id": record["personnel_id"],
         "role": record["role"],
         "name": record["name"],
