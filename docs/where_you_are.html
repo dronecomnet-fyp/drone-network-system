@@ -1,0 +1,414 @@
+<title>Where You Are, and What To Do Next</title>
+<style>
+@font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
+
+:root {
+  --ink: #1b2028; --paper: #f6f4ef; --paper-raised: #eeebe3; --line: #d8d3c6;
+  --wire: #5b6b7a; --accent: #d9711c; --accent-strong: #b85c14;
+  --pass: #1f8f5b; --pass-bg: #e4f4ec; --stop: #c23a3a; --stop-bg: #fbe9e7;
+  --term-bg: #14181e; --term-fg: #e6e2d6; --term-dim: #8a93a3; --code-fg: #2a2f38;
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+  --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+  --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+  --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+  --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+    --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+    --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+    --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+body { font-family: var(--sans); font-size: 16px; line-height: 1.6; padding: 0 0 6rem; }
+::selection { background: var(--accent); color: #14181e; }
+a { color: var(--accent-strong); }
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; }
+
+.masthead { border-bottom: 1px solid var(--line); padding: 2.6rem 0 1.8rem; margin-bottom: 2.2rem; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--wire); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+h1.title { font-family: var(--mono); font-size: 1.9rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6rem; }
+.dek { max-width: 46ch; color: var(--wire); font-size: 1.02rem; margin: 0; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1.4rem; font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+.meta-row b { color: var(--ink); font-weight: 600; }
+
+/* the loop diagram */
+.loop { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1.5rem; padding: 0.9rem 1rem; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; font-family: var(--mono); font-size: 0.76rem; }
+.loop .n { padding: 0.2rem 0.55rem; border-radius: 5px; background: var(--paper); border: 1px solid var(--line); white-space: nowrap; }
+.loop .n.hi { border-color: var(--accent); color: var(--accent-strong); }
+.loop .ar { color: var(--wire); }
+
+.index { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin-bottom: 2.6rem; }
+.index-title { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--wire); margin: 0 0 0.7rem; }
+.index ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.25rem 1rem; }
+.index li a { display: flex; gap: 0.55rem; align-items: baseline; text-decoration: none; color: var(--ink); font-size: 0.88rem; padding: 0.2rem 0; }
+.index li a:hover { color: var(--accent-strong); }
+.index .n { font-family: var(--mono); color: var(--wire); font-size: 0.78rem; min-width: 1.4em; }
+
+.part { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-strong); border-top: 1px solid var(--line); padding-top: 1.4rem; margin: 0 0 1.6rem; }
+
+.stage { border-left: 3px solid var(--line); padding: 0 0 0 1.3rem; margin-bottom: 2.9rem; scroll-margin-top: 1.5rem; }
+.stage.gate { border-left-color: var(--stop); }
+.stage-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 0.85rem; }
+.stage-num { font-family: var(--mono); font-size: 0.85rem; color: var(--wire); background: var(--paper-raised); border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.6rem; flex-shrink: 0; }
+h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+.stage ul, .stage ol.steps { margin: 0 0 1rem; padding-left: 1.25rem; max-width: 60ch; }
+.stage li { margin-bottom: 0.4rem; }
+.stage li:last-child { margin-bottom: 0; }
+
+.term { background: var(--term-bg); border-radius: 8px; margin: 0 0 1rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000); }
+.term-bar { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.term-bar .cap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--term-dim); margin-left: 0.3rem; }
+.term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
+.term-bar .led.r { background: #e5645c; } .term-bar .led.y { background: #e5b84f; } .term-bar .led.g { background: #57c273; }
+.term pre { margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg); }
+.term .prompt { color: var(--term-dim); }
+.term .comment { color: var(--term-dim); font-style: italic; }
+
+code.inline { font-family: var(--mono); font-size: 0.88em; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 4px; padding: 0.05rem 0.35rem; color: var(--code-fg); }
+
+.readout { background: var(--pass-bg); border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line)); border-radius: 8px; padding: 0.9rem 1.1rem 1rem; margin: 0 0 1rem; }
+.readout .label { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pass); margin-bottom: 0.55rem; }
+.readout pre, .readout code { font-family: var(--mono); font-size: 0.85rem; color: var(--code-fg); white-space: pre-wrap; word-break: break-word; margin: 0; }
+.readout .hint { font-family: var(--sans); font-size: 0.85rem; color: var(--wire); margin-top: 0.55rem; white-space: normal; }
+
+.gatebox { background: var(--stop-bg); border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line)); border-radius: 8px; padding: 0.95rem 1.1rem 1.05rem; margin: 0 0 0.4rem; }
+.gatebox .label { font-family: var(--mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.gatebox p { margin: 0; max-width: 58ch; font-size: 0.95rem; }
+
+.ui { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px; padding: 0.9rem 1.1rem; margin: 0 0 1rem; }
+.ui .label { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 0.5rem; }
+.ui dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 0.9rem; font-size: 0.9rem; }
+.ui dt { font-family: var(--mono); font-size: 0.82rem; color: var(--wire); }
+.ui dd { margin: 0; }
+
+.note { border: 1px dashed var(--line); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.88rem; color: var(--wire); margin: 0 0 1rem; max-width: 60ch; }
+.note b { color: var(--ink); }
+.note.warn { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+.fieldtable-wrap { overflow-x: auto; margin-bottom: 1rem; }
+table.fieldtable { border-collapse: collapse; width: 100%; font-size: 0.85rem; min-width: 30rem; }
+table.fieldtable th, table.fieldtable td { text-align: left; padding: 0.45rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.fieldtable th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wire); font-weight: 600; }
+
+footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+
+@media (max-width: 640px) {
+  h1.title { font-size: 1.55rem; }
+  .index ol { grid-template-columns: 1fr; }
+  .ui dl { grid-template-columns: 1fr; gap: 0.1rem 0; }
+  .ui dt { margin-top: 0.5rem; }
+}
+</style>
+<style>
+.stage h3 { color: var(--accent-strong); letter-spacing: 0.02em; }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; Where you are &middot; 8 August 2026</div>
+    <h1 class="title">Stop. Here Is Where<br>The Project Actually Is</h1>
+    <p class="dek">One blocked item, and it does not block today. Everything else is either finished or waiting for you to start it. Read the status table, do the 30 minute triage, then start capturing report evidence with the one node that works.</p>
+    <div class="meta-row">
+      <span><b>Blocked</b> 1 thing (DRONE_B radio)</span>
+      <span><b>Ready to do today</b> 24 of 44 evidence items</span>
+      <span><b>Needs buying</b> 2 parts</span>
+    </div>
+  </header>
+
+  <div class="note" style="max-width:none;">
+    <b>Why this feels worse than it is.</b> In the last few hours you hit three genuine
+    hardware faults in a row, and I was patching my own diagnostic tools underneath you at the
+    same time. That is disorienting and it is not a sign the project is in trouble. The
+    software is finished. What is left is one bad USB path and a pile of evidence gathering
+    that nobody has started yet.
+  </div>
+
+  <nav class="index">
+    <p class="index-title">Contents</p>
+    <ol>
+      <li><a href="#status"><span class="n">1</span>Where everything stands</a></li>
+      <li><a href="#blocked"><span class="n">2</span>The one blocked thing</a></li>
+      <li><a href="#today"><span class="n">3</span>Do this today: B triage, 30 min</a></li>
+      <li><a href="#progress"><span class="n">4</span>Then make real progress</a></li>
+      <li><a href="#order"><span class="n">5</span>The order of everything left</a></li>
+      <li><a href="#ignore"><span class="n">6</span>What to ignore for now</a></li>
+    </ol>
+  </nav>
+
+  <p class="part">Part one &middot; Orientation</p>
+
+  <section class="stage" id="status">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">Where everything stands</h2></div>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>Area</th><th>State</th><th>Anything for you?</th></tr>
+        <tr><td>Tester findings</td><td><b>18 of 18 closed</b></td><td>No</td></tr>
+        <tr><td>Backend, GCC, all three apps</td><td><b>Done.</b> 250 automated tests pass</td><td>No</td></tr>
+        <tr><td>Phone apps published</td><td><b>phone-apps-v4</b> is live</td><td>Install on the test phones</td></tr>
+        <tr><td>DRONE_A</td><td><b>Fully working.</b> IBSS, 10.99.0.1, all services</td><td>No</td></tr>
+        <tr><td>DRONE_B, Pi and services</td><td><b>Working.</b> Setup ran, AP is up on RESCUE_B</td><td>No</td></tr>
+        <tr><td>DRONE_B, mesh radio</td><td><b>BLOCKED.</b> USB path fault</td><td>Yes, section 3</td></tr>
+        <tr><td>DRONE_S</td><td>Not touched this round</td><td>Later</td></tr>
+        <tr><td>Aux module firmware</td><td>Shutdown-notice code written, <b>not flashed</b></td><td>Yes, 10 minutes</td></tr>
+        <tr><td>Front panel hardware</td><td>Designed and documented, <b>not built</b></td><td>Buy 2 parts</td></tr>
+        <tr><td>Report: what to fix</td><td><b>Written.</b> docs/REPORT_AUDIT.md</td><td>Your teammate</td></tr>
+        <tr><td>Report: testing chapter</td><td><b>Planned.</b> 44 evidence items</td><td>Yes, section 4</td></tr>
+        <tr><td>Report: evidence captured</td><td><b>Nothing yet</b></td><td>Yes, start today</td></tr>
+      </table>
+    </div>
+
+    <div class="note warn">
+      <b>The honest summary in one line:</b> the building is finished, one light fitting does
+      not work, and nobody has taken any photographs yet. The photographs are the urgent part,
+      because they are what the report is missing.
+    </div>
+  </section>
+
+  <section class="stage gate" id="blocked">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">The one blocked thing, and what we know</h2></div>
+
+    <p>DRONE_B cannot keep a USB WiFi adapter alive. What the kernel said, in its own words:</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">from B's dmesg</span></div>
+<pre>usb 1-1-port4: Cannot enable. Maybe the USB cable is bad?
+usb 1-1-port4: attempt power cycle
+usb 1-1-port4: unable to enumerate USB device
+usb 1-1.4:    ath9k_htc: Firmware - htc_9271.fw download failed</pre>
+    </div>
+
+    <p>Three facts pin this down:</p>
+
+    <ul>
+      <li><b>The same adapter model works perfectly in DRONE_A</b>, on the same software, at
+      full IBSS. So the software and the configuration are not at fault.</li>
+      <li><b>Both of your adapters now fail in B.</b> When two different adapters fail in one
+      node, the node is the common factor, not the adapters.</li>
+      <li><b>A 50 KB firmware transfer failed.</b> That is a tiny transfer. A USB link that
+      cannot carry it is marginal at the electrical level.</li>
+    </ul>
+
+    <div class="gatebox">
+      <div class="label">This is a hardware fault. Do not debug it in software</div>
+      <p>Nothing in the repository will fix this, and every hour spent reading logs is an hour
+      not spent on the report. Section 3 is a bounded 30 minute triage with a hard stop.</p>
+    </div>
+  </section>
+
+  <p class="part">Part two &middot; What to do</p>
+
+  <section class="stage" id="today">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">B triage: 30 minutes, then stop</h2></div>
+
+    <p>Work down this list. Stop at the first step that gives you a stable
+    <code class="inline">wlan1</code>. If you reach the end, stop anyway and go to section 4.</p>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.4rem 0 0.6rem;">Step 1: is the port dead, or just weak? (5 min)</h3>
+
+    <p>This is the single most useful test and almost nobody thinks to do it.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on DRONE_B</span></div>
+<pre><span class="comment"># Put a USB memory stick or a keyboard in the SAME port the</span>
+<span class="comment"># adapter was using. Then:</span>
+<span class="prompt">$</span> lsusb</pre>
+    </div>
+
+    <div class="ui">
+      <div class="label">What the answer means</div>
+      <dl>
+        <dt>Stick appears</dt><dd>The port works. It cannot supply enough CURRENT for the adapter, which draws 400 to 500 mA. This is a power problem. Go to step 3.</dd>
+        <dt>Stick does not appear</dt><dd>The port itself is dead. Go to step 2.</dd>
+      </dl>
+    </div>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">Step 2: try every other port (5 min)</h3>
+
+    <p>The Pi 4 has four. You have been using one of them. Try the adapter in each of the other
+    three, waiting 10 seconds after each, and run <code class="inline">lsusb</code> each time.
+    The two blue USB 3.0 ports are worth trying first.</p>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">Step 3: change the power supply (10 min)</h3>
+
+    <p>Not the cable to the adapter. <b>The supply feeding the Pi.</b></p>
+
+    <p>Use the best supply you have, ideally an official Raspberry Pi 4 supply or anything
+    rated 3 A at 5 V. Swap it in, reboot B, and check:</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on DRONE_B</span></div>
+<pre><span class="prompt">$</span> iw dev wlan1 info
+<span class="prompt">$</span> vcgencmd get_throttled
+
+<span class="comment"># get_throttled: anything other than 0x0 means the Pi has been</span>
+<span class="comment"># under-volted. That is a direct confirmation of the diagnosis.</span></pre>
+    </div>
+
+    <h3 style="font-family:var(--mono);font-size:1rem;margin:1.6rem 0 0.6rem;">Step 4: swap the whole node (5 min)</h3>
+
+    <p>Take the SD card out of B and put it in DRONE_S's Pi, with a known-good adapter. If it
+    works there, B's Pi board or its USB controller is at fault and you have found it. If it
+    fails there too, look at your supply again.</p>
+
+    <div class="gatebox">
+      <div class="label">Hard stop at 30 minutes</div>
+      <p>If none of that gives you a stable wlan1, stop. Order a <b>powered USB hub</b>, which
+      takes the adapter off the Pi's power budget entirely and is the definitive fix. Then go
+      straight to section 4 and get on with the report. A second node is not needed for any of
+      today's work.</p>
+    </div>
+  </section>
+
+  <section class="stage" id="progress">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Then make real progress, with one node</h2></div>
+
+    <p><b>24 of the 44 evidence items need only DRONE_A.</b> That is more than half your report
+    chapter, available right now, with the hardware you already have working.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">laptop, about 45 minutes</span></div>
+<pre><span class="prompt">$</span> cd backend    &amp;&amp; .venv/bin/pytest -q          <span class="comment"># screenshot: EV-01</span>
+<span class="prompt">$</span> cd gcc_app    &amp;&amp; flutter test                <span class="comment"># screenshot: EV-02</span>
+<span class="prompt">$</span> cd rescue_app &amp;&amp; flutter test                <span class="comment"># screenshot: EV-03</span>
+<span class="prompt">$</span> cd emergency_app &amp;&amp; flutter test             <span class="comment"># screenshot: EV-04</span>
+<span class="prompt">$</span> cd shared_dart   &amp;&amp; dart test                <span class="comment"># screenshot: EV-05</span></pre>
+    </div>
+
+    <p>Six terminal screenshots, no hardware at all. That is evidence session 1 finished in
+    under an hour, and it is the easiest material in the whole chapter.</p>
+
+    <p>Then session 2, on DRONE_A alone:</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">laptop joined to RESCUE_A</span></div>
+<pre><span class="prompt">$</span> python3 tools/seed_demo_data.py
+
+<span class="comment"># Then in the GCC: issue credentials, post announcements, create a</span>
+<span class="comment"># mission, draw the area, add drones and modules, place the GCC and</span>
+<span class="comment"># draw arrows. Then take the 18 screenshots.</span></pre>
+    </div>
+
+    <div class="ui">
+      <div class="label">What needs a second node, and can wait</div>
+      <dl>
+        <dt>EV-23</dt><dd>The Nodes tab peer card</dd>
+        <dt>EV-25 to EV-30</dt><dd>Sync convergence and the fallback sequence</dd>
+        <dt>EV-34</dt><dd>Mesh range</dd>
+        <dt>EV-44</dt><dd>The end to end recording</dd>
+      </dl>
+    </div>
+
+    <p>Everything else, including all six terminal captures, all five victim-app screens, all
+    three rescue-app screens, nine of the ten GCC screens, GPS timing, battery monitor accuracy
+    and every hardware photograph, works with one node.</p>
+
+    <div class="note warn">
+      <b>Do this before fixing B.</b> If B takes a week to sort out, you will still have half
+      the report chapter finished. If you wait for B, you have nothing.
+    </div>
+  </section>
+
+  <p class="part">Part three &middot; The rest</p>
+
+  <section class="stage" id="order">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">The order of everything left</h2></div>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>When</th><th>What</th><th>Why this order</th></tr>
+        <tr>
+          <td><b>Today</b></td>
+          <td>B triage, 30 min hard stop. Then evidence sessions 1 and 2 on DRONE_A</td>
+          <td>Turns a blocked day into half a report chapter</td>
+        </tr>
+        <tr>
+          <td><b>Today, 10 min</b></td>
+          <td>Flash both aux modules: <code class="inline">cd firmware/aux1 &amp;&amp; pio run -t upload</code></td>
+          <td>Independent of the radio problem, and needed before any fallback testing</td>
+        </tr>
+        <tr>
+          <td><b>Order now</b></td>
+          <td>A powered USB hub, and the DPST switch plus panel parts</td>
+          <td>Both have delivery time. Ordering is not doing, so do it while you wait</td>
+        </tr>
+        <tr>
+          <td><b>When B works</b></td>
+          <td>Evidence session 3: sync convergence and the fallback sequence</td>
+          <td>The strongest evidence in the chapter, needs two nodes</td>
+        </tr>
+        <tr>
+          <td><b>Then</b></td>
+          <td>Bring DRONE_S up to the same state</td>
+          <td>Only needed for the two-hop test, which section E of the evidence plan handles with two adapters anyway</td>
+        </tr>
+        <tr>
+          <td><b>Then</b></td>
+          <td>Field session: range measurements</td>
+          <td>Needs a stable mesh and good weather. Do not attempt on a flapping adapter</td>
+        </tr>
+        <tr>
+          <td><b>Then</b></td>
+          <td>Overnight battery runs</td>
+          <td>Unattended, so it costs you no working time</td>
+        </tr>
+        <tr>
+          <td><b>Last</b></td>
+          <td>Build the front panel, then the end to end recording</td>
+          <td>Both want everything else already stable</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>Your teammate has a parallel track that is not blocked by any of this.</b>
+      <code class="inline">docs/REPORT_AUDIT.md</code> lists every outdated section in the
+      draft with a severity grade. None of it needs hardware. They can work through that
+      today while you deal with the radio.
+    </div>
+  </section>
+
+  <section class="stage" id="ignore">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">What to ignore for now</h2></div>
+
+    <p>Things that look like problems and are not. Do not spend time on any of these.</p>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>Looks alarming</th><th>Actually</th></tr>
+        <tr><td><code class="inline">htc_9271-1.4.0.fw failed with error -2</code></td><td><b>Normal.</b> The driver tries a versioned filename, fails, and loads <code class="inline">htc_9271.fw</code>. Your firmware is installed and fine</td></tr>
+        <tr><td><code class="inline">sudo dtn-doctor: command not found</code></td><td>Only installs on the next <code class="inline">setup_node.sh</code> run. Use <code class="inline">sudo bash tools/dtn_doctor.sh</code> from the repo root</td></tr>
+        <tr><td>"no peers visible" on a healthy node</td><td>Correct when the other node has no radio. One node can never show a peer</td></tr>
+        <tr><td>No sync lines in the log</td><td>Follows from no peers. It is not a missing table; the loop has nobody to talk to</td></tr>
+        <tr><td><code class="inline">DTN_MAC</code> and <code class="inline">DTN_MAC_ALT</code> in the confs</td><td>No longer used. Interfaces match by driver now. Leave them alone</td></tr>
+        <tr><td>DRONE_S being untouched</td><td>Fine. Nothing in the next two weeks needs it</td></tr>
+        <tr><td>Country code showing <code class="inline">00</code> not <code class="inline">LK</code></td><td>Cosmetic for now. Note it before the range measurements, since it caps transmit power, but it does not block anything</td></tr>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>If you are unsure whether something is a real fault</b>, run
+      <code class="inline">sudo bash tools/dtn_doctor.sh</code> and trust its verdict. It now
+      knows about the flapping-adapter case that fooled it earlier, so a clean result from it
+      genuinely means clean.
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  Rescue Mesh &middot; navigation, 8 August 2026<br>
+  Evidence plan: docs/testing_evidence_plan.html. Report gaps: docs/REPORT_AUDIT.md. Node diagnosis: tools/dtn_doctor.sh.
+</footer>
