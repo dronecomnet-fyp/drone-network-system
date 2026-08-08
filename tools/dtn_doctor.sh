@@ -196,61 +196,78 @@ BADPORTS=$(dmesg 2>/dev/null | grep -io "usb [0-9-]*-port[0-9]*: Cannot enable\|
 [ -n "$BADPORTS" ] && say "     ports reporting enable failures: $BADPORTS"
 NBADPORTS=$(printf '%s' "$BADPORTS" | wc -w | tr -d ' ')
 
-if [ "$PORTERR" -gt 0 ] && [ "$NBADPORTS" = "1" ]; then
-    bad "one specific USB port is failing to enable devices"
-    fix "The failures are all on a SINGLE port ($BADPORTS), not spread across the board. That is a faulty port, not a power problem. A port in this state typically works when the device is present at boot, because the hub powers every port once during startup, and then fails on replug, because a hot insert needs the port to do its own powered reset and this one cannot." \
+# Is the adapter still IN a failing port, or has it already been moved
+# out of one? dmesg keeps the whole boot, so errors from a port the
+# operator has already abandoned would otherwise be reported forever as a
+# current fault. Reporting a solved problem as [FAIL] is how a working
+# node gets debugged for another hour.
+# Is the adapter still IN a failing port, or already moved out of one?
+# dmesg holds the whole boot, so errors from a port the operator has
+# already abandoned would otherwise be reported forever as a live fault.
+# Reporting a solved problem as [FAIL] is how a working node gets
+# debugged for another hour. Defaults to "assume affected" when the
+# current port cannot be determined, so an unknown never reads as safe.
+STILL_IN_BAD=1
+if [ -n "$CURPORT" ]; then
+    if printf '%s' "$BADPORTS" | grep -qw -- "$CURPORT"; then
+        STILL_IN_BAD=1
+    else
+        STILL_IN_BAD=0
+    fi
+fi
+
+if [ "$PORTERR" -gt 0 ] && [ "$STILL_IN_BAD" = "0" ]; then
+    ok "the adapter is NOT in a failing port"
+    say ""
+    say "     Port(s) with errors: $BADPORTS"
+    say "     Adapter is now on:   $CURPORT"
+    say ""
+    say "     Those errors are history from earlier this boot, before the"
+    say "     adapter was moved. Nothing to fix here. Two things worth"
+    say "     doing anyway:"
+    say "       - label the bad port physically so nobody uses it again"
+    say "       - note it in the build log, it belongs in the report"
+
+elif [ "$PORTERR" -gt 0 ] && [ "$NBADPORTS" = "1" ]; then
+    bad "the adapter is sitting in a port that fails to enable devices"
+    fix "The failures are all on a SINGLE port ($BADPORTS) and that is the port the adapter is in. That is a faulty port, not a power problem. Such a port typically works when the device is present at boot, because the hub powers every port once during startup, then fails on replug, because a hot insert needs the port to do its own powered reset and this one cannot." \
         "  1. MOVE THE ADAPTER to a different port and leave it there." \
         "     Confirm with an unplug and replug: a good port re-enumerates" \
         "     within a couple of seconds." \
         "" \
-        "  2. LABEL THE BAD PORT physically, with tape or a marker. This" \
-        "     will otherwise be rediscovered by whoever picks the node up" \
-        "     next, and it costs hours each time." \
+        "  2. LABEL THE BAD PORT physically, with tape or a marker, or it" \
+        "     will be rediscovered by whoever picks the node up next." \
         "" \
-        "  3. Optionally, once: update the Pi USB controller firmware." \
-        "     It occasionally fixes port-enable faults and is cheap to try." \
-        "         sudo rpi-eeprom-update -a  &&  sudo reboot" \
+        "  3. Optionally, once: sudo rpi-eeprom-update -a && sudo reboot" \
+        "     The USB controller firmware handles port power and reset." \
         "" \
         "You do NOT need a powered hub or a bigger supply for this fault." \
         "The other ports on this board work, which rules out the supply."
-fi
 
-if [ "$PORTERR" -gt 0 ]; then
-    bad "the USB port has failed to enable the device $PORTERR time(s)"
+elif [ "$PORTERR" -gt 0 ]; then
+    bad "the USB ports have failed to enable devices $PORTERR time(s)"
     say ""
     dmesg 2>/dev/null | grep -i "Cannot enable\|unable to enumerate\|attempt power cycle" | tail -4 | sed 's/^/    /'
-    fix "This is an ELECTRICAL fault, not a software one. 'Cannot enable. Maybe the USB cable is bad' and 'attempt power cycle' are the USB host controller telling you it cannot keep the device powered and enumerated. The adapter may be working at this instant and will drop again." \
-        "In order of likelihood, and the first one is usually it:" \
-        "" \
+    fix "Enable failures across MORE THAN ONE port ($BADPORTS). One bad port is a bad port; several is the supply not holding up under load." \
         "  1. POWER. The AR9271 pulls 400 to 500 mA on its own, on top of" \
-        "     the Pi and the aux module. A weak supply or a battery pack" \
-        "     cannot hold that up. Use a 3 A class supply." \
+        "     the Pi and the aux module. Use a 3 A class supply." \
         "" \
-        "  2. A POWERED USB HUB between the Pi and the adapter. This is the" \
-        "     definitive fix and worth doing for the field build, because it" \
-        "     takes the adapter off the Pi's own power budget entirely." \
+        "  2. A POWERED USB HUB between the Pi and the adapter, which takes" \
+        "     it off the Pi's power budget entirely." \
         "" \
-        "  3. A different USB port, and no extension cable. If you are using" \
-        "     an extension, remove it and test the adapter directly." \
+        "  3. Remove any extension cable and test the adapter directly." \
         "" \
-        "  4. A failing adapter. Swap in the other one, same port and supply." \
-        "     If that one is stable, the first adapter is the fault." \
-        "" \
-        "Until this is fixed, treat ALL range and sync measurements from" \
-        "this node as void: the mesh will disappear mid-test and the result" \
-        "will look like a software problem."
-elif [ "$DISC" -gt 1 ]; then
-    bad "the adapter has disconnected $DISC times this boot"
-    fix "The adapter keeps leaving the USB bus. It is up now, but it will not stay up, and anything measured through it is unreliable." \
-        "Most likely power. Move to a 3 A supply, or put a powered USB hub" \
-        "between the Pi and the adapter, then re-run this check." \
-        "" \
-        "See CHANGES item 40: this exact failure already cost the project an" \
-        "evening once, because sync keeps logging SYNC_OK while it happens."
-elif [ "$DISC" -eq 1 ]; then
-    warn "one disconnect seen this boot, which is normal if you replugged it"
+        "Until this is fixed, treat range and sync measurements from this" \
+        "node as void: the mesh will vanish mid-test and it will look like" \
+        "a software problem."
+
+elif [ "$DISC" -gt 2 ]; then
+    warn "the adapter has disconnected $DISC times this boot"
+    say "     If those were not your own replugs, the link is unstable."
+    say "     Reboot, leave it alone, and check this count again."
+
 else
-    ok "no disconnects this boot"
+    ok "no port faults reported"
 fi
 
 # The driver tries a versioned firmware filename first and falls back.

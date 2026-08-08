@@ -1218,3 +1218,24 @@ Phase 1 security docs) is flagged here, never silently drifted.
     Also softened a misleading count. The disconnect tally includes the
     operator's own unplug and replug testing, which during triage is most
     of it, so the script now says so on the same line.
+
+60. **The doctor reported a solved problem as a live fault.** With the
+    adapter moved to a working port, it still printed FAIL, because
+    `dmesg` holds the whole boot and the errors from the abandoned port
+    are still in it. Reporting history as a current fault is how a working
+    node gets debugged for another hour, which is the opposite of the
+    tool's job.
+
+    It now compares the port the adapter is actually IN against the ports
+    that have logged failures, and distinguishes three cases: the adapter
+    sits in a failing port (a real fault, move it), the adapter has been
+    moved out of one (history, say so and suggest labelling the bad port),
+    or failures span several ports (the supply, not a port).
+
+    Unknown current port defaults to "assume affected", so a case the
+    script cannot resolve never reads as safe.
+
+    The port logic was also three overlapping `if` blocks, which is why
+    the OK branch fell through into a second FAIL. It is one `if/elif`
+    chain now, and all three outcomes are tested by replaying stubbed node
+    states.
