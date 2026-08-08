@@ -40,6 +40,44 @@ if [[ ! -f "$CONF_FILE" ]]; then
     echo "ERROR: node config not found: $CONF_FILE"
     exit 1
 fi
+
+# Refuse to configure a node as a DIFFERENT node.
+#
+# The letter is just an argument, so "setup_node.sh a" run on drone-b used
+# to configure drone-b as DRONE_A: wrong node id, wrong AP name, and the
+# wrong DTN address. Two nodes then answer to 10.99.0.1, the mesh cannot
+# form, and the symptom is an empty peer list with everything else looking
+# healthy. That happened, and it took a while to spot because every
+# individual check passes on both nodes.
+#
+# Only enforced when the hostname already follows the drone-x convention.
+# A freshly imaged Pi is still called something else, and first-time setup
+# must not be blocked.
+THIS_HOST="$(hostname)"
+if [[ "$THIS_HOST" =~ ^drone-([abs])$ ]]; then
+    HOST_LETTER="${BASH_REMATCH[1]}"
+    if [[ "$HOST_LETTER" != "$NODE_LETTER" ]]; then
+        echo ""
+        echo "ERROR: refusing to configure the wrong node."
+        echo ""
+        echo "  This machine is:      $THIS_HOST"
+        echo "  You asked to set up:  drone-$NODE_LETTER"
+        echo ""
+        echo "  Running this would give $THIS_HOST the identity, WiFi name"
+        echo "  and mesh address belonging to drone-$NODE_LETTER. Two nodes"
+        echo "  would then share one address, the mesh would not form, and"
+        echo "  every check would still look healthy on both."
+        echo ""
+        echo "  You almost certainly want:"
+        echo "      sudo $0 $HOST_LETTER"
+        echo ""
+        echo "  If you really are re-purposing this board as"
+        echo "  drone-$NODE_LETTER, change the hostname first:"
+        echo "      sudo hostnamectl set-hostname drone-$NODE_LETTER"
+        echo ""
+        exit 1
+    fi
+fi
 if [[ ! -f "$SECRETS_DIR/fleet_secrets.env" || ! -f "$SECRETS_DIR/fleet_ca.key" ]]; then
     echo "ERROR: $SECRETS_DIR is missing fleet trust material."
     echo "Run deploy/make_fleet_ca.sh ONCE on the operator laptop and copy"

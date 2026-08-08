@@ -324,6 +324,50 @@ case "$MATCH" in
         ;;
 esac
 
+# --- 1d. is this node configured as ITSELF? -----------------------------
+#
+# setup_node.sh takes the node letter as an argument, so running
+# "setup_node.sh a" on drone-b configured drone-b as DRONE_A: wrong id,
+# wrong AP name, and 10.99.0.1 on both boards. The mesh then cannot form
+# because two nodes answer to one address, and NOTHING else in this
+# script notices, because every individual check passes on both.
+step "Is this node configured as itself?"
+HOSTNAME_NOW="$(hostname)"
+CONF_IP="$(cat /etc/rescue-mesh/dtn_ip 2>/dev/null)"
+CONF_NODE="$(grep -o 'NODE_ID=[A-Z_]*' /etc/rescue-mesh/node.env 2>/dev/null | cut -d= -f2)"
+say "     hostname: $HOSTNAME_NOW    configured as: ${CONF_NODE:-unknown}    dtn ip: ${CONF_IP:-unset}"
+
+case "$HOSTNAME_NOW" in
+    drone-a) WANT_NODE=DRONE_A; WANT_IP=10.99.0.1 ;;
+    drone-b) WANT_NODE=DRONE_B; WANT_IP=10.99.0.2 ;;
+    drone-s) WANT_NODE=DRONE_S; WANT_IP=10.99.0.3 ;;
+    *)       WANT_NODE=""; WANT_IP="" ;;
+esac
+
+if [ -z "$WANT_NODE" ]; then
+    warn "hostname '$HOSTNAME_NOW' is not drone-a/b/s, cannot cross-check"
+elif [ "$CONF_NODE" != "$WANT_NODE" ] || [ "$CONF_IP" != "$WANT_IP" ]; then
+    bad "this board is configured as the WRONG NODE"
+    LETTER="${HOSTNAME_NOW#drone-}"
+    fix "The hostname says $HOSTNAME_NOW, but the node is configured as ${CONF_NODE:-unknown} on ${CONF_IP:-no address}. It should be $WANT_NODE on $WANT_IP. Almost always this is setup_node.sh having been run with the wrong letter on this board. Two nodes now share one mesh address, which is why the peer list is empty while everything else looks healthy." \
+        "Re-run setup with the letter for THIS board:" \
+        "" \
+        "    cd ~/rescue-mesh/deploy && sudo ./setup_node.sh $LETTER" \
+        "    sudo reboot" \
+        "" \
+        "Newer setup refuses to do this, but a node configured before that" \
+        "guard existed stays wrong until it is re-run." \
+        "" \
+        "Optional but tidy: records written while it held the wrong" \
+        "identity are stamped with that node id. If this node holds only" \
+        "test data, clear it after the re-run:" \
+        "    sudo systemctl stop rescue-mesh-api rescue-mesh-sync" \
+        "    rm -f ~/rescue-mesh/backend/drone_mesh.db" \
+        "    sudo systemctl start rescue-mesh-api rescue-mesh-sync"
+else
+    ok "$CONF_NODE on $CONF_IP, matches the hostname"
+fi
+
 # --- 2. is the bring-up script installed --------------------------------
 step "Bring-up script installed?"
 if [ -x /usr/local/sbin/dtn-net-up.sh ]; then

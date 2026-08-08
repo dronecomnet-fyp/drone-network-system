@@ -1239,3 +1239,36 @@ Phase 1 security docs) is flagged here, never silently drifted.
     the OK branch fell through into a second FAIL. It is one `if/elif`
     chain now, and all three outcomes are tested by replaying stubbed node
     states.
+
+61. **A node could be configured as a DIFFERENT node, and nothing
+    noticed.** `setup_node.sh` takes the node letter purely as an
+    argument. Running `setup_node.sh a` on drone-b configured drone-b as
+    DRONE_A: node id DRONE_A, access point RESCUE_A, and DTN address
+    10.99.0.1, which DRONE_A already holds.
+
+    The failure this produces is unusually nasty. Two boards answer to one
+    mesh address, so the cell cannot form and the peer list stays empty,
+    while every other check on both nodes passes: the interface exists, it
+    is in IBSS mode, it joined the right SSID, the services are running.
+    The operator spotted it in a single log line reading `joined
+    RESCUE_DTN @2437MHz as 10.99.0.1` on the wrong board.
+
+    Two changes. `setup_node.sh` now refuses when the hostname follows the
+    `drone-x` convention and disagrees with the requested letter, printing
+    the command that was probably intended. It stays permissive when the
+    hostname is something else, because a freshly imaged Pi has not been
+    renamed yet and first-time setup must not be blocked.
+
+    `dtn_doctor.sh` cross-checks hostname against the configured node id
+    and DTN address, so a board that was mis-configured before the guard
+    existed is caught rather than silently wrong. It also offers to clear
+    the database, since records written under a borrowed identity carry
+    the wrong originating node id.
+
+    Worth noting for the report: this is the fourth distinct fault this
+    week whose only symptom was an empty peer list. Missing firmware, a
+    dead USB port, stale naming rules, and now a duplicated address all
+    present identically from the application's point of view. That is a
+    genuine observability finding about the system, not just a run of bad
+    luck, and it is why the diagnostic script now checks the whole chain
+    rather than any single link.
