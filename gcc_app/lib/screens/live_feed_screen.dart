@@ -1,7 +1,17 @@
-/// Live Feed (file 04 screen 2): all victim messages with filter/search,
-/// claim state visibility, and data age. E2E decryption of encrypted
+/// Live Feed (file 04 screen 2): everything coming IN, with filter and
+/// search, claim state, and data age. E2E decryption of encrypted
 /// payloads is deferred until the E2E capability is switched on
 /// (file 09 D2 keeps it off by default); encrypted rows are labeled.
+///
+/// Two inbound streams share this screen, chosen with the source toggle:
+///
+///   VICTIMS       messages from the public, via the captive portal or
+///                 the emergency app.
+///   FIELD REPORTS what rescuers send up from the field. The rescue app
+///                 has always been able to send these, and until now the
+///                 GCC had nowhere to read them: they existed only as a
+///                 number on Live Ops and a pin on the map. A one-way
+///                 channel with no inbox is not a channel.
 library;
 
 import 'package:flutter/material.dart';
@@ -22,6 +32,7 @@ class LiveFeedScreen extends StatefulWidget {
 class _LiveFeedScreenState extends State<LiveFeedScreen> {
   String _query = '';
   String _statusFilter = 'ALL';
+  String _source = 'VICTIMS';
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +43,7 @@ class _LiveFeedScreenState extends State<LiveFeedScreen> {
       return _LoginPrompt(onLogin: () => showLoginDialog(context));
     }
 
+    final reports = data.gsMessages.items;
     var items = data.messages.items;
     if (_statusFilter != 'ALL') {
       items = items.where((m) => m.status == _statusFilter).toList();
@@ -60,15 +72,32 @@ class _LiveFeedScreenState extends State<LiveFeedScreen> {
                   style: Theme.of(context).textTheme.bodySmall),
               const Spacer(),
               SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'ALL', label: Text('All')),
-                  ButtonSegment(value: 'NEW', label: Text('New')),
-                  ButtonSegment(value: 'CLAIMED', label: Text('Claimed')),
+                segments: [
+                  const ButtonSegment(
+                      value: 'VICTIMS',
+                      icon: Icon(Icons.person_pin_circle, size: 16),
+                      label: Text('Victims')),
+                  ButtonSegment(
+                      value: 'REPORTS',
+                      icon: const Icon(Icons.flag, size: 16),
+                      label: Text('Field reports (${reports.length})')),
                 ],
-                selected: {_statusFilter},
+                selected: {_source},
                 onSelectionChanged: (s) =>
-                    setState(() => _statusFilter = s.first),
+                    setState(() => _source = s.first),
               ),
+              const SizedBox(width: 12),
+              if (_source == 'VICTIMS')
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'ALL', label: Text('All')),
+                    ButtonSegment(value: 'NEW', label: Text('New')),
+                    ButtonSegment(value: 'CLAIMED', label: Text('Claimed')),
+                  ],
+                  selected: {_statusFilter},
+                  onSelectionChanged: (s) =>
+                      setState(() => _statusFilter = s.first),
+                ),
               const SizedBox(width: 12),
               SizedBox(
                 width: 240,
@@ -85,14 +114,83 @@ class _LiveFeedScreenState extends State<LiveFeedScreen> {
           ),
         ),
         Expanded(
-          child: items.isEmpty
-              ? const Center(child: Text('No messages match.'))
-              : ListView.builder(
-                  itemCount: items.length,
-                  itemBuilder: (ctx, i) => _MessageTile(message: items[i]),
-                ),
+          child: _source == 'REPORTS'
+              ? _ReportList(reports: reports, query: _query)
+              : items.isEmpty
+                  ? const Center(child: Text('No messages match.'))
+                  : ListView.builder(
+                      itemCount: items.length,
+                      itemBuilder: (ctx, i) => _MessageTile(message: items[i]),
+                    ),
         ),
       ],
+    );
+  }
+}
+
+/// Field reports from rescuers, newest first.
+class _ReportList extends StatelessWidget {
+  const _ReportList({required this.reports, required this.query});
+
+  final List<GsMessage> reports;
+  final String query;
+
+  @override
+  Widget build(BuildContext context) {
+    var items = List<GsMessage>.from(reports);
+    if (query.isNotEmpty) {
+      final q = query.toLowerCase();
+      items = items
+          .where((g) =>
+              g.content.toLowerCase().contains(q) ||
+              g.sender.toLowerCase().contains(q))
+          .toList();
+    }
+    items.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    if (items.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: Text(
+            'No field reports yet.\n\n'
+            'Rescuers send these from the HQ Uplink tab of the rescue app. '
+            'They replicate like any other record, so one filed at another '
+            'drone arrives here after the next sync.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: items.length,
+      itemBuilder: (ctx, i) {
+        final g = items[i];
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: ListTile(
+            leading: const Icon(Icons.flag, color: Colors.purpleAccent),
+            title: Text(g.content),
+            subtitle: Text([
+              'from ${g.sender.isEmpty ? "unknown" : g.sender}',
+              g.timestamp,
+              if (g.hasLocation)
+                '${g.locationLat!.toStringAsFixed(5)}, '
+                    '${g.locationLon!.toStringAsFixed(5)}',
+              // Which node took it in. During a partition this is the
+              // difference between "just filed" and "carried here".
+              if (g.nodeId.isNotEmpty) 'via ${g.nodeId}',
+            ].join('  |  ')),
+            isThreeLine: true,
+            trailing: g.hasLocation
+                ? const Tooltip(
+                    message: 'has a location, shown on the map',
+                    child: Icon(Icons.place, size: 18))
+                : null,
+          ),
+        );
+      },
     );
   }
 }

@@ -1422,3 +1422,20 @@ Phase 1 security docs) is flagged here, never silently drifted.
     `time_source`. A fleet with no RTC and no NTP has to treat "the other
     end's clock" as untrusted input everywhere, not just where it is
     displayed.
+
+67. **Field reports had no inbox.** The rescue app has always been able to
+    file a report to HQ, and the GCC had nowhere to read one. They existed
+    only as a number on Live Ops and a purple pin on the map. A one-way
+    channel with no inbox is not a channel, and rescuers were sending into
+    a void.
+
+    Live Feed now has a source toggle: victim messages, or field reports
+    with a count on the button. Each report shows its content, who filed
+    it, when, its coordinates when it carried them, and **which node took
+    it in**. That last field matters during a partition, because it is the
+    difference between a report just filed here and one carried across the
+    mesh from somewhere else.
+
+    The empty state explains where reports come from and that one filed at
+    another drone arrives after the next sync, rather than just saying
+    there are none.
