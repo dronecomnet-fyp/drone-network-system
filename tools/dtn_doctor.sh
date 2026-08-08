@@ -498,11 +498,25 @@ fi
 
 SYNCLINES=$(journalctl -u rescue-mesh-sync -n 60 --no-pager 2>/dev/null | grep -c "SYNC_OK\|SYNC_START")
 say "     SYNC lines in the last 60 log entries: $SYNCLINES"
-if [ "$SYNCLINES" -eq 0 ]; then
+if [ "$SYNCLINES" -eq 0 ] && [ -z "$PEERS" ]; then
     say ""
-    say "     No sync lines. If there are also no peers above, that is the"
-    say "     explanation and it is consistent: the loop has nobody to sync"
-    say "     with, so it logs nothing. It is NOT a missing table."
+    say "     No sync lines, and no peers. Those are consistent: the loop"
+    say "     has nobody to sync with, so it logs nothing. It is NOT a"
+    say "     missing table."
+elif [ "$SYNCLINES" -eq 0 ]; then
+    # Peers ARE visible. Saying "that is because you have no peers" here,
+    # as an earlier version did, contradicts the line printed six lines
+    # above and sends the operator hunting for a problem that does not
+    # exist.
+    say ""
+    say "     No sync lines YET, but peers are visible. That is normal for"
+    say "     the first half minute after a restart: the loop runs every"
+    say "     30 s, so it may simply not have come round."
+    say ""
+    say "     Wait a minute and re-run this. If it is still empty then,"
+    say "     check the peer is reachable and answering:"
+    say "       ping -c2 10.99.0.2          # or .1 / .3"
+    say "       curl -sk https://10.99.0.2:8443/health | head -c 80"
 else
     TABLES=$(journalctl -u rescue-mesh-sync -n 200 --no-pager 2>/dev/null \
              | grep -o "table=[a-z_]*" | sort -u | sed 's/table=//' | tr '\n' ' ')
