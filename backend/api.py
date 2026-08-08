@@ -22,6 +22,7 @@ Static role keys remain as labeled break-glass credentials only.
 import base64
 import html
 import json
+import zlib
 import ssl
 from datetime import datetime, timezone
 from enum import Enum
@@ -624,12 +625,37 @@ def create_personnel(
         raise HTTPException(status_code=500, detail="Internal error creating personnel")
 
 
+# Sign-in codes are COMPRESSED, and that is a scannability requirement
+# rather than an optimisation.
+#
+# The first version base64-encoded the record, then embedded that string
+# inside another JSON object, then base64-encoded the result. Double
+# encoding inflates by a third, and the payload reached about 880
+# characters. A QR carrying 880 bytes needs version 25, which is 117
+# modules across; displayed at 220 px that is 1.9 pixels per module, and
+# a phone camera needs at least 3. The code was unscannable, so every
+# rescuer fell back to typing a PIN, which only works on the node that
+# issued it. The whole cross-node sign-in feature was dead in the field.
+#
+# Nesting the record as an OBJECT rather than a string, then deflating,
+# gives about 420 characters: version 15, 77 modules, comfortable at the
+# size the GCC now renders.
+SIGNIN_PREFIX = "Z"
+
+
 def _signin_blob(record: dict, pin: str) -> str:
     """Everything needed to sign in from one scan: the signed record plus
     the PIN. See the posture note at the call site."""
-    return base64.urlsafe_b64encode(json.dumps(
-        {"e": _enrolment_blob(record), "p": pin, "i": record["personnel_id"]},
-        separators=(",", ":")).encode()).decode()
+    fields = ["personnel_id", "name", "role", "pin_salt", "pin_hash",
+              "pin_algo", "pin_iterations", "issued_at", "expires_at",
+              "status", "updated_at", "signature"]
+    payload = json.dumps(
+        {"e": {k: record.get(k) for k in fields},
+         "p": pin,
+         "i": record["personnel_id"]},
+        separators=(",", ":")).encode()
+    return SIGNIN_PREFIX + base64.urlsafe_b64encode(
+        zlib.compress(payload, 9)).decode()
 
 
 def _enrolment_blob(record: dict) -> str:

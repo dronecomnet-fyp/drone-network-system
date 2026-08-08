@@ -6,6 +6,8 @@
 /// entered manually so the field stays fully offline-capable.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -977,14 +979,37 @@ class _DeploymentsCard extends StatelessWidget {
     }
 
     // Field backlog #3b: show what it is doing, step by step, instead of
-    // one spinner. See ai_progress_dialog.dart for which of these steps
-    // are real work and which is presentation.
+    // one spinner. See ai_progress_dialog.dart for which steps are real
+    // work and which is presentation.
+    //
+    // The navigator is captured HERE, before any await, and the root one
+    // is used deliberately. The first version popped with
+    // Navigator.of(context) after switching tabs, which destroyed this
+    // screen, made context.mounted false, and skipped the pop entirely.
+    // The dialog then had barrierDismissible:false and no buttons, so it
+    // could not be closed at all and the operator had to restart the app.
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    final shellNav = context.read<ShellNav>();
     final progress = AiProgress();
-    showDialog<void>(
+    var dialogOpen = true;
+    void closeProgress() {
+      if (!dialogOpen) return;
+      dialogOpen = false;
+      rootNav.pop();
+    }
+
+    unawaited(showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AiProgressDialog(progress: progress),
-    );
+      useRootNavigator: true,
+      builder: (_) => AiProgressDialog(
+        progress: progress,
+        // An escape hatch that is ALWAYS present, whatever the code
+        // around it does. A progress dialog the user cannot dismiss is
+        // worse than no progress dialog.
+        onClose: closeProgress,
+      ),
+    ));
 
     final advisor = AiAdvisor(
       endpoint: app.aiEndpoint,
@@ -1006,7 +1031,6 @@ class _DeploymentsCard extends StatelessWidget {
       final plan = Deployment(name: 'AI plan $n', source: 'ai');
       m.addDeployment(plan);
       m.setPlanningMode(true);
-      if (context.mounted) context.read<ShellNav>().go(ShellNav.mapTab);
       for (var i = 0; i < suggestion.placements.length; i++) {
         await Future<void>.delayed(const Duration(milliseconds: 320));
         plan.placements.add(suggestion.placements[i]);
@@ -1015,10 +1039,16 @@ class _DeploymentsCard extends StatelessWidget {
       }
       progress.to(AiStep.done);
       await Future<void>.delayed(const Duration(milliseconds: 250));
-      if (!context.mounted) return;
-      Navigator.of(context).pop(); // dismiss the progress dialog
+
+      // Close the progress dialog BEFORE changing tabs. Doing it the
+      // other way round is what broke this.
+      closeProgress();
+      shellNav.go(ShellNav.mapTab);
+
+      if (!rootNav.mounted) return;
       await showDialog<void>(
-        context: context,
+        context: rootNav.context,
+        useRootNavigator: true,
         builder: (ctx) => AlertDialog(
           title: Text('AI plan $n (draft)'),
           content: SizedBox(
@@ -1033,8 +1063,7 @@ class _DeploymentsCard extends StatelessWidget {
                     : suggestion.summary),
                 if (suggestion.warnings.isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  Text('Warnings',
-                      style: Theme.of(ctx).textTheme.labelLarge),
+                  Text('Warnings', style: Theme.of(ctx).textTheme.labelLarge),
                   const SizedBox(height: 4),
                   ...suggestion.warnings.map((w) => Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1057,18 +1086,32 @@ class _DeploymentsCard extends StatelessWidget {
             ),
           ),
           actions: [
-            FilledButton(
+            TextButton(
+              onPressed: () {
+                m.removeDeployment(plan);
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Discard'),
+            ),
+            TextButton(
                 onPressed: () => Navigator.of(ctx).pop(),
                 child: const Text('Review on map')),
+            FilledButton(
+              onPressed: () {
+                m.approveDeployment(plan);
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Approve'),
+            ),
           ],
         ),
       );
     } on AiAdvisorException catch (e) {
-      if (context.mounted) Navigator.of(context).pop();
-      if (context.mounted) await _showAiError(context, e.message);
+      closeProgress();
+      if (rootNav.mounted) await _showAiError(rootNav.context, e.message);
     } catch (e) {
-      if (context.mounted) Navigator.of(context).pop();
-      if (context.mounted) await _showAiError(context, '$e');
+      closeProgress();
+      if (rootNav.mounted) await _showAiError(rootNav.context, '$e');
     } finally {
       advisor.close();
     }

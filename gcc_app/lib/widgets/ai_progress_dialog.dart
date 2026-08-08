@@ -49,9 +49,16 @@ class AiProgress extends ChangeNotifier {
 }
 
 class AiProgressDialog extends StatelessWidget {
-  const AiProgressDialog({super.key, required this.progress});
+  const AiProgressDialog(
+      {super.key, required this.progress, required this.onClose});
 
   final AiProgress progress;
+
+  /// Always wired, never optional. An earlier version had no button at
+  /// all and relied on the caller popping it, and when the caller's
+  /// context was disposed by a tab switch the dialog became impossible to
+  /// dismiss. A progress dialog must always carry its own way out.
+  final VoidCallback onClose;
 
   static const _labels = {
     AiStep.reading: 'Reading the mission',
@@ -118,6 +125,15 @@ class AiProgressDialog extends StatelessWidget {
               ],
             ),
           ),
+          actions: [
+            TextButton(
+              onPressed: onClose,
+              child: Text(progress.step == AiStep.done ||
+                      progress.step == AiStep.failed
+                  ? 'Close'
+                  : 'Cancel'),
+            ),
+          ],
         );
       },
     );

@@ -1341,3 +1341,52 @@ Phase 1 security docs) is flagged here, never silently drifted.
 
     The doctor also greps with `-a`, since logs written before this change
     still contain the old bytes.
+
+64. **The AI progress dialog could not be closed, and that was three
+    mistakes stacked.** The operator ran an AI suggestion and was left
+    with a banner reporting four completed steps, no button, and no way
+    out except restarting the app.
+
+    What happened, in order. The dialog was opened with
+    `barrierDismissible: false` and **no actions at all**, relying
+    entirely on the caller to pop it. The caller then switched tabs while
+    it was open, which disposed the Mission screen that owned the context.
+    The next line was `if (!context.mounted) return;`, so the function
+    returned before reaching `Navigator.of(context).pop()`. Any one of the
+    three would have been survivable; together they made a modal with no
+    exit.
+
+    Fixed at every layer rather than just the one that failed. The dialog
+    now always renders its own Close button, because a progress dialog
+    that depends on someone else to dismiss it is a trap. The navigator is
+    captured before any `await` and the root navigator is used, so the
+    calling screen's lifecycle is irrelevant. The tab switch happens after
+    the dialog is closed, not before. And the summary that follows now
+    offers Approve and Discard rather than only "Review on map", so the
+    draft can be resolved without hunting for it.
+
+65. **The sign-in QR was physically unscannable, which killed cross-node
+    login.** Reported twice: rescuers could only log in on the node the
+    GCC was joined to, and nobody could scan the code.
+
+    Those were the same bug. `_signin_blob` base64-encoded the personnel
+    record, embedded that STRING in another JSON object, and base64'd the
+    result. Double encoding inflates by a third and the payload reached
+    about 880 characters, needing QR version 25 at 117 modules across.
+    Rendered at 220 px that is 1.9 pixels per module; a phone camera needs
+    at least 3. So the code never scanned, every rescuer fell back to
+    typing a PIN, and a PIN only works on a node that already holds the
+    record. The cross-node feature existed and was unreachable.
+
+    Two changes: the record now travels as an object rather than a nested
+    base64 string, and the payload is deflated, taking it from 880 to
+    about 430 characters, which is version 15 at 77 modules. The GCC
+    renders it at 380 px with the lowest error correction, since the code
+    is on a clean screen for seconds rather than printed on something that
+    will get wet. That is roughly 5 pixels per module.
+
+    Codes issued before this still decode, so nothing already printed
+    breaks. Both ends have regression guards on SIZE, not just
+    correctness: the backend asserts a code stays under 600 characters and
+    the app asserts the same, because this is a bug that comes back
+    silently the moment somebody adds a field to the record.

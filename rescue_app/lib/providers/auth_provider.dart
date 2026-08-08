@@ -8,6 +8,7 @@
 library;
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:rescue_mesh_shared/rescue_mesh_shared.dart' as shared;
@@ -123,12 +124,40 @@ class SigninCode {
 /// a crash.
 SigninCode? decodeSigninCode(String scanned) {
   try {
-    final raw = utf8.decode(base64Url.decode(scanned.trim()));
+    final text = scanned.trim();
+    if (text.isEmpty) return null;
+
+    // "Z" marks a deflated payload. Codes are compressed because an
+    // uncompressed one needed a QR so dense that no phone could read it
+    // (see the note in backend/api.py). The uncompressed form is still
+    // accepted so a code printed before that change keeps working.
+    final String raw;
+    if (text.startsWith('Z')) {
+      final bytes = base64Url.decode(base64Url.normalize(text.substring(1)));
+      raw = utf8.decode(ZLibCodec().decode(bytes));
+    } else {
+      raw = utf8.decode(base64Url.decode(base64Url.normalize(text)));
+    }
+
     final map = jsonDecode(raw);
     if (map is! Map) return null;
     final id = (map['i'] ?? '') as String;
     final pin = (map['p'] ?? '') as String;
-    final enrolment = (map['e'] ?? '') as String;
+
+    // The record travels as an OBJECT now, and the phone re-encodes it
+    // into the blob POST /enrol expects. The server verifies the
+    // signature over named fields, so re-encoding is safe: key order
+    // does not affect verification.
+    final e = map['e'];
+    final String enrolment;
+    if (e is Map) {
+      enrolment = base64Url.encode(utf8.encode(jsonEncode(e)));
+    } else if (e is String) {
+      enrolment = e; // legacy code, already a blob
+    } else {
+      return null;
+    }
+
     if (id.isEmpty || pin.isEmpty || enrolment.isEmpty) return null;
     return SigninCode(personnelId: id, pin: pin, enrolment: enrolment);
   } catch (_) {

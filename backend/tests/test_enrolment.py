@@ -62,11 +62,19 @@ def test_the_signin_code_DOES_carry_the_pin_and_that_is_deliberate():
     stolen code dies with the mission rather than lasting indefinitely.
     Pinned by a test so the tradeoff cannot be forgotten or reversed by
     accident."""
+    import zlib
     issued = _issue()
-    decoded = json.loads(base64.urlsafe_b64decode(issued["signin_code"]))
+    code = issued["signin_code"]
+    assert code.startswith("Z"), "codes are compressed, see _signin_blob"
+    decoded = json.loads(
+        zlib.decompress(base64.urlsafe_b64decode(code[1:].encode())))
     assert decoded["p"] == issued["pin"]
     assert decoded["i"] == issued["personnel_id"]
-    assert decoded["e"] == issued["enrolment"]
+    # The record travels as an object rather than a nested base64 string:
+    # double encoding is what made the QR unscannable.
+    assert isinstance(decoded["e"], dict)
+    assert decoded["e"]["personnel_id"] == issued["personnel_id"]
+    assert decoded["e"]["signature"], "the signature must travel with it"
 
 
 def test_a_rescuer_can_enrol_on_a_node_that_never_saw_them():
@@ -122,3 +130,53 @@ def test_garbage_is_rejected_cleanly():
                  base64.urlsafe_b64encode(b'{"no":"id"}').decode()]:
         r = authed.post("/enrol", json={"enrolment": junk})
         assert r.status_code in {400, 422}, junk
+
+
+def test_the_signin_code_is_small_enough_to_scan():
+    """Regression guard for the bug that killed cross-node sign-in.
+
+    The first version double-encoded: the record was base64'd, embedded
+    as a STRING in another JSON object, and that was base64'd again. The
+    result was about 880 characters, which needs QR version 25, 117
+    modules across. Rendered at any sane size on a laptop screen that is
+    under two pixels per module and no phone camera can read it. Every
+    rescuer therefore fell back to typing a PIN, which only works on the
+    node that issued it, so the whole feature was dead in the field.
+    """
+    code = _issue("Scan Size")["signin_code"]
+
+    assert code.startswith("Z"), "sign-in codes must be compressed"
+    assert len(code) < 600, (
+        f"sign-in code is {len(code)} chars. Above roughly 600 the QR "
+        "becomes too dense to scan at a usable on-screen size.")
+
+
+def test_a_compressed_code_still_enrols_and_logs_in():
+    """The size fix must not have broken what the code is FOR: proving a
+    rescuer to a node that has never heard of them."""
+    import base64
+    import json
+    import zlib
+
+    body = _issue("Round Trip")
+    code = body["signin_code"]
+
+    # Decode exactly as the phone does.
+    raw = zlib.decompress(base64.urlsafe_b64decode(code[1:].encode()))
+    decoded = json.loads(raw)
+    assert decoded["i"] == body["personnel_id"]
+    assert decoded["p"] == body["pin"]
+    assert isinstance(decoded["e"], dict), "record travels as an object"
+
+    # The phone re-encodes the record object into the enrolment blob.
+    blob = base64.urlsafe_b64encode(
+        json.dumps(decoded["e"], separators=(",", ":")).encode()).decode()
+
+    _forget(body["personnel_id"])
+    login = {"personnel_id": body["personnel_id"], "pin": body["pin"]}
+    assert authed.post("/auth/login", json=login).status_code != 200, (
+        "precondition: this node must not know the rescuer yet")
+
+    assert authed.post("/enrol", json={"enrolment": blob}).status_code == 200
+    assert authed.post("/auth/login", json=login).status_code == 200, (
+        "after enrolling the carried record, login must succeed")

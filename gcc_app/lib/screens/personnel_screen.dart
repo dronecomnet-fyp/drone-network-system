@@ -183,7 +183,18 @@ class PersonnelScreen extends StatelessWidget {
                     color: Colors.white,
                     child: QrImageView(
                       data: issued.signinCode,
-                      size: 220,
+                      // 380, not 220. A sign-in code is roughly 430
+                      // characters, which needs about 77 modules across.
+                      // At 220 px that was under 2 pixels per module and
+                      // no phone could read it; cameras want 3 to 4. This
+                      // is the difference between the feature working and
+                      // every rescuer falling back to typing a PIN.
+                      size: 380,
+                      // Lowest error correction: the code is displayed on
+                      // a clean screen for seconds, not printed on
+                      // something that will get wet, so spending capacity
+                      // on redundancy only makes the modules smaller.
+                      errorCorrectionLevel: QrErrorCorrectLevel.L,
                       backgroundColor: Colors.white,
                     ),
                   ),
