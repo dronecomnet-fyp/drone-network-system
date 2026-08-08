@@ -152,6 +152,73 @@ if ! ip link show wlan1 >/dev/null 2>&1; then
 fi
 ok "wlan1 exists (MAC $(cat /sys/class/net/wlan1/address 2>/dev/null))"
 
+# --- 1b. is the link STABLE, or is it flapping? -------------------------
+#
+# The interface existing right now says nothing about whether it stays.
+# An adapter that drops off the bus every half minute passes every other
+# check in this script between drops, and the first version of this tool
+# printed "No faults found" for a node whose adapter had disconnected
+# twice in the previous forty seconds. Silence about a flapping link is
+# worse than no check at all.
+step "Is the adapter link stable, or dropping off?"
+DISC=$(dmesg 2>/dev/null | grep -c "usb 1-1.*: USB disconnect")
+PORTERR=$(dmesg 2>/dev/null | grep -ci "Cannot enable. Maybe the USB cable is bad\|unable to enumerate USB device\|attempt power cycle")
+
+say "     USB disconnect events this boot: $DISC"
+say "     port enable failures this boot:  $PORTERR"
+
+if [ "$PORTERR" -gt 0 ]; then
+    bad "the USB port has failed to enable the device $PORTERR time(s)"
+    say ""
+    dmesg 2>/dev/null | grep -i "Cannot enable\|unable to enumerate\|attempt power cycle" | tail -4 | sed 's/^/    /'
+    fix "This is an ELECTRICAL fault, not a software one. 'Cannot enable. Maybe the USB cable is bad' and 'attempt power cycle' are the USB host controller telling you it cannot keep the device powered and enumerated. The adapter may be working at this instant and will drop again." \
+        "In order of likelihood, and the first one is usually it:" \
+        "" \
+        "  1. POWER. The AR9271 pulls 400 to 500 mA on its own, on top of" \
+        "     the Pi and the aux module. A weak supply or a battery pack" \
+        "     cannot hold that up. Use a 3 A class supply." \
+        "" \
+        "  2. A POWERED USB HUB between the Pi and the adapter. This is the" \
+        "     definitive fix and worth doing for the field build, because it" \
+        "     takes the adapter off the Pi's own power budget entirely." \
+        "" \
+        "  3. A different USB port, and no extension cable. If you are using" \
+        "     an extension, remove it and test the adapter directly." \
+        "" \
+        "  4. A failing adapter. Swap in the other one, same port and supply." \
+        "     If that one is stable, the first adapter is the fault." \
+        "" \
+        "Until this is fixed, treat ALL range and sync measurements from" \
+        "this node as void: the mesh will disappear mid-test and the result" \
+        "will look like a software problem."
+elif [ "$DISC" -gt 1 ]; then
+    bad "the adapter has disconnected $DISC times this boot"
+    fix "The adapter keeps leaving the USB bus. It is up now, but it will not stay up, and anything measured through it is unreliable." \
+        "Most likely power. Move to a 3 A supply, or put a powered USB hub" \
+        "between the Pi and the adapter, then re-run this check." \
+        "" \
+        "See CHANGES item 40: this exact failure already cost the project an" \
+        "evening once, because sync keeps logging SYNC_OK while it happens."
+elif [ "$DISC" -eq 1 ]; then
+    warn "one disconnect seen this boot, which is normal if you replugged it"
+else
+    ok "no disconnects this boot"
+fi
+
+# The driver tries a versioned firmware filename first and falls back.
+# The failure line looks alarming and is not a problem, so say so before
+# somebody spends an hour on it.
+if dmesg 2>/dev/null | grep -q "htc_9271-1.4.0.fw failed"; then
+    if dmesg 2>/dev/null | grep -q "Transferred FW: htc_9271.fw"; then
+        ok "firmware loaded (ignore the 'htc_9271-1.4.0.fw failed' line, the"
+        say "          driver tries a versioned name first and then falls back)"
+    else
+        fix "The ath9k_htc firmware did not load. The driver tried htc_9271-1.4.0.fw, fell back to htc_9271.fw, and that did not transfer either." \
+            "    sudo apt install -y firmware-ath9k-htc" \
+            "    sudo modprobe -r ath9k_htc && sudo modprobe ath9k_htc"
+    fi
+fi
+
 # --- 2. is the bring-up script installed --------------------------------
 step "Bring-up script installed?"
 if [ -x /usr/local/sbin/dtn-net-up.sh ]; then

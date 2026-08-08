@@ -1098,3 +1098,33 @@ Phase 1 security docs) is flagged here, never silently drifted.
     It is installed to `/usr/local/sbin/dtn-doctor` so it runs from any
     directory. The relative path caught the operator twice in one session,
     which is exactly the friction you do not want while diagnosing a node.
+
+56. **The doctor gave a node a clean bill of health while its adapter was
+    dropping off the bus every thirty seconds.** Field session on
+    DRONE_B: every check passed and the script printed "No faults found
+    in the mesh chain on this node". Meanwhile `dmesg` showed the AR9271
+    had disconnected twice in the previous forty seconds, with the USB
+    host controller reporting "Cannot enable. Maybe the USB cable is
+    bad?" and "attempt power cycle" at boot.
+
+    The flaw was structural, not a missed case. Every check asked "is
+    this correct RIGHT NOW", and an adapter that flaps passes all of them
+    in the gaps between drops. Silence about an unstable link is worse
+    than not checking, because it actively tells the operator to look
+    somewhere else.
+
+    A stability check now counts USB disconnects and port-enable failures
+    for the boot and reports them even when everything is currently up.
+    Port-enable failures are called out as an ELECTRICAL fault
+    specifically, with the fix ordered by likelihood: 3 A supply, then a
+    powered hub, then port and cable, then swapping adapters to tell a
+    dead adapter from a dead port. It also says plainly that range and
+    sync measurements taken through a flapping adapter are void, because
+    the mesh will vanish mid-test and the result will look like a
+    software problem.
+
+    One false alarm suppressed while there: `ath9k_htc` tries
+    `htc_9271-1.4.0.fw` first and falls back to `htc_9271.fw`. The first
+    attempt logs a scary "failed with error -2" that is entirely normal.
+    The doctor now says so when the fallback succeeded, instead of
+    leaving an alarming line for somebody to chase.
