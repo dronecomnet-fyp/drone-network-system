@@ -1029,3 +1029,50 @@ Phase 1 security docs) is flagged here, never silently drifted.
     configured it. That is invisible in `ip link` output and is the state
     a node sits in after an adapter is plugged into an already-running
     board.
+
+53. **wlan1 is matched by DRIVER, not by MAC address. Item 49 was the
+    wrong fix.** Field report: after a reboot the interface names swap.
+    The onboard radio was fine; the USB adapter was the problem.
+
+    MAC pinning assumes every adapter has a stable, unique hardware
+    address. Cheap AR9271 dongles do not: some carry a duplicated default
+    address, and some present a different one after a power cycle. Pin a
+    name to an address that changes and the interface comes up unnamed,
+    which is exactly the reported symptom.
+
+    Both `.link` files now match on what is actually invariant. The Pi's
+    built-in radio keeps its MAC match, because it is soldered on and its
+    address genuinely never changes. The USB adapter matches
+    `Driver=ath9k_htc`, which is true of every AR9271 and of nothing else
+    in the node.
+
+    Three problems close at once:
+
+    - Reboots cannot rename the interface, because the driver does not
+      change.
+    - Adapters became interchangeable with no configuration at all, which
+      supersedes `DTN_MAC_ALT` from item 49. That variable is now unused
+      and kept only as a record.
+    - `setup_node.sh` no longer needs the adapter present or its MAC
+      known, so a node whose adapter is currently in another node can
+      still be set up.
+
+    The lesson worth keeping: item 49 fixed the symptom by adding a second
+    MAC to match. It took a second field report to ask why the identifier
+    was unstable in the first place. Match on the property that cannot
+    change, not on the one that happened to work.
+
+54. **`dtn_doctor.sh` told a node with a plugged-in adapter that no
+    adapter was visible.** The first version printed "AR9271 seen on the
+    USB bus" and then, two lines later, "No USB WiFi adapter is visible to
+    the kernel at all". Both from the same run.
+
+    The gap was a real diagnostic case the script did not handle: the USB
+    device enumerates but the driver never creates a network interface,
+    which is what missing `ath9k_htc` firmware looks like. It now detects
+    that case specifically, prints the relevant `dmesg` lines, checks
+    whether `/lib/firmware/htc_9271.fw` exists, and gives either the
+    install command or a module-reload plus the brownout warning.
+
+    Verified by stubbing the exact node state that produced the
+    contradiction.

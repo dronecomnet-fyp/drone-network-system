@@ -37,8 +37,10 @@ say "=========================================================="
 
 # --- 1. is the adapter physically there ---------------------------------
 step "USB WiFi adapter present?"
+ON_BUS=0
 if lsusb 2>/dev/null | grep -qi "atheros\|ath9k\|0cf3:9271"; then
     ok "AR9271 seen on the USB bus"
+    ON_BUS=1
 else
     warn "no Atheros device in lsusb (some clones report a different name)"
 fi
@@ -50,16 +52,50 @@ if ! ip link show wlan1 >/dev/null 2>&1; then
     ip -brief link show | sed 's/^/    /'
     say ""
     OTHER=$(ip -brief link show | awk '$1 ~ /^wl/ && $1 != "wlan0" && $1 != "wlan1" {print $1}' | head -1)
+    # On the bus but no network interface at all: the USB device
+    # enumerated and the driver never produced a netdev. That is a driver
+    # or firmware problem, not a missing adapter, and saying "no adapter"
+    # here would contradict the line above.
+    if [ "$ON_BUS" = "1" ] && [ -z "$(ip -brief link show | awk '$1 ~ /^wl/ && $1 != "wlan0" {print $1}')" ]; then
+        say ""
+        say "  ath9k_htc firmware lines in dmesg:"
+        dmesg 2>/dev/null | grep -i "ath9k\|htc_9271\|firmware" | tail -8 | sed 's/^/    /'
+        say ""
+        if [ -f /lib/firmware/htc_9271.fw ]; then
+            ok "/lib/firmware/htc_9271.fw is installed"
+            fix "The adapter is on the USB bus and the firmware file exists, but no network interface was created. The driver failed to bind or the firmware failed to load." \
+                "Look at the dmesg lines above for the actual error, then:" \
+                "    sudo modprobe -r ath9k_htc && sudo modprobe ath9k_htc" \
+                "    ip link show" \
+                "" \
+                "If dmesg mentions a USB transfer or power error, this is the" \
+                "brownout from CHANGES item 40: power the node from a 3 A" \
+                "supply rather than the battery pack, then reseat the adapter."
+        else
+            fix "The adapter IS on the USB bus, but the ath9k_htc firmware is not installed, so the kernel cannot bring it up and no network interface is created. This is why there is no wlan1 despite the hardware being plugged in." \
+                "    sudo apt update" \
+                "    sudo apt install -y firmware-ath9k-htc" \
+                "    sudo modprobe -r ath9k_htc && sudo modprobe ath9k_htc" \
+                "" \
+                "Then check it appeared:" \
+                "    ip link show          # expect wlan1" \
+                "    iw dev wlan1 info     # expect type IBSS once dtn-net runs"
+        fi
+    fi
+
     if [ -n "$OTHER" ]; then
         MAC=$(cat "/sys/class/net/$OTHER/address" 2>/dev/null)
-        fix "The adapter is plugged in but came up as '$OTHER', not wlan1. Each node pins its adapter to the name wlan1 BY MAC ADDRESS, and this adapter's MAC ($MAC) is not in this node's config. This happens after swapping adapters between nodes." \
-            "Edit this node's conf and add the MAC as the second accepted adapter:" \
+        DRV=$(basename "$(readlink -f "/sys/class/net/$OTHER/device/driver" 2>/dev/null)" 2>/dev/null)
+        fix "The adapter is plugged in and working, but came up as '$OTHER' instead of wlan1 (MAC $MAC, driver ${DRV:-unknown}). The naming rule has not been applied on this node." \
+            "Newer setups match wlan1 by DRIVER, so any AR9271 in any port" \
+            "becomes wlan1 with nothing to configure. Apply it:" \
             "" \
-            "    nano ~/rescue-mesh/deploy/nodes/drone_X.conf" \
-            "      DTN_MAC_ALT=$MAC" \
+            "    cd ~/rescue-mesh && git pull" \
+            "    cd deploy && sudo ./setup_node.sh X       # a, b or s" \
+            "    sudo reboot" \
             "" \
-            "    cd ~/rescue-mesh/deploy && sudo ./setup_node.sh X" \
-            "    sudo reboot"
+            "If the driver above is NOT ath9k_htc, tell the team: the match" \
+            "rule in setup_node.sh assumes that driver name."
     fi
     fix "No USB WiFi adapter is visible to the kernel at all." \
         "Reseat the adapter, then:  dmesg | tail -20" \

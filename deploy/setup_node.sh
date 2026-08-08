@@ -111,65 +111,58 @@ if [[ -z "${DTN_MAC:-}" ]]; then
     DTN_MAC="$(detect_mac usb || true)"
     [[ -n "$DTN_MAC" ]] && echo "  detected AR9271 MAC:  $DTN_MAC"
 fi
-if [[ -z "$ONBOARD_MAC" || -z "$DTN_MAC" ]]; then
+if [[ -z "$ONBOARD_MAC" ]]; then
     echo ""
-    echo "ERROR: could not determine both interface MAC addresses."
+    echo "ERROR: could not determine the onboard WiFi MAC address."
     echo ""
-    [[ -z "$ONBOARD_MAC" ]] && echo "  missing: ONBOARD_MAC (the Pi's built-in WiFi)"
-    if [[ -z "$DTN_MAC" ]]; then
-        echo "  missing: DTN_MAC (the AR9271 USB adapter)"
-        echo ""
-        echo "  No USB WiFi adapter is plugged into THIS node right now."
-        echo "  That is expected if the fleet has fewer adapters than nodes"
-        echo "  and this one is currently in another node."
-        echo ""
-        echo "  You do not need to move it back. Setup only needs to know"
-        echo "  the MAC, not to see the hardware. Fill it in by hand:"
-        echo ""
-        echo "    1. On whichever node has an adapter plugged in, run:"
-        echo "         cat /sys/class/net/wlan1/address"
-        echo "       Do this for BOTH adapters if you have two."
-        echo ""
-        echo "    2. Put them in $CONF_FILE :"
-        echo "         DTN_MAC=<first adapter MAC>"
-        echo "         DTN_MAC_ALT=<second adapter MAC, or leave empty>"
-        echo ""
-        echo "    3. Re-run this script. Listing both MACs on every node"
-        echo "       makes the adapters interchangeable, so you never have"
-        echo "       to touch this again when you swap them."
-    fi
+    echo "  This is the Pi's built-in radio, so it should always be"
+    echo "  present. Check it exists:  ip link show"
+    echo "  Then set ONBOARD_MAC in $CONF_FILE and re-run."
     echo ""
     exit 1
 fi
+if [[ -z "$DTN_MAC" ]]; then
+    echo "  no AR9271 plugged in right now: that is fine, wlan1 is matched"
+    echo "  by DRIVER, not by MAC (see below)"
+fi
 
 mkdir -p /etc/systemd/network
+
+# The onboard radio is matched by MAC: it is soldered to the board, so
+# the address never changes and is always detectable.
 cat > /etc/systemd/network/10-onboard-wifi.link <<EOF
 [Match]
 MACAddress=$ONBOARD_MAC
 [Link]
 Name=wlan0
 EOF
-# DTN_MAC_ALT lets a node accept a SECOND adapter as wlan1. The fleet has
-# fewer AR9271 adapters than nodes, so adapters get moved between nodes,
-# and a moved adapter whose MAC is not matched here comes up under a
-# kernel-assigned name instead. dtn-net then finds no wlan1, the mesh
-# never forms, and from the laptop it looks exactly like a sync bug. That
-# failure has already cost this project an evening once.
+
+# The USB adapter is matched by DRIVER, not by MAC.
 #
-# systemd .link accepts a whitespace-separated MAC list, so listing every
-# adapter the fleet owns makes them physically interchangeable with no
-# reconfiguration.
-DTN_MAC_MATCH="$DTN_MAC"
-if [[ -n "${DTN_MAC_ALT:-}" ]]; then
-    DTN_MAC_MATCH="$DTN_MAC $DTN_MAC_ALT"
-    echo "  wlan1 will also accept: $DTN_MAC_ALT"
-fi
+# MAC matching was tried first and was the wrong foundation. Cheap AR9271
+# dongles do not all carry a stable, unique address: some report a
+# duplicate default, and some hand out a different MAC after a power
+# cycle. Pin a name to an address that changes and the interface comes up
+# unnamed after a reboot, which is exactly the "wlan0 and wlan1 keep
+# swapping" report from the field.
+#
+# The driver is the honest discriminator and it is fleet-wide constant:
+# the Pi's built-in radio is brcmfmac, and every AR9271 is ath9k_htc.
+# Matching on it means ANY AR9271 in ANY USB port on ANY node becomes
+# wlan1, with nothing to configure. That also makes the adapters
+# physically interchangeable, which matters because the fleet has fewer
+# adapters than nodes.
 cat > /etc/systemd/network/11-dtn-wifi.link <<EOF
 [Match]
-MACAddress=$DTN_MAC_MATCH
+Driver=ath9k_htc
 [Link]
 Name=wlan1
 EOF
+
+if [[ -n "${DTN_MAC:-}" ]]; then
+    echo "  note: DTN_MAC is set in the conf but is no longer used for"
+    echo "        naming. wlan1 is matched by driver (ath9k_htc)."
+fi
 echo "  .link files written (take effect at reboot; verify with ip link)"
 
 # --- Step 6 (file 01): base software (done early so later steps have tools) ---
