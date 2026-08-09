@@ -601,6 +601,24 @@ static void stage(const char* name) {
 void setup() {
   Serial.begin(115200);  // native USB CDC to the Pi
 
+  // NEVER block on a serial write. This is a correctness requirement for
+  // the whole fallback feature, not a tuning knob.
+  //
+  // On native USB, a write goes into a buffer the HOST drains. When the
+  // Pi dies, which is exactly the case this module exists to survive,
+  // there is no host and nothing drains it. With the default timeout,
+  // every telemetry write then stalls the loop for as long as the
+  // timeout, five seconds after the Pi dies and every five seconds
+  // after that. The module can end up spending its time blocked on
+  // writes nobody will ever read, at the precise moment it is supposed
+  // to be noticing the Pi is gone and beaconing over LoRa.
+  //
+  // Zero makes writes non-blocking: they are discarded when no host is
+  // attached. Losing telemetry to a dead Pi costs nothing, because the
+  // dead Pi was the only reader. The LoRa beacon does not go through
+  // here and is unaffected.
+  Serial.setTxTimeoutMs(0);
+
   // Native USB enumerates AFTER the sketch starts, so anything written
   // before the host attaches is simply discarded. Wait briefly for it.
   // Bounded, because on a real node the Pi may not have opened the port

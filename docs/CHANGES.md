@@ -1507,3 +1507,35 @@ Phase 1 security docs) is flagged here, never silently drifted.
     The pattern across this whole round is worth stating: the aux module
     was telling us plenty and nobody was listening. Four messages it sends
     were being dropped on the floor.
+
+70. **The aux module could stall on serial writes with no host attached,
+    which would break fallback outright.** Found while chasing a module
+    that had gone silent and then refused to accept a firmware upload.
+
+    `sendJson` wrote telemetry to the USB serial line with the default
+    blocking behaviour. On native USB a write goes into a buffer the HOST
+    drains, and when the Raspberry Pi dies there is no host. That is
+    precisely the situation this module exists to survive.
+
+    So five seconds after the Pi loses power the module writes GPS and
+    battery telemetry that nothing will ever read, and every write can
+    stall the loop for the write timeout, repeating every five seconds.
+    The module can spend its time blocked on writes to a dead reader at
+    exactly the moment it should be noticing the Pi has gone and
+    beaconing over LoRa.
+
+    `Serial.setTxTimeoutMs(0)` makes those writes non-blocking and
+    discard when no host is attached. Losing telemetry addressed to a
+    dead Pi costs nothing, because the dead Pi was the only reader, and
+    the LoRa beacon does not go through the serial path at all.
+
+    Confidence that this is A cause of the empty Degraded tab: High, the
+    mechanism is direct. Confidence that it is the ONLY cause: Moderate,
+    because the module also has to be reflashed before any of this round's
+    diagnostics can be believed.
+
+    Recorded as a design lesson too. The fault tolerance argument in the
+    report says the aux module survives the Pi. That claim has to hold in
+    the code as well as in the block diagram, and a blocking write to the
+    thing that just died is exactly the sort of coupling the diagram does
+    not show.
