@@ -579,20 +579,57 @@ static void sendFallbackBeacon() {
 // Setup / loop
 // ---------------------------------------------------------------------------
 
+// Announce which part of startup we are about to attempt.
+//
+// This exists because the module was completely silent on a bench and
+// there was no way to tell whether it had crashed, hung, or simply had
+// nothing to say. The first output used to be the "boot" summary at the
+// very END of setup, after NVS, I2C, SPI, the LoRa radio and the whole
+// BLE stack. Anything that hung in there produced no output at all, and
+// a silent module is indistinguishable from a dead one.
+//
+// Now every step announces itself first, so silence has an address: the
+// last stage printed is the one that did not return.
+static void stage(const char* name) {
+  JsonDocument doc;
+  doc["type"] = "stage";
+  doc["at"] = name;
+  doc["ms"] = millis();
+  sendJson(doc);
+}
+
 void setup() {
   Serial.begin(115200);  // native USB CDC to the Pi
+
+  // Native USB enumerates AFTER the sketch starts, so anything written
+  // before the host attaches is simply discarded. Wait briefly for it.
+  // Bounded, because on a real node the Pi may not have opened the port
+  // yet and the module must never wait on a host that is not coming.
+  const uint32_t usbWaitStart = millis();
+  while (!Serial && millis() - usbWaitStart < 2000) {
+    delay(10);
+  }
+
   bootMs = millis();
   // A Pi that boots slowly must not be declared dead instantly: require
   // the FIRST ping within FIRST_PING_GRACE_MS, then apply the 15 s rule.
   lastPingMs = bootMs;
 
+  // Proof of life before anything that can block. If you see this and
+  // nothing else, the firmware is running and a peripheral is at fault.
+  stage("alive");
+
+  stage("nvs");
   loadCache();
 
+  stage("gps_serial");
   Serial1.begin(9600, SERIAL_8N1, PIN_GPS_RX, PIN_GPS_TX);
 
+  stage("i2c");
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
   inaOk = inaInit();
 
+  stage("lora");
   loraSPI.begin(PIN_LORA_SCK, PIN_LORA_MISO, PIN_LORA_MOSI, PIN_LORA_CS);
   LoRa.setSPI(loraSPI);
   LoRa.setPins(PIN_LORA_CS, PIN_LORA_RST, PIN_LORA_DIO0);
@@ -603,6 +640,7 @@ void setup() {
     LoRa.setSignalBandwidth(125E3);
   }
 
+  stage("ble");
   NimBLEDevice::init("");
   bleStart();
 
@@ -611,6 +649,7 @@ void setup() {
   doc["node_id"] = nodeId;
   doc["lora"] = loraOk;
   doc["ina3221"] = inaOk;
+  doc["boot_ms"] = millis();
   sendJson(doc);
 }
 

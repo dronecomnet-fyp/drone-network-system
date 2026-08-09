@@ -134,6 +134,12 @@ A laptop sends no heartbeats, so the module behaves exactly as it does
 when a Pi has died. You will see, in order:
 
 ```
+{"type":"stage","at":"alive","ms":118}
+{"type":"stage","at":"nvs",...}
+{"type":"stage","at":"gps_serial",...}
+{"type":"stage","at":"i2c",...}
+{"type":"stage","at":"lora",...}
+{"type":"stage","at":"ble",...}
 {"type":"boot","node_id":"DRONE_A","lora":true,"ina3221":true}
    ... 60 s later, because a fresh boot waits FIRST_PING_GRACE_MS ...
 {"type":"fallback_enter"}
@@ -141,6 +147,20 @@ when a Pi has died. You will see, in order:
    ... then every 30 s ...
 {"type":"beacon_sent","n":2,"len":118}
 ```
+
+**The stage lines are the point.** Startup touches NVS, I2C, SPI, the
+LoRa radio and the whole BLE stack, and any of them can hang. Whichever
+stage is printed LAST is the step that did not return:
+
+| Last line seen | Meaning |
+|----------------|---------|
+| nothing at all | The firmware is not running. Reflash, then press RESET |
+| `alive` only | A stage hung immediately. Suspect NVS or a wiring short |
+| `i2c` | The I2C bus is held. Check SDA and SCL to the INA3221 |
+| `lora` | SPI to the RFM95 is hanging. Check MOSI, MISO, SCK, CS, RESET |
+| `ble` | The BLE stack did not come up. Rare; reflash first |
+| `boot` with `"lora":false` | Everything ran, but the radio did not answer. Wiring, not software |
+| `boot` with `"lora":true` | Startup is healthy. The problem is elsewhere |
 
 This tells you three things nothing else will:
 

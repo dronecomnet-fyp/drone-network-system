@@ -132,6 +132,12 @@ class AuxBridge:
                 f"ina3221={'OK' if msg.get('ina3221') else 'FAILED'}"
             )
 
+        elif mtype == "stage":
+            # Startup progress. Only interesting when boot does NOT
+            # complete: the last stage seen names the step that hung.
+            audit_logger.info(
+                f"AUX_STAGE | at={msg.get('at')} | ms={msg.get('ms')}")
+
         elif mtype == "fallback_enter":
             # Only ever seen when the bridge is stopped rather than the
             # whole Pi, but that is exactly the bench case people test
