@@ -224,9 +224,15 @@ class AuxBridge:
             )
         except Exception:  # noqa: BLE001
             audit_logger.warning("LORA_EVENT_LOG_FAIL")
+        # parts[10] is the message ID, parts[11] is the message TEXT. The
+        # log printed the id, so the operator saw a bare uuid where they
+        # expected what the downed drone was carrying. Both are useful:
+        # the id to correlate with the database, the text because it is
+        # the thing a human acts on.
         audit_logger.warning(
             f"FALLBACK_BEACON | node={node_id} | rssi={msg.get('rssi')} | "
-            f"last_msg={parts[10]}"
+            f"msg_id={parts[10]} | "
+            f"carrying={parts[11] if len(parts) > 11 else ''}"
         )
 
     # -- outbound timers ------------------------------------------------------

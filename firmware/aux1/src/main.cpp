@@ -173,11 +173,19 @@ static const uint8_t FALLBACK_RECOVERY_PINGS = 3;
 // The Pi now says goodbye before it halts, and we suppress fallback for a
 // grace window rather than forever. Forever would mean one stray message
 // could silently disable the fallback beacon for the rest of the flight,
-// which is the one thing this module exists to do. Five minutes is long
-// enough to cover a clean halt plus somebody walking over to flip the
-// switch, and short enough that a node left powered by mistake still
-// reports itself.
-static const uint32_t SHUTDOWN_GRACE_MS = 300000;
+// which is the one thing this module exists to do.
+//
+// The window has to cover a clean halt plus somebody reaching over to
+// flip the switch. In practice that is under a minute: the Pi takes about
+// 20 s to go down and the operator is standing next to it.
+//
+// It was five minutes first, and that was too generous in a way that bit
+// during testing. EVERY ordinary reboot arms this window, so a fallback
+// test performed within five minutes of a reboot produced no beacon and
+// looked exactly like the fallback feature being broken. 90 s covers the
+// real sequence with room to spare, and stops the suppression quietly
+// swallowing a genuine failure that happens shortly after maintenance.
+static const uint32_t SHUTDOWN_GRACE_MS = 90000;
 
 enum class Mode { NORMAL, FALLBACK };
 

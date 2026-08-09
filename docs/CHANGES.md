@@ -1439,3 +1439,39 @@ Phase 1 security docs) is flagged here, never silently drifted.
     The empty state explains where reports come from and that one filed at
     another drone arrives after the next sync, rather than just saying
     there are none.
+
+68. **The fallback grace window was swallowing the fallback tests.** A
+    tester pulled a Pi's power, saw nothing in the Degraded tab, and
+    reported the feature as broken. The evidence said otherwise and also
+    said something about my own change from the day before.
+
+    Their `grep -a FALLBACK_BEACON` returned ten beacons at RSSI -46 to
+    -54, so the radio path and the receive code both work. Every one was
+    dated a week earlier. The log is not rotated, so it reads as
+    reassuring unless you check the dates, and today's attempt had in fact
+    produced nothing.
+
+    Three silent causes, one of them self-inflicted:
+
+    - **`SHUTDOWN_GRACE_MS` was five minutes.** Every clean reboot arms
+      it, and the nodes were being rebooted repeatedly that day, so any
+      test soon after a reboot produced no beacon and looked exactly like
+      a broken feature. Reduced to 90 s, which still covers the sequence
+      it was written for (halt, walk over, flip the switch) with room to
+      spare.
+    - **A module that power-cycles at the moment of the test** waits
+      `FIRST_PING_GRACE_MS`, 60 s, before it even begins the 15 s dead-Pi
+      countdown. That happens whenever Battery B is connected as the test
+      starts rather than beforehand.
+    - **Beacons older than the `lora_events` table cannot appear in the
+      Degraded tab at all.** They live in the audit log and in
+      `node_health`. Correct, and misleading as evidence.
+
+    Also fixed a smaller thing that made the log harder to trust: the
+    audit line printed `last_msg=<uuid>`, the message ID, where a reader
+    expects the text the downed drone was carrying. It now prints both.
+
+    `docs/FALLBACK_TEST.md` is the procedure. It leads with the two
+    preconditions that are invisible when violated, gives the 15 s and
+    30 s timings so nobody gives up after twenty seconds, and says to
+    check the dates before trusting anything already in the log.

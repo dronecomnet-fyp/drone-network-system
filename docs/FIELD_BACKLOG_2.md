@@ -19,7 +19,7 @@ without a bench test).
 
 | # | Finding | Status |
 |---|---------|--------|
-| 2.4 | Degraded tab shows nothing during a real LoRa fallback (Pi unplugged, aux on battery) | TODO |
+| 2.4 | Degraded tab shows nothing during a real LoRa fallback (Pi unplugged, aux on battery) | DIAGNOSED, retest |
 | 2.5 | Battery B shows a changing voltage with the battery physically removed, in several places | TODO |
 | 2.6 | A reply sent without claiming still shows the victim "the drone has your message" rather than a read state | TODO |
 | 2.7 | HQ uplink: the rescue app can send field reports, the GCC has nowhere to read them | TODO |
@@ -99,6 +99,38 @@ other.
 The diagnostic is `grep -a FALLBACK_BEACON audit.log` on the receiving
 node. If that line is absent the problem is radio or firmware; if it is
 present but the tab is empty the problem is in the app.
+
+### 2.4, what the evidence actually showed
+
+The operator's `grep -a FALLBACK_BEACON` returned ten strong beacons,
+RSSI -46 to -54, so the radio path and the receive code both work.
+
+Every one of them was dated **2026-08-02**, a week before the test. So
+today's attempt produced nothing at all, and the log looked reassuring
+only because it holds history and nobody checked the dates.
+
+Three causes, all of them silent, and at least one is self-inflicted:
+
+1. **The shutdown grace window.** A clean shutdown tells the module the
+   silence is expected and suppresses fallback. It was set to five
+   minutes, and the nodes were being rebooted constantly that day, so a
+   test performed shortly after a reboot would produce no beacon at all.
+   Reduced to 90 s, which still covers the real case it was written for
+   (halt, then reach over and flip the switch) without swallowing tests.
+
+2. **A module power-cycled at the moment of the test.** If it was living
+   on USB power from the Pi and Battery B only went on as the test
+   started, cutting the Pi reboots it, and after a reboot it waits 60 s
+   for a first heartbeat before even starting the 15 s dead-Pi count.
+
+3. **Those old beacons could never have reached the Degraded tab
+   anyway.** They predate `lora_events`, so they exist in the audit log
+   and in `node_health` but not in the table the tab reads. Correct
+   behaviour, and misleading evidence.
+
+`docs/FALLBACK_TEST.md` is the procedure that removes the ambiguity:
+watch the receiver's log live, know the 15 s and 30 s timings, and check
+the dates on anything historical.
 
 ### 2.5, why this keeps coming back
 
