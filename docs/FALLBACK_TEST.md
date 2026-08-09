@@ -170,6 +170,33 @@ This tells you three things nothing else will:
 | No `fallback_enter` after 90 s | The module is not entering fallback. Suspect a shutdown notice still in its grace window, or that it never actually booted |
 | `beacon_sent` appearing, but the other node logs nothing | The transmitter is fine and the problem is reception or range. Move the modules to a metre apart |
 
+### If the laptop monitor stays silent
+
+A Windows serial monitor showing nothing is not proof the module is dead.
+Native USB, DTR handling and driver differences all sit between you and
+the firmware. **Settle it on the Pi instead**, which reads the same port
+with the same library the bridge uses:
+
+```
+sudo systemctl stop rescue-mesh-auxbridge
+cd ~/rescue-mesh
+backend/.venv/bin/python tools/aux_raw_monitor.py
+   ... press RESET on the module ...
+```
+
+That prints every line the module sends, parsing nothing.
+
+| Result | Meaning |
+|--------|---------|
+| Lines appear here, laptop showed none | The firmware is fine. The laptop's serial setup is the problem, and you can ignore it: the Pi is the host that matters |
+| Nothing here either | The firmware genuinely is not running. Reflash and press RESET with this still open |
+
+Start the bridge again afterwards:
+
+```
+sudo systemctl start rescue-mesh-auxbridge
+```
+
 **Check the same boot line on the receiver**, which the Pi now records:
 
 ```
