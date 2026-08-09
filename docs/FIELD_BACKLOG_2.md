@@ -78,28 +78,6 @@ with the lowest error correction. Roughly 5 pixels per module.
 Both ends now assert the **size**, not just correctness. Adding one field
 to the personnel record would otherwise quietly break it again.
 
-### 2.4, what to check first
-
-The Degraded tab reads `lora_events`, which is populated by the aux
-bridge when it receives a fallback beacon over LoRa. Three separate
-things must work, and the tab shows nothing if any of them fails:
-
-1. The aux module must actually enter FALLBACK and transmit. It waits 15
-   seconds of missed heartbeats first.
-2. A **different** node must receive the beacon on its own LoRa radio and
-   log it. A node cannot hear itself.
-3. The GCC must be joined to a node that has the record, either the one
-   that heard it or one it has since synced with.
-
-Worth ruling out before touching code: transmit power is deliberately at
-the library minimum pending TRCSL confirmation, so the practical range
-may be very short. Two modules on the same bench should still hear each
-other.
-
-The diagnostic is `grep -a FALLBACK_BEACON audit.log` on the receiving
-node. If that line is absent the problem is radio or firmware; if it is
-present but the tab is empty the problem is in the app.
-
 ### 2.4, what the evidence actually showed
 
 The operator's `grep -a FALLBACK_BEACON` returned ten strong beacons,
@@ -127,6 +105,11 @@ Three causes, all of them silent, and at least one is self-inflicted:
    anyway.** They predate `lora_events`, so they exist in the audit log
    and in `node_health` but not in the table the tab reads. Correct
    behaviour, and misleading evidence.
+
+The chain has five links and the tab is empty if any one fails: the
+module must enter FALLBACK and transmit, a DIFFERENT node must receive it
+(a node cannot hear itself), that node must store it, and the GCC must be
+joined to a node holding the record.
 
 `docs/FALLBACK_TEST.md` is the procedure that removes the ambiguity:
 watch the receiver's log live, know the 15 s and 30 s timings, and check
