@@ -1,0 +1,377 @@
+<title>LoRa Fallback: Find The Broken Link</title>
+<style>
+@font-face { font-family: "CascadiaFallback"; src: local("Cascadia Code"), local("Consolas"); }
+
+:root {
+  --ink: #1b2028; --paper: #f6f4ef; --paper-raised: #eeebe3; --line: #d8d3c6;
+  --wire: #5b6b7a; --accent: #d9711c; --accent-strong: #b85c14;
+  --pass: #1f8f5b; --pass-bg: #e4f4ec; --stop: #c23a3a; --stop-bg: #fbe9e7;
+  --term-bg: #14181e; --term-fg: #e6e2d6; --term-dim: #8a93a3; --code-fg: #2a2f38;
+  --mono: "CascadiaFallback", ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: "Segoe UI", ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+  --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+  --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+  --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+  --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e9e6dc; --paper: #12161c; --paper-raised: #191f27; --line: #2b323d;
+    --wire: #8a97a8; --accent: #ff8a3d; --accent-strong: #ffab6f;
+    --pass: #3ecb8c; --pass-bg: #12261d; --stop: #ff6b6b; --stop-bg: #2a1616;
+    --term-bg: #0c0f13; --term-fg: #e6e2d6; --term-dim: #7c8798; --code-fg: #e9e6dc;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+body { font-family: var(--sans); font-size: 16px; line-height: 1.6; padding: 0 0 6rem; }
+::selection { background: var(--accent); color: #14181e; }
+a { color: var(--accent-strong); }
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; }
+
+.masthead { border-bottom: 1px solid var(--line); padding: 2.6rem 0 1.8rem; margin-bottom: 2.2rem; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--wire); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+h1.title { font-family: var(--mono); font-size: 1.9rem; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6rem; }
+.dek { max-width: 46ch; color: var(--wire); font-size: 1.02rem; margin: 0; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1.4rem; font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+.meta-row b { color: var(--ink); font-weight: 600; }
+
+/* the loop diagram */
+.loop { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1.5rem; padding: 0.9rem 1rem; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; font-family: var(--mono); font-size: 0.76rem; }
+.loop .n { padding: 0.2rem 0.55rem; border-radius: 5px; background: var(--paper); border: 1px solid var(--line); white-space: nowrap; }
+.loop .n.hi { border-color: var(--accent); color: var(--accent-strong); }
+.loop .ar { color: var(--wire); }
+
+.index { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.3rem; margin-bottom: 2.6rem; }
+.index-title { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--wire); margin: 0 0 0.7rem; }
+.index ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.25rem 1rem; }
+.index li a { display: flex; gap: 0.55rem; align-items: baseline; text-decoration: none; color: var(--ink); font-size: 0.88rem; padding: 0.2rem 0; }
+.index li a:hover { color: var(--accent-strong); }
+.index .n { font-family: var(--mono); color: var(--wire); font-size: 0.78rem; min-width: 1.4em; }
+
+.part { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-strong); border-top: 1px solid var(--line); padding-top: 1.4rem; margin: 0 0 1.6rem; }
+
+.stage { border-left: 3px solid var(--line); padding: 0 0 0 1.3rem; margin-bottom: 2.9rem; scroll-margin-top: 1.5rem; }
+.stage.gate { border-left-color: var(--stop); }
+.stage-head { display: flex; align-items: baseline; gap: 0.85rem; margin-bottom: 0.85rem; }
+.stage-num { font-family: var(--mono); font-size: 0.85rem; color: var(--wire); background: var(--paper-raised); border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.6rem; flex-shrink: 0; }
+h2.stage-title { font-family: var(--mono); font-size: 1.18rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.stage p { margin: 0 0 1rem; max-width: 60ch; }
+.stage p:last-child { margin-bottom: 0; }
+.stage ul, .stage ol.steps { margin: 0 0 1rem; padding-left: 1.25rem; max-width: 60ch; }
+.stage li { margin-bottom: 0.4rem; }
+.stage li:last-child { margin-bottom: 0; }
+
+.term { background: var(--term-bg); border-radius: 8px; margin: 0 0 1rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--term-bg) 60%, #000); }
+.term-bar { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.term-bar .cap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--term-dim); margin-left: 0.3rem; }
+.term-bar .led { width: 8px; height: 8px; border-radius: 50%; background: #545b66; }
+.term-bar .led.r { background: #e5645c; } .term-bar .led.y { background: #e5b84f; } .term-bar .led.g { background: #57c273; }
+.term pre { margin: 0; padding: 0.85rem 1rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.55; color: var(--term-fg); }
+.term .prompt { color: var(--term-dim); }
+.term .comment { color: var(--term-dim); font-style: italic; }
+
+code.inline { font-family: var(--mono); font-size: 0.88em; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 4px; padding: 0.05rem 0.35rem; color: var(--code-fg); }
+
+.readout { background: var(--pass-bg); border: 1px solid color-mix(in srgb, var(--pass) 35%, var(--line)); border-radius: 8px; padding: 0.9rem 1.1rem 1rem; margin: 0 0 1rem; }
+.readout .label { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pass); margin-bottom: 0.55rem; }
+.readout pre, .readout code { font-family: var(--mono); font-size: 0.85rem; color: var(--code-fg); white-space: pre-wrap; word-break: break-word; margin: 0; }
+.readout .hint { font-family: var(--sans); font-size: 0.85rem; color: var(--wire); margin-top: 0.55rem; white-space: normal; }
+
+.gatebox { background: var(--stop-bg); border: 1px solid color-mix(in srgb, var(--stop) 35%, var(--line)); border-radius: 8px; padding: 0.95rem 1.1rem 1.05rem; margin: 0 0 0.4rem; }
+.gatebox .label { font-family: var(--mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stop); margin-bottom: 0.5rem; }
+.gatebox p { margin: 0; max-width: 58ch; font-size: 0.95rem; }
+
+.ui { background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px; padding: 0.9rem 1.1rem; margin: 0 0 1rem; }
+.ui .label { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 0.5rem; }
+.ui dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 0.9rem; font-size: 0.9rem; }
+.ui dt { font-family: var(--mono); font-size: 0.82rem; color: var(--wire); }
+.ui dd { margin: 0; }
+
+.note { border: 1px dashed var(--line); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.88rem; color: var(--wire); margin: 0 0 1rem; max-width: 60ch; }
+.note b { color: var(--ink); }
+.note.warn { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+.fieldtable-wrap { overflow-x: auto; margin-bottom: 1rem; }
+table.fieldtable { border-collapse: collapse; width: 100%; font-size: 0.85rem; min-width: 30rem; }
+table.fieldtable th, table.fieldtable td { text-align: left; padding: 0.45rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.fieldtable th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wire); font-weight: 600; }
+
+footer { max-width: 46rem; margin: 3rem auto 0; padding: 1.6rem 1.5rem 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; color: var(--wire); }
+
+@media (max-width: 640px) {
+  h1.title { font-size: 1.55rem; }
+  .index ol { grid-template-columns: 1fr; }
+  .ui dl { grid-template-columns: 1fr; gap: 0.1rem 0; }
+  .ui dt { margin-top: 0.5rem; }
+}
+</style>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker"><span class="dot"></span>Rescue Mesh &middot; LoRa fallback &middot; 9 August 2026</div>
+    <h1 class="title">Find The Broken Link<br>In One Pass</h1>
+    <p class="dek">The fallback chain has six links and every one of them fails silently. This walks all six in order, in about fifteen minutes, and ends knowing exactly which one is broken. No more one check at a time.</p>
+    <div class="meta-row">
+      <span><b>Time</b> about 15 minutes</span>
+      <span><b>Needs</b> both nodes, both modules reflashed</span>
+      <span><b>Ends with</b> a named broken link</span>
+    </div>
+    <div class="loop">
+      <span class="n">1 reflash</span><span class="ar">&rarr;</span>
+      <span class="n">2 A can hear</span><span class="ar">&rarr;</span>
+      <span class="n hi">3 B transmits</span><span class="ar">&rarr;</span>
+      <span class="n hi">4 A receives</span><span class="ar">&rarr;</span>
+      <span class="n">5 stored</span><span class="ar">&rarr;</span>
+      <span class="n">6 shown</span>
+    </div>
+  </header>
+
+  <div class="note warn" style="max-width:none;">
+    <b>What is already proven, so we do not test it again.</b> DRONE_B's module enters fallback
+    and transmits: it reported <code class="inline">beacon_sent n=12</code> then
+    <code class="inline">n=13</code>, exactly 30 s apart, 158 bytes each. Links 1 and 3 below
+    are known good on that module. The untested link is whether <b>DRONE_A's radio is
+    listening at all</b>, and until this build there was no way to ask it.
+  </div>
+
+  <nav class="index">
+    <p class="index-title">The six links</p>
+    <ol>
+      <li><a href="#s0"><span class="n">0</span>Reflash both, first</a></li>
+      <li><a href="#s1"><span class="n">1</span>Is A's radio armed?</a></li>
+      <li><a href="#s2"><span class="n">2</span>Is B transmitting?</a></li>
+      <li><a href="#s3"><span class="n">3</span>Does A hear B?</a></li>
+      <li><a href="#s4"><span class="n">4</span>Is it stored?</a></li>
+      <li><a href="#s5"><span class="n">5</span>Does the tab show it?</a></li>
+      <li><a href="#verdict"><span class="n">6</span>Verdict table</a></li>
+    </ol>
+  </nav>
+
+  <p class="part">Part one &middot; Prepare</p>
+
+  <section class="stage gate" id="s0">
+    <div class="stage-head"><span class="stage-num">00</span><h2 class="stage-title">Reflash both modules first</h2></div>
+
+    <p>Nothing below is trustworthy on old firmware. This build adds three things that exist
+    purely to end this hunt: staged startup, a non-blocking serial write, and a receiver that
+    reports whether it is armed.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">laptop, once per module</span></div>
+<pre><span class="prompt">$</span> cd ~/rescue-mesh &amp;&amp; git pull
+<span class="prompt">$</span> cd firmware/aux1
+<span class="prompt">$</span> pio run -t upload
+<span class="comment"># press RESET on the module afterwards</span>
+
+<span class="comment"># If upload fails with "Write timeout": press RESET and retry.</span>
+<span class="comment"># Still failing: hold BOOT, tap RESET, release BOOT, retry.</span></pre>
+    </div>
+
+    <p>Then put both modules back on their Pis and make sure both bridges are running:</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on each node</span></div>
+<pre><span class="prompt">$</span> sudo systemctl restart rescue-mesh-auxbridge
+<span class="prompt">$</span> sleep 8
+<span class="prompt">$</span> grep -a "AUX_STAGE\|AUX_BOOT" ~/rescue-mesh/backend/audit.log | tail -8</pre>
+    </div>
+
+    <div class="readout">
+      <div class="label">Expected on BOTH nodes</div>
+      <pre>AUX_STAGE | at=alive | ms=...
+AUX_STAGE | at=nvs | ...
+AUX_STAGE | at=i2c | ...
+AUX_STAGE | at=lora | ...
+AUX_STAGE | at=ble | ...
+AUX_BOOT  | node=DRONE_A | lora=OK | ina3221=OK | batt_a=... | batt_b=...</pre>
+      <div class="hint">
+        <b>If the stages stop before <code class="inline">AUX_BOOT</code></b>, the last stage
+        printed is the peripheral that hung. <b>If <code class="inline">lora=FAILED</code></b>,
+        stop here: that node is deaf and mute, and section 1 explains what to do.
+      </div>
+    </div>
+  </section>
+
+  <p class="part">Part two &middot; Walk the chain</p>
+
+  <section class="stage gate" id="s1">
+    <div class="stage-head"><span class="stage-num">01</span><h2 class="stage-title">Is DRONE_A's radio armed?</h2></div>
+
+    <p><b>This is the link that has never been checked</b>, and the most likely culprit. Until
+    this build the receiver had no way to say "I am listening"; it just sat there and a working
+    radio looked exactly like a dead one.</p>
+
+    <p>The module now reports every 30 seconds. On DRONE_A:</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on DRONE_A</span></div>
+<pre><span class="prompt">$</span> grep -a LORA_STATUS ~/rescue-mesh/backend/audit.log | tail -3
+<span class="prompt">$</span> curl -sk https://127.0.0.1:8443/health | grep -o '"aux_lora[^,]*'</pre>
+    </div>
+
+    <div class="ui">
+      <div class="label">How to read it</div>
+      <dl>
+        <dt>LORA_STATUS armed</dt><dd>The radio is up and listening. Good, go to section 2.</dd>
+        <dt>LORA_STATUS radio DOWN</dt><dd><b>Found it.</b> A cannot hear anything. Fix below.</dd>
+        <dt>No LORA_STATUS at all</dt><dd>Old firmware, or the module is not talking to the Pi. Redo section 0.</dd>
+      </dl>
+    </div>
+
+    <div class="gatebox">
+      <div class="label">If A's radio is down</div>
+      <p>The RFM95 did not initialise, so this node can neither hear a beacon nor raise one.
+      Check the SPI wiring: MOSI, MISO, SCK, CS and RESET.</p>
+      <p><b>Check MISO especially.</b> It had to be moved off the originally planned pin during
+      bring-up because that pin never worked (CHANGES item 10). If this module was built or
+      rewired later, confirm it matches the current pin map in
+      <code class="inline">firmware/aux1/src/main.cpp</code>.</p>
+    </div>
+  </section>
+
+  <section class="stage" id="s2">
+    <div class="stage-head"><span class="stage-num">02</span><h2 class="stage-title">Is DRONE_B transmitting?</h2></div>
+
+    <p>Already proven once, but reconfirm after reflashing. Put B's module into fallback by
+    stopping its bridge, which is exactly what a dead Pi looks like to the module:</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on DRONE_B</span></div>
+<pre><span class="prompt">$</span> sudo systemctl stop rescue-mesh-auxbridge
+<span class="prompt">$</span> cd ~/rescue-mesh
+<span class="prompt">$</span> backend/.venv/bin/python tools/aux_raw_monitor.py</pre>
+    </div>
+
+    <div class="readout">
+      <div class="label">Expected within about 75 seconds</div>
+      <pre>{"type":"fallback_enter"}
+{"type":"beacon_sent","n":1,"len":158}
+   ... every 30 s ...</pre>
+      <div class="hint">
+        15 s of missed heartbeats to enter fallback, or 60 s if the module rebooted when you
+        touched it. <b>Leave this running</b> for the next section: B must keep beaconing while
+        you check A.
+      </div>
+    </div>
+
+    <div class="note warn">
+      <b>Do not reboot B in the 90 seconds before this.</b> A clean shutdown tells the module
+      the silence is expected and it suppresses fallback for that long. Stopping the bridge, as
+      above, does send that notice, so if you see no
+      <code class="inline">fallback_enter</code> within 90 s that is why: wait it out.
+    </div>
+  </section>
+
+  <section class="stage gate" id="s3">
+    <div class="stage-head"><span class="stage-num">03</span><h2 class="stage-title">Does A hear B?</h2></div>
+
+    <p><b>While B is still beaconing</b>, on DRONE_A. A new beacon lands every 30 seconds, so
+    watch it live rather than grepping history:</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on DRONE_A, leave running 90 s</span></div>
+<pre><span class="prompt">$</span> tail -f ~/rescue-mesh/backend/audit.log \
+    | grep --line-buffered -a "FALLBACK_BEACON\|LORA_STATUS\|LORA_RX"</pre>
+    </div>
+
+    <div class="ui">
+      <div class="label">Four possible outcomes, all of them conclusive</div>
+      <dl>
+        <dt>FALLBACK_BEACON appears</dt>
+        <dd>The whole radio path works. Go to section 4.</dd>
+        <dt>LORA_STATUS rx_total RISING, no beacon</dt>
+        <dd>A is hearing radio traffic but not B's beacons. Frequency or format mismatch: are both modules on the same firmware?</dd>
+        <dt>LORA_STATUS armed, rx_total STAYS 0</dt>
+        <dd>A is listening and hears nothing at all. This is range or antenna. Put the two modules a metre apart and repeat.</dd>
+        <dt>LORA_STATUS radio DOWN</dt>
+        <dd>Back to section 1.</dd>
+      </dl>
+    </div>
+
+    <div class="gatebox">
+      <div class="label">Before blaming range, remember the transmit power</div>
+      <p>LoRa transmit power is deliberately pinned to the library minimum pending TRCSL
+      confirmation for 915 MHz. Range is therefore very short by design. <b>For this test the
+      two modules should be on the same bench, about a metre apart.</b> Testing at across-the-
+      building distances proves nothing and has probably already cost you time.</p>
+    </div>
+  </section>
+
+  <section class="stage" id="s4">
+    <div class="stage-head"><span class="stage-num">04</span><h2 class="stage-title">Is it stored?</h2></div>
+
+    <p>A beacon in the log still has to reach the database the Degraded tab reads.</p>
+
+    <div class="term">
+      <div class="term-bar"><span class="led r"></span><span class="led y"></span><span class="led g"></span><span class="cap">on DRONE_A</span></div>
+<pre><span class="prompt">$</span> sqlite3 ~/rescue-mesh/backend/drone_mesh.db \
+    "select received_at, about_node, rssi from lora_events order by received_at desc limit 5;"</pre>
+    </div>
+
+    <div class="ui">
+      <div class="label">Reading it</div>
+      <dl>
+        <dt>Recent rows</dt><dd>Stored correctly. Go to section 5.</dd>
+        <dt>Log has beacons, table is empty</dt><dd>A real bug between the bridge and the database. Check for <code class="inline">LORA_EVENT_LOG_FAIL</code> in the log and report it.</dd>
+        <dt>Only rows older than 5 August</dt><dd>Those predate this table. They are in the audit log and node_health only, and cannot appear in the tab. Not a bug.</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section class="stage" id="s5">
+    <div class="stage-head"><span class="stage-num">05</span><h2 class="stage-title">Does the tab show it?</h2></div>
+
+    <p>Join the GCC to <b>DRONE_A</b>, the node that heard the beacon, and open the Degraded
+    tab.</p>
+
+    <div class="note">
+      <b>Two things that make a correct system look broken here.</b> The degraded list only
+      shows a node while beacons are RECENT, within 120 seconds, so if B has been powered back
+      up it correctly disappears. And if the GCC is joined to a node that did not hear the
+      beacon, it only knows through sync, which takes up to 30 seconds more.
+    </div>
+
+    <p>Expected: DRONE_B listed, with beacon age, signal strength, which node heard it, its
+    battery, and the last victim message it was carrying. Its map marker blinks.</p>
+  </section>
+
+  <p class="part">Part three &middot; Result</p>
+
+  <section class="stage" id="verdict">
+    <div class="stage-head"><span class="stage-num">06</span><h2 class="stage-title">Verdict table</h2></div>
+
+    <p>Whichever row you stopped at names the broken link. Record it and send it on; every one
+    of these is now distinguishable, which was not true this morning.</p>
+
+    <div class="fieldtable-wrap">
+      <table class="fieldtable">
+        <tr><th>Stopped at</th><th>Broken link</th><th>Nature</th></tr>
+        <tr><td>Stages stop before AUX_BOOT</td><td>A peripheral hangs at startup</td><td>Wiring</td></tr>
+        <tr><td><code class="inline">lora=FAILED</code></td><td>That module's radio is dead</td><td>Wiring, check MISO</td></tr>
+        <tr><td>No <code class="inline">fallback_enter</code> on B</td><td>Not entering fallback</td><td>Shutdown grace, or not on Battery B</td></tr>
+        <tr><td><code class="inline">beacon_sent</code> but A's rx_total stays 0</td><td>Nothing reaches A</td><td>Range or antenna. Move them together</td></tr>
+        <tr><td>rx_total rises, no FALLBACK_BEACON</td><td>Frames arrive but are not beacons</td><td>Firmware mismatch between modules</td></tr>
+        <tr><td>Beacon logged, table empty</td><td>Bridge to database</td><td><b>A real software bug, report it</b></td></tr>
+        <tr><td>Table has rows, tab empty</td><td>App or freshness window</td><td>Check the GCC is on the right node, and beacons are recent</td></tr>
+      </table>
+    </div>
+
+    <div class="note warn">
+      <b>My honest expectation.</b> Given B transmits and A has never been asked whether it is
+      listening, the most likely answer is section 1: A's radio never initialised. The second
+      most likely is section 3 with rx_total at zero, which is range, because transmit power is
+      pinned to minimum and you have probably not had the modules side by side.
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  Rescue Mesh &middot; LoRa fallback fault isolation &middot; 9 August 2026<br>
+  Detail and history: docs/FALLBACK_TEST.md. Round 2 findings: docs/FIELD_BACKLOG_2.md.
+</footer>

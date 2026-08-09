@@ -1050,6 +1050,8 @@ def health_check():
         # one, which is invisible until the day it matters.
         "aux_lora_ok": state.get("lora_ok"),
         "aux_ina3221_ok": state.get("ina3221_ok"),
+        "aux_lora_rx_total": state.get("lora_rx_total"),
+        "aux_lora_rx_beacons": state.get("lora_rx_beacons"),
         "gps": state.get("gps"),
         "battery": state.get("battery"),
         "uptime_s": _uptime_s(),

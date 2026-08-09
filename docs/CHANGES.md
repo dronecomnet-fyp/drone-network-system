@@ -1569,3 +1569,33 @@ Phase 1 security docs) is flagged here, never silently drifted.
 
     **This is configuration, not just code.** After reflashing, every
     module still has to be told what is actually fitted.
+
+72. **The receiver can now say whether it is listening.** Four rounds of
+    testing had failed to answer one question: is DRONE_A's radio armed?
+    Nothing in the system could report it, so a healthy but lonely
+    receiver and a dead one produced identical evidence, and each round
+    checked one more thing instead of removing the ambiguity.
+
+    The module now emits `lora_status` every 30 seconds carrying whether
+    the radio initialised and how many frames it has heard in total,
+    beacons counted separately. The bridge logs it, but only on change or
+    when the radio is down, so a healthy node does not write a line every
+    30 seconds forever. `/health` carries the counters too.
+
+    That turns the two indistinguishable cases into three distinguishable
+    ones: the radio is down; the radio is armed and has heard nothing,
+    which is range; or it is hearing frames but not beacons, which is a
+    firmware mismatch between modules.
+
+    `docs/lora_fault_isolation.html` walks all six links of the chain in
+    one pass and ends at a named broken link, rather than the one check
+    per round this had degenerated into. It also states plainly what is
+    already proven, so nothing gets retested: DRONE_B's module reported
+    `beacon_sent n=12` then `n=13` exactly 30 s apart, so transmit is
+    known good.
+
+    The pattern for the report: every LoRa round failed for lack of
+    evidence, not lack of theories. Adding `beacon_sent` proved the
+    transmitter; adding `lora_status` should settle the receiver. Both are
+    a few lines that a component uses to describe its own state, which is
+    the cheapest debugging tool this project has found.

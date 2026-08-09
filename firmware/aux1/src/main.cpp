@@ -228,6 +228,16 @@ uint8_t recoveryPings = 0;   // consecutive pings heard while in FALLBACK
 // Non-zero while a planned shutdown is being honoured. Absolute millis()
 // deadline, not a countdown, so it needs no servicing in the loop.
 uint32_t shutdownGraceUntilMs = 0;
+
+// Receiver evidence. A deaf radio and a silent transmitter look
+// identical from the far end, and that ambiguity has cost more time on
+// this project than any actual bug. The receiver now says out loud that
+// it is armed and how much it has ever heard, so "nothing arrived" can
+// be told apart from "nothing was listening".
+uint32_t loraRxTotal = 0;      // every LoRa frame, of any kind
+uint32_t loraRxBeacons = 0;    // just the FB| fallback beacons
+uint32_t lastLoraStatusMs = 0;
+static const uint32_t LORA_STATUS_MS = 30000;
 bool loraOk = false;
 bool inaOk = false;
 String serialLine;
@@ -545,8 +555,11 @@ static void pollLora() {
   payload.reserve(packetSize);
   while (LoRa.available()) payload += (char)LoRa.read();
 
+  loraRxTotal++;
+
   JsonDocument doc;
   if (payload.startsWith("FB|")) {
+    loraRxBeacons++;
     doc["type"] = "fallback_rx";
     doc["raw"] = payload;
   } else {
@@ -721,6 +734,19 @@ void loop() {
       sendBattery();
     }
     sendGpsTimeIfValid();
+
+    // Prove the receiver is alive and armed, whether or not anything has
+    // arrived. Without this a working-but-lonely receiver is
+    // indistinguishable from a dead one.
+    if (now - lastLoraStatusMs >= LORA_STATUS_MS) {
+      lastLoraStatusMs = now;
+      JsonDocument st;
+      st["type"] = "lora_status";
+      st["ok"] = loraOk;
+      st["rx_total"] = loraRxTotal;
+      st["rx_beacons"] = loraRxBeacons;
+      sendJson(st);
+    }
 
     // An announced shutdown suppresses the transition, but only until the
     // grace window expires. See SHUTDOWN_GRACE_MS on why it is bounded.

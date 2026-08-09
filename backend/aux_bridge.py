@@ -134,6 +134,25 @@ class AuxBridge:
                 f"batt_b={'fitted' if msg.get('batt_b_present') else 'none'}"
             )
 
+        elif mtype == "lora_status":
+            # Periodic proof the receiver is armed. Only logged when
+            # something changes or the radio is down, so a healthy node
+            # does not fill its log with a line every 30 seconds.
+            ok = bool(msg.get("ok"))
+            total = int(msg.get("rx_total") or 0)
+            prev = self.state.get("lora_rx_total")
+            self.state["lora_ok"] = ok
+            self.state["lora_rx_total"] = total
+            self.state["lora_rx_beacons"] = int(msg.get("rx_beacons") or 0)
+            self._write_state()
+            if not ok:
+                audit_logger.warning(
+                    "LORA_STATUS | radio DOWN, this node cannot hear beacons")
+            elif prev is None or total != prev:
+                audit_logger.info(
+                    f"LORA_STATUS | armed | rx_total={total} | "
+                    f"rx_beacons={msg.get('rx_beacons')}")
+
         elif mtype == "stage":
             # Startup progress. Only interesting when boot does NOT
             # complete: the last stage seen names the step that hung.

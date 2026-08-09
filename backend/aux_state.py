@@ -30,6 +30,10 @@ DEFAULT_STATE = {
     # with nothing to report, so this is surfaced rather than only logged.
     "lora_ok": None,
     "ina3221_ok": None,
+    # How much this node's radio has ever heard. Distinguishes a receiver
+    # that is armed and lonely from one that is not listening at all.
+    "lora_rx_total": None,
+    "lora_rx_beacons": None,
 }
 
 
