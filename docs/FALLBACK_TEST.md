@@ -117,6 +117,19 @@ cd firmware/aux1
 pio device monitor
 ```
 
+**If the monitor shows nothing at all, press the RESET button on the
+XIAO.** This is the normal case on this board, not a fault. The upload
+finishes with "Hard resetting via RTS pin", which works through a USB to
+serial bridge; the XIAO ESP32-C3 has native USB and no such bridge, so
+that reset often does not happen and the chip is left sitting in the ROM
+bootloader after flashing. A manual reset with the monitor already open
+also means you catch the boot line, which is printed once and otherwise
+scrolls past before the monitor attaches.
+
+Expect the first JSON within about five seconds of reset. If pressing
+reset produces nothing, unplug and replug the USB cable with the monitor
+closed, then reopen it.
+
 A laptop sends no heartbeats, so the module behaves exactly as it does
 when a Pi has died. You will see, in order:
 
