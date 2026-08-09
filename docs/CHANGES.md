@@ -1539,3 +1539,33 @@ Phase 1 security docs) is flagged here, never silently drifted.
     the code as well as in the block diagram, and a blocking write to the
     thing that just died is exactly the sort of coupling the diagram does
     not show.
+
+71. **A missing battery reported 4.18 V, and the firmware could not be
+    told otherwise without a recompile.** Confirmed on the bench: a module
+    with nothing wired to INA3221 channel 2 reported `bat_b_v` drifting
+    between 4.152 and 4.184 V at 0.8 mA, while channel 1, pulled to
+    ground, correctly reported null.
+
+    That difference is the whole problem. An unconnected input FLOATS near
+    the supply rail, and by voltage alone that is indistinguishable from a
+    healthy full cell. The existing `BATT_MIN_PLAUSIBLE_V` floor of 1.0 V
+    only catches an input pulled to ground. No threshold can separate a
+    floating input from a charged battery, so the firmware has to be told.
+
+    `BATT_A_PRESENT` and `BATT_B_PRESENT` were compile-time constants,
+    both true. A module whose wiring differed from the build therefore
+    reported a battery that was not there, and the only fix was building a
+    different firmware per module, which nobody would keep up.
+
+    They are now stored in NVS beside the node id, set with
+    `tools/aux_set_battery.py`, reported in the boot message, and logged
+    by the bridge in `AUX_BOOT`. Defaults stay true so existing modules
+    behave exactly as before until told otherwise.
+
+    Fixed at the source, as the tester asked: the value appears on the
+    Nodes tab, in Live Ops, on peer cards, in the Degraded tab and inside
+    the LoRa beacon itself, and all five now get a null rather than each
+    screen having to guess.
+
+    **This is configuration, not just code.** After reflashing, every
+    module still has to be told what is actually fitted.

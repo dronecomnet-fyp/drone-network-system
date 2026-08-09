@@ -113,8 +113,20 @@ static const bool BATT_B_SHUNT_INVERT = false;   // CH2 wired IN+ to battery
 // IN+ and IN- to GND. It then reads about 0 V instead of floating, and the
 // plausibility floor below catches it automatically with no flag to
 // remember.
-static const bool BATT_A_PRESENT = true;
-static const bool BATT_B_PRESENT = true;
+// Whether a battery is actually wired to each INA3221 channel.
+//
+// These CANNOT be inferred. An unconnected input floats near the supply
+// rail and reads about 4.18 V with a little noise, which is
+// indistinguishable from a healthy full cell by voltage alone. The
+// existing plausibility floor only catches an input pulled to ground.
+//
+// They were compile-time constants, which meant a module whose wiring
+// differed from the build reported a battery that was not there, and the
+// only fix was recompiling. They now live in NVS alongside the node id,
+// so a module can be told what is fitted, and the boot message reports
+// what it believes so the operator can check.
+bool battAPresent = true;
+bool battBPresent = true;
 
 // Below this a channel is treated as not connected. No pack we use sits
 // under 1 V while actually attached (a 1S LiPo is dead by 3.0 V and a 2S
@@ -362,14 +374,14 @@ static void sendBattery() {
   JsonDocument doc;
   doc["type"] = "battery";
   float v, ma;
-  if (inaOk && inaReadChannel(1, v, ma, BATT_A_SHUNT_INVERT, BATT_A_PRESENT)) {
+  if (inaOk && inaReadChannel(1, v, ma, BATT_A_SHUNT_INVERT, battAPresent)) {
     doc["bat_a_v"] = v;
     doc["bat_a_ma"] = ma;
   } else {
     doc["bat_a_v"] = nullptr;
     doc["bat_a_ma"] = nullptr;
   }
-  if (inaOk && inaReadChannel(2, v, ma, BATT_B_SHUNT_INVERT, BATT_B_PRESENT)) {
+  if (inaOk && inaReadChannel(2, v, ma, BATT_B_SHUNT_INVERT, battBPresent)) {
     doc["bat_b_v"] = v;
     doc["bat_b_ma"] = ma;
   } else {
@@ -412,6 +424,10 @@ static void loadCache() {
   cachedMsgId = prefs.getString("msg_id", "none");
   cachedMsgContent = prefs.getString("msg_content", "no messages yet");
   cachedMsgTime = prefs.getString("msg_time", "");
+  // Default true so an existing module behaves exactly as before until
+  // somebody tells it otherwise.
+  battAPresent = prefs.getBool("batt_a", true);
+  battBPresent = prefs.getBool("batt_b", true);
 }
 
 static String sanitizeForBeacon(String s) {
@@ -476,6 +492,23 @@ static void handleLine(const String& line) {
     apSsid = String((const char*)(doc["ssid"] | apSsid.c_str()));
     if (mode == Mode::NORMAL) bleStart();
 
+  } else if (strcmp(type, "set_batt_present") == 0) {
+    // Tell the module what is physically wired. Persisted, so it survives
+    // a power cycle and does not need a rebuild per module.
+    if (doc["a"].is<bool>()) {
+      battAPresent = doc["a"].as<bool>();
+      prefs.putBool("batt_a", battAPresent);
+    }
+    if (doc["b"].is<bool>()) {
+      battBPresent = doc["b"].as<bool>();
+      prefs.putBool("batt_b", battBPresent);
+    }
+    JsonDocument ack;
+    ack["type"] = "batt_present_ack";
+    ack["a"] = battAPresent;
+    ack["b"] = battBPresent;
+    sendJson(ack);
+
   } else if (strcmp(type, "set_node_id") == 0) {
     // Per-board provisioning: one binary serves all modules (file 03).
     nodeId = String((const char*)(doc["node_id"] | "UNSET"));
@@ -532,8 +565,8 @@ static void pollLora() {
 static void sendFallbackBeacon() {
   if (!loraOk) return;
   float aV = 0, aMa = 0, bV = 0, bMa = 0;
-  bool haveA = inaOk && inaReadChannel(1, aV, aMa, BATT_A_SHUNT_INVERT, BATT_A_PRESENT);
-  bool haveB = inaOk && inaReadChannel(2, bV, bMa, BATT_B_SHUNT_INVERT, BATT_B_PRESENT);
+  bool haveA = inaOk && inaReadChannel(1, aV, aMa, BATT_A_SHUNT_INVERT, battAPresent);
+  bool haveB = inaOk && inaReadChannel(2, bV, bMa, BATT_B_SHUNT_INVERT, battBPresent);
   bool fix = gps.location.isValid();
 
   String beacon = "FB|" + nodeId + "|";
@@ -667,6 +700,8 @@ void setup() {
   doc["node_id"] = nodeId;
   doc["lora"] = loraOk;
   doc["ina3221"] = inaOk;
+  doc["batt_a_present"] = battAPresent;
+  doc["batt_b_present"] = battBPresent;
   doc["boot_ms"] = millis();
   sendJson(doc);
 }

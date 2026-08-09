@@ -129,7 +129,9 @@ class AuxBridge:
             (audit_logger.info if lora_ok else audit_logger.warning)(
                 f"AUX_BOOT | node={msg.get('node_id')} | "
                 f"lora={'OK' if lora_ok else 'FAILED'} | "
-                f"ina3221={'OK' if msg.get('ina3221') else 'FAILED'}"
+                f"ina3221={'OK' if msg.get('ina3221') else 'FAILED'} | "
+                f"batt_a={'fitted' if msg.get('batt_a_present') else 'none'} | "
+                f"batt_b={'fitted' if msg.get('batt_b_present') else 'none'}"
             )
 
         elif mtype == "stage":

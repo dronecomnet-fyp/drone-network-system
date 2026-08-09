@@ -20,7 +20,7 @@ without a bench test).
 | # | Finding | Status |
 |---|---------|--------|
 | 2.4 | Degraded tab shows nothing during a real LoRa fallback (Pi unplugged, aux on battery) | DIAGNOSED, retest |
-| 2.5 | Battery B shows a changing voltage with the battery physically removed, in several places | TODO |
+| 2.5 | Battery B shows a changing voltage with the battery physically removed, in several places | DONE, needs configuring per module |
 | 2.6 | A reply sent without claiming still shows the victim "the drone has your message" rather than a read state | TODO |
 | 2.7 | HQ uplink: the rescue app can send field reports, the GCC has nowhere to read them | TODO |
 | 2.8 | Unconfirmed: does a BLE sighting actually raise a notification in the victim app | NEEDS HARDWARE |
@@ -121,9 +121,21 @@ An unconnected INA3221 input floats near the supply rail and reads about
 4.18 V, which is indistinguishable from a healthy cell by voltage alone.
 The firmware needs to be told a battery is absent; it cannot infer it.
 
-`BATT_B_PRESENT` exists in the firmware for exactly this. The likely
-cause is that the modules have not been reflashed since it was added, or
-that the flag is set true on a module with no Battery B fitted.
+Confirmed on the bench. A module with nothing on channel 2 reported
+`bat_b_v` drifting between 4.152 and 4.184 V with `bat_b_ma` at 0.8 mA,
+while channel 1, pulled to ground, correctly reported null. The existing
+plausibility floor of 1.0 V catches a GROUNDED input and cannot catch a
+FLOATING one.
+
+The presence flags were compile-time constants, both hard-coded true, so
+a module whose wiring differed from the build reported a battery that was
+not there and the only remedy was a recompile. They now live in NVS
+alongside the node id, are set with `tools/aux_set_battery.py`, and are
+reported in the boot line so the operator can see what the module
+believes.
+
+This is a per-module setting, not a code fix: after reflashing, each
+module still has to be told what is actually fitted.
 
 The finding that it appears "in several places" is the more useful half:
 the value is shown on the Nodes tab, in Live Ops, on peer cards, in the
