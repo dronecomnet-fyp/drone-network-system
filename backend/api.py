@@ -1045,6 +1045,11 @@ def health_check():
         "status": "ok",
         "node_id": config.NODE_ID,
         "aux": "present" if state.get("aux_present") else "absent",
+        # Whether the aux module's peripherals came up. A dead LoRa radio
+        # means this node can neither raise a fallback beacon nor hear
+        # one, which is invisible until the day it matters.
+        "aux_lora_ok": state.get("lora_ok"),
+        "aux_ina3221_ok": state.get("ina3221_ok"),
         "gps": state.get("gps"),
         "battery": state.get("battery"),
         "uptime_s": _uptime_s(),

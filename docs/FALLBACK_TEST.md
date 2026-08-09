@@ -103,6 +103,50 @@ Transmit power is deliberately at the library minimum pending TRCSL
 confirmation, so range is short. For a first test put the two modules on
 the same bench, a metre apart. Do not start at fifty metres.
 
+## When nothing appears at all: the bench test
+
+If the live test produces no line, stop testing across two Pis. The
+problem could be at either end and you cannot see either. Isolate the
+transmitter.
+
+**Plug the target aux module into a laptop instead of the Pi**, using the
+same USB-C cable, and watch it directly:
+
+```
+cd firmware/aux1
+pio device monitor
+```
+
+A laptop sends no heartbeats, so the module behaves exactly as it does
+when a Pi has died. You will see, in order:
+
+```
+{"type":"boot","node_id":"DRONE_A","lora":true,"ina3221":true}
+   ... 60 s later, because a fresh boot waits FIRST_PING_GRACE_MS ...
+{"type":"fallback_enter"}
+{"type":"beacon_sent","n":1,"len":118}
+   ... then every 30 s ...
+{"type":"beacon_sent","n":2,"len":118}
+```
+
+This tells you three things nothing else will:
+
+| What you see | What it means |
+|--------------|---------------|
+| `"lora":false` in the boot line | The radio never initialised. It can neither send nor receive, and no amount of retesting will help. Check the SPI wiring to the RFM95 |
+| No `fallback_enter` after 90 s | The module is not entering fallback. Suspect a shutdown notice still in its grace window, or that it never actually booted |
+| `beacon_sent` appearing, but the other node logs nothing | The transmitter is fine and the problem is reception or range. Move the modules to a metre apart |
+
+**Check the same boot line on the receiver**, which the Pi now records:
+
+```
+grep -a AUX_BOOT ~/rescue-mesh/backend/audit.log | tail -1
+```
+
+`lora=FAILED` there means the receiving module cannot hear anything,
+which looks exactly like nothing being transmitted. `sudo dtn-doctor`
+checks this automatically now.
+
 ## Reading old evidence
 
 `audit.log` is not rotated, so it holds every beacon since the node was

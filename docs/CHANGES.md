@@ -1475,3 +1475,35 @@ Phase 1 security docs) is flagged here, never silently drifted.
     preconditions that are invisible when violated, gives the 15 s and
     30 s timings so nobody gives up after twenty seconds, and says to
     check the dates before trusting anything already in the log.
+
+69. **A dead LoRa radio was completely invisible.** Following up an empty
+    Degraded tab found that the aux module already reports whether each
+    peripheral initialised, in a `boot` message, and the bridge threw that
+    message away without reading it.
+
+    So a module whose RFM95 failed to come up could neither transmit a
+    fallback beacon nor hear one, and presented exactly like a module with
+    nothing to report. Every retest would produce nothing, and no log
+    line, health field or screen said why. Given MISO already had to be
+    moved once during bring-up (item 10), a wiring fault on that bus is
+    not hypothetical.
+
+    The bridge now logs `AUX_BOOT` with the LoRa and INA3221 status, at
+    WARNING when the radio failed. `/health` carries `aux_lora_ok`, and
+    `dtn-doctor` checks it and explains what a failure means, including
+    the MISO history.
+
+    It also logs `AUX_FALLBACK_ENTER`, `AUX_FALLBACK_EXIT` and
+    `AUX_SHUTDOWN_ACK`, all of which the module was already sending and
+    the bridge was discarding.
+
+    The firmware now emits `beacon_sent` on every transmission. During a
+    real failure nothing reads it, because the Pi is dead by definition,
+    but it is what makes a BENCH test conclusive: plug the module into a
+    laptop, run `pio device monitor`, and watch it enter fallback and
+    transmit instead of guessing whether silence means the module, the
+    radio, or the range. That procedure is now in `docs/FALLBACK_TEST.md`.
+
+    The pattern across this whole round is worth stating: the aux module
+    was telling us plenty and nobody was listening. Four messages it sends
+    were being dropped on the floor.

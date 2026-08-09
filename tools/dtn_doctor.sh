@@ -368,6 +368,37 @@ else
     ok "$CONF_NODE on $CONF_IP, matches the hostname"
 fi
 
+# --- 1e. the aux module's own peripherals -------------------------------
+step "Aux module radio and sensors?"
+AUXLINE=$(grep -a "AUX_BOOT" "$AUDIT_LOG" 2>/dev/null | tail -1)
+if [ -z "$AUXLINE" ]; then
+    AUX_HEALTH=$(curl -sk --max-time 5 https://127.0.0.1:8443/health 2>/dev/null)
+    case "$AUX_HEALTH" in
+        *'"aux":"absent"'*) ok "no aux module on this node, nothing to check" ;;
+        *) warn "no AUX_BOOT line yet: restart the bridge to make the module report"
+           say "       sudo systemctl restart rescue-mesh-auxbridge" ;;
+    esac
+else
+    say "     $AUXLINE"
+    case "$AUXLINE" in
+        *"lora=FAILED"*)
+            bad "the aux module's LoRa radio did not initialise"
+            fix "This node can neither transmit a fallback beacon nor hear one from another drone. The Degraded tab will stay empty however many times you test it, and nothing else reports this." \
+                "Almost always wiring or a loose module. Check the SPI lines" \
+                "to the RFM95: MOSI, MISO, SCK, CS, RESET." \
+                "" \
+                "Note MISO was moved from the originally planned pin during" \
+                "bring-up because the first one did not work (CHANGES item" \
+                "10). If this is a freshly built module, check it matches" \
+                "the current pin map in firmware/aux1/src/main.cpp." \
+                "" \
+                "Then reflash and watch it report:" \
+                "    cd firmware/aux1 && pio run -t upload" \
+                "    grep -a AUX_BOOT ~/rescue-mesh/backend/audit.log | tail -1" ;;
+        *"lora=OK"*) ok "LoRa radio initialised" ;;
+    esac
+fi
+
 # --- 2. is the bring-up script installed --------------------------------
 step "Bring-up script installed?"
 if [ -x /usr/local/sbin/dtn-net-up.sh ]; then

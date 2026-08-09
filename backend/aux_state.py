@@ -24,6 +24,12 @@ DEFAULT_STATE = {
     "gps_time_applied": False,
     "clock_source": "relative",
     "last_rx_ts": None,
+    # Reported by the module at boot. None means it has not said yet.
+    # A module whose LoRa radio failed to initialise can neither send nor
+    # receive a fallback beacon, and used to look exactly like a module
+    # with nothing to report, so this is surfaced rather than only logged.
+    "lora_ok": None,
+    "ina3221_ok": None,
 }
 
 

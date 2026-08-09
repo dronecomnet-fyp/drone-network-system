@@ -115,7 +115,41 @@ class AuxBridge:
         except json.JSONDecodeError:
             return
         mtype = msg.get("type", "")
-        if mtype == "gps":
+        if mtype == "boot":
+            # The module reports whether each peripheral came up. This was
+            # being thrown away, so a module whose LoRa radio failed to
+            # initialise looked identical to one that simply had nothing
+            # to say: it silently never receives a fallback beacon and
+            # never transmits one. That is the single most useful line in
+            # the log when the Degraded tab is unexpectedly empty.
+            lora_ok = bool(msg.get("lora"))
+            self.state["lora_ok"] = lora_ok
+            self.state["ina3221_ok"] = bool(msg.get("ina3221"))
+            self._write_state()
+            (audit_logger.info if lora_ok else audit_logger.warning)(
+                f"AUX_BOOT | node={msg.get('node_id')} | "
+                f"lora={'OK' if lora_ok else 'FAILED'} | "
+                f"ina3221={'OK' if msg.get('ina3221') else 'FAILED'}"
+            )
+
+        elif mtype == "fallback_enter":
+            # Only ever seen when the bridge is stopped rather than the
+            # whole Pi, but that is exactly the bench case people test
+            # with, and it was invisible.
+            audit_logger.warning("AUX_FALLBACK_ENTER | this node is beaconing")
+
+        elif mtype == "fallback_exit":
+            audit_logger.info("AUX_FALLBACK_EXIT | recovered, beaconing stopped")
+
+        elif mtype == "shutdown_ack":
+            audit_logger.info(
+                f"AUX_SHUTDOWN_ACK | grace_s={msg.get('grace_s')}")
+
+        elif mtype == "beacon_sent":
+            audit_logger.info(
+                f"AUX_BEACON_SENT | n={msg.get('n')} | bytes={msg.get('len')}")
+
+        elif mtype == "gps":
             self.state["gps"] = {
                 "lat": msg.get("lat"),
                 "lon": msg.get("lon"),

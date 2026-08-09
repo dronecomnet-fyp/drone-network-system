@@ -560,6 +560,19 @@ static void sendFallbackBeacon() {
   LoRa.beginPacket();
   LoRa.print(beacon);
   LoRa.endPacket();
+
+  // Announce it on the serial line as well as the radio. During a real
+  // failure the Pi is dead and nobody reads this, but it is what makes a
+  // BENCH test conclusive: plug the module into a laptop, watch
+  // "pio device monitor", and you can see it enter fallback and transmit
+  // rather than guessing whether the silence is the module or the radio.
+  static uint32_t beaconCount = 0;
+  beaconCount++;
+  JsonDocument sent;
+  sent["type"] = "beacon_sent";
+  sent["n"] = beaconCount;
+  sent["len"] = beacon.length();
+  sendJson(sent);
 }
 
 // ---------------------------------------------------------------------------
