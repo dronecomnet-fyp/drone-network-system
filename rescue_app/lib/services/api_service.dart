@@ -63,14 +63,31 @@ class APIService {
         case 401:
           // The credential itself is no longer valid: expired, or revoked
           // by HQ. Either way the user must authenticate again.
-          final revoked = error.detail.toLowerCase().contains('revoked');
-          return ApiException(
-            type: revoked ? ApiErrorType.revoked : ApiErrorType.sessionExpired,
+          final detail = error.detail.toLowerCase();
+          final revoked = detail.contains('revoked');
+          final invalidCreds = detail.contains('invalid credentials');
+          
+          if (revoked) {
+            return const ApiException(
+              type: ApiErrorType.revoked,
+              statusCode: 401,
+              message: 'Your credentials were revoked by HQ. Ask HQ to issue new '
+                  'ones; the same PIN will not work.',
+            );
+          }
+          if (invalidCreds) {
+            return const ApiException(
+              type: ApiErrorType.badRequest,
+              statusCode: 401,
+              message: 'Credentials not recognised on this drone. If you just '
+                  'received them, this drone may not have synced yet — scan '
+                  'the QR code from HQ instead (it works on any drone instantly).',
+            );
+          }
+          return const ApiException(
+            type: ApiErrorType.sessionExpired,
             statusCode: 401,
-            message: revoked
-                ? 'Your credentials were revoked by HQ. Ask HQ to issue new '
-                    'ones; the same PIN will not work.'
-                : 'Session expired. Log in again with your PIN.',
+            message: 'Session expired. Log in again with your PIN.',
           );
         case 403:
           // Properly logged in, just not allowed to do THIS. Must never
