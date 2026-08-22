@@ -1,12 +1,7 @@
-/// LoginScreen (file 05 task 5.1): personnel_id + PIN -> signed session
-/// token, verifiable offline by ANY node. Shown whenever no valid session
-/// exists. The break-glass admin path stays available through Settings
-/// (clearly labeled there).
-library;
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/message_provider.dart';
 import 'scan_signin_screen.dart';
@@ -85,145 +80,246 @@ class _LoginScreenState extends State<LoginScreen> {
     final logoutReason = auth.lastLogoutReason;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Icon(Icons.health_and_safety,
-                      size: 64, color: Colors.deepOrange.shade700),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Rescue Mesh',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Join any RESCUE_x WiFi first, then log in with the '
-                    'personnel ID and PIN issued by HQ. Your login works on '
-                    'every drone in the fleet.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 20),
-                  if (logoutReason != null) ...[
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        border: Border.all(color: Colors.orange.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        logoutReason,
-                        style: TextStyle(color: Colors.orange.shade900),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  TextFormField(
-                    controller: _idController,
-                    decoration: const InputDecoration(
-                      labelText: 'Personnel ID',
-                      hintText: 'e.g. R-014',
-                      prefixIcon: Icon(Icons.badge),
-                      border: OutlineInputBorder(),
-                    ),
-                    textCapitalization: TextCapitalization.characters,
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Personnel ID is required'
-                        : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _pinController,
-                    decoration: const InputDecoration(
-                      labelText: 'PIN',
-                      prefixIcon: Icon(Icons.pin),
-                      border: OutlineInputBorder(),
-                    ),
-                    obscureText: true,
-                    keyboardType: TextInputType.number,
-                    validator: (v) => (v == null || v.trim().length < 4)
-                        ? 'Enter the PIN you were issued'
-                        : null,
-                    onFieldSubmitted: (_) => _busy ? null : _login(),
-                  ),
-                  if (_error != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      _error!,
-                      style: TextStyle(color: Colors.red.shade700),
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  // Offered FIRST because it is the easy path: HQ shows a
-                  // QR, you scan it, you are working. Typing a six-digit
-                  // PIN with cold or wet hands is the fallback, not the
-                  // default (field backlog #17).
-                  FilledButton.icon(
-                    onPressed: _busy ? null : _scanToSignIn,
-                    icon: const Icon(Icons.qr_code_scanner),
-                    label: const Text('SCAN CODE FROM HQ'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.deepOrange.shade700,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Row(children: [
-                    Expanded(child: Divider()),
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8),
-                      child: Text('or type your PIN',
-                          style: TextStyle(fontSize: 12)),
-                    ),
-                    Expanded(child: Divider()),
-                  ]),
-                  const SizedBox(height: 8),
-                  ElevatedButton(
-                    onPressed: _busy ? null : _login,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepOrange.shade700,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: _busy
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : const Text(
-                            'LOG IN',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold),
-                          ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: _busy
-                        ? null
-                        : () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const SettingsScreen(),
-                              ),
-                            ),
-                    child: const Text(
-                        'Connection settings / break-glass admin key'),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
                   ),
                 ],
+                border: Border.all(color: const Color(0xFFEEEEEE)),
+              ),
+              padding: const EdgeInsets.all(32),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // ── Header Icon & Title ────────────────────────────────
+                    Icon(
+                      Icons.health_and_safety_rounded,
+                      size: 64,
+                      color: AppTheme.kPrimary,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Rescue Mesh',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF1A1A2E),
+                            letterSpacing: -0.5,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    const SizedBox(height: 28),
+
+                    // ── Logout Reason / Error ─────────────────────────────
+                    if (logoutReason != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppTheme.kWarning.withOpacity(0.1),
+                          border: Border.all(color: AppTheme.kWarning.withOpacity(0.3)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 20, color: Colors.orange.shade800),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                logoutReason,
+                                style: TextStyle(color: Colors.orange.shade900, fontSize: 13),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // ── Inputs ──────────────────────────────────────────────
+                    TextFormField(
+                      controller: _idController,
+                      decoration: InputDecoration(
+                        labelText: 'Personnel ID',
+                        hintText: 'e.g. R-014',
+                        prefixIcon: const Icon(Icons.badge_outlined),
+                        filled: true,
+                        fillColor: const Color(0xFFF5F7FA),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: AppTheme.kPrimary, width: 2),
+                        ),
+                      ),
+                      textCapitalization: TextCapitalization.characters,
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Personnel ID is required'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _pinController,
+                      decoration: InputDecoration(
+                        labelText: 'PIN',
+                        prefixIcon: const Icon(Icons.password_rounded),
+                        filled: true,
+                        fillColor: const Color(0xFFF5F7FA),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: AppTheme.kPrimary, width: 2),
+                        ),
+                      ),
+                      obscureText: true,
+                      keyboardType: TextInputType.number,
+                      validator: (v) => (v == null || v.trim().length < 4)
+                          ? 'Enter the PIN you were issued'
+                          : null,
+                      onFieldSubmitted: (_) => _busy ? null : _login(),
+                    ),
+
+                    if (_error != null) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.kDanger.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline, size: 16, color: AppTheme.kDanger),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _error!,
+                                style: const TextStyle(color: AppTheme.kDanger, fontSize: 13),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 32),
+
+                    // ── Primary Action: SCAN ──────────────────────────────
+                    SizedBox(
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        onPressed: _busy ? null : _scanToSignIn,
+                        icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+                        label: const Text(
+                          'SCAN CODE FROM HQ',
+                          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.5),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.kPrimary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // ── Divider ─────────────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      child: Row(
+                        children: [
+                          const Expanded(child: Divider()),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'OR TYPE PIN',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.grey.shade400,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ),
+                          const Expanded(child: Divider()),
+                        ],
+                      ),
+                    ),
+
+                    // ── Secondary Action: LOG IN ──────────────────────────
+                    SizedBox(
+                      height: 52,
+                      child: OutlinedButton(
+                        onPressed: _busy ? null : _login,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppTheme.kPrimary,
+                          side: const BorderSide(color: AppTheme.kPrimary, width: 1.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: _busy
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(AppTheme.kPrimary),
+                                ),
+                              )
+                            : const Text(
+                                'LOG IN',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                      ),
+                    ),
+
+                    // ── Footer link ─────────────────────────────────────────
+                    const SizedBox(height: 24),
+                    TextButton(
+                      onPressed: _busy
+                          ? null
+                          : () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const SettingsScreen(),
+                                ),
+                              ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF9E9E9E),
+                      ),
+                      child: const Text(
+                        'Connection settings / break-glass admin key',
+                        style: TextStyle(fontSize: 12),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
