@@ -103,6 +103,8 @@ def beacon_tx_loop():
             targets.append((host, int(port) if port else config.BEACON_PORT))
     else:
         targets = [(config.BEACON_ADDR, config.BEACON_PORT)]
+        for p in config.DTN_PEERS:
+            targets.append((p, config.BEACON_PORT))
     while not _stop.is_set():
         try:
             data = build_beacon()
