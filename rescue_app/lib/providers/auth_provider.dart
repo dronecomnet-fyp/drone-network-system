@@ -77,12 +77,27 @@ class AuthProvider with ChangeNotifier {
   Future<String?> signInWithCode(String scanned) async {
     final decoded = decodeSigninCode(scanned);
     if (decoded == null) {
-      return 'That is not a rescue sign-in code. Ask HQ to show it again.';
+      return 'Could not read the sign-in code. Make sure you are scanning '
+             'the QR from the personnel screen on the HQ laptop (not a '
+             'different QR). If the code looks right, ask HQ to issue new '
+             'credentials.';
     }
     try {
       await APIService.enrol(decoded.enrolment);
+    } on ApiException catch (e) {
+      // 400 Bad Request usually means "already known" or invalid record, but if
+      // it's a network, timeout, or TLS error (pinningFailed), we must report
+      // it because the subsequent login will also definitely fail for the same
+      // reason. 401/403 shouldn't happen for public /enrol.
+      if (e.type == ApiErrorType.pinningFailed ||
+          e.type == ApiErrorType.networkError ||
+          e.type == ApiErrorType.timeout) {
+        return 'Network error before sign-in: ${e.message}';
+      }
+      // Otherwise, node might be older (404) or it already knows this enrolment,
+      // so try the login anyway.
     } catch (_) {
-      // Already known here, or this node is older. Try the login anyway.
+      // Unforeseen error, try login anyway.
     }
     return login(decoded.personnelId, decoded.pin);
   }
@@ -133,10 +148,13 @@ SigninCode? decodeSigninCode(String scanned) {
     // accepted so a code printed before that change keeps working.
     final String raw;
     if (text.startsWith('Z')) {
-      final bytes = base64Url.decode(base64Url.normalize(text.substring(1)));
-      raw = utf8.decode(ZLibCodec().decode(bytes));
+      // Strip the "Z" prefix and any trailing whitespace a QR reader might add.
+      var b64 = text.substring(1).replaceAll(RegExp(r'\s'), '');
+      final bytes = base64Url.decode(base64Url.normalize(b64));
+      raw = utf8.decode(zlib.decode(bytes));
     } else {
-      raw = utf8.decode(base64Url.decode(base64Url.normalize(text)));
+      var b64 = text.replaceAll(RegExp(r'\s'), '');
+      raw = utf8.decode(base64Url.decode(base64Url.normalize(b64)));
     }
 
     final map = jsonDecode(raw);
@@ -160,7 +178,8 @@ SigninCode? decodeSigninCode(String scanned) {
 
     if (id.isEmpty || pin.isEmpty || enrolment.isEmpty) return null;
     return SigninCode(personnelId: id, pin: pin, enrolment: enrolment);
-  } catch (_) {
+  } catch (e, st) {
+    debugPrint('decodeSigninCode failed: $e\n$st');
     return null;
   }
 }
