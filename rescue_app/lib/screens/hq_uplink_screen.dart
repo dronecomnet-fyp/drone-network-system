@@ -154,8 +154,6 @@ class _HQUplinkScreenState extends State<HQUplinkScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('HQ Uplink'),
-        backgroundColor: Colors.blue.shade700,
-        elevation: 4,
       ),
       body: Consumer<MessageProvider>(
         builder: (context, messageProvider, child) {

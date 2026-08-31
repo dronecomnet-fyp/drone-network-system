@@ -52,8 +52,6 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('HQ Announcements'),
-        backgroundColor: Colors.blue.shade700,
-        elevation: 4,
         actions: [
           IconButton(
             onPressed: () =>

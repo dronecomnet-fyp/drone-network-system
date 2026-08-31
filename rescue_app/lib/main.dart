@@ -13,6 +13,7 @@ import 'screens/settings_screen.dart';
 import 'screens/victim_requests_screen.dart';
 import 'services/network_binder.dart';
 import 'widgets/alert_banner.dart';
+import 'config/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,13 +56,7 @@ class RescueApp extends StatelessWidget {
       ],
       child: MaterialApp(
         title: 'Rescue Mesh',
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.deepOrange,
-            brightness: Brightness.light,
-          ),
-        ),
+        theme: AppTheme.darkTheme(),
         home: const RootGate(),
         debugShowCheckedModeBanner: false,
       ),
@@ -150,43 +145,69 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
         builder: (context, messageProvider, child) {
           final newCount = messageProvider.getNewMessageCount();
 
-          return BottomNavigationBar(
-            type: BottomNavigationBarType.fixed,
-            backgroundColor: Colors.deepOrange.shade50,
-            selectedItemColor: Colors.deepOrange.shade800,
-            unselectedItemColor: Colors.grey.shade700,
-            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
-            currentIndex: _selectedIndex,
-            onTap: (index) {
-              setState(() => _selectedIndex = index);
-            },
-            items: [
-              BottomNavigationBarItem(
-                icon: Badge(
-                  label: Text(newCount.toString()),
-                  isLabelVisible: newCount > 0,
-                  backgroundColor: Colors.red,
-                  child: const Icon(Icons.list),
+          return NavigationBarTheme(
+            data: NavigationBarThemeData(
+              labelTextStyle: MaterialStateProperty.resolveWith((states) {
+                if (states.contains(MaterialState.selected)) {
+                  return const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10);
+                }
+                return const TextStyle(color: Colors.white, fontSize: 10);
+              }),
+              iconTheme: MaterialStateProperty.resolveWith((states) {
+                if (states.contains(MaterialState.selected)) {
+                  return const IconThemeData(color: Colors.white);
+                }
+                return const IconThemeData(color: Colors.white70);
+              }),
+            ),
+            child: NavigationBar(
+              backgroundColor: AppTheme.kPrimary,
+              indicatorColor: Colors.white.withOpacity(0.25),
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: (index) {
+                setState(() => _selectedIndex = index);
+              },
+              destinations: [
+                NavigationDestination(
+                  icon: Badge(
+                    label: Text(newCount.toString()),
+                    isLabelVisible: newCount > 0,
+                    backgroundColor: Colors.red,
+                    child: const Icon(Icons.list_outlined),
+                  ),
+                  selectedIcon: Badge(
+                    label: Text(newCount.toString()),
+                    isLabelVisible: newCount > 0,
+                    backgroundColor: Colors.red,
+                    child: const Icon(Icons.list),
+                  ),
+                  label: 'Requests',
                 ),
-                label: 'Requests',
-              ),
-              BottomNavigationBarItem(
-                icon: const Icon(Icons.message),
-                label: 'HQ Uplink',
-              ),
-              BottomNavigationBarItem(
-                icon: const Icon(Icons.campaign),
-                label: 'Announcements',
-              ),
-              BottomNavigationBarItem(
-                icon: const Icon(Icons.map),
-                label: 'Map',
-              ),
-              BottomNavigationBarItem(
-                icon: const Icon(Icons.settings),
-                label: 'Settings',
-              ),
-            ],
+                const NavigationDestination(
+                  icon: Icon(Icons.message_outlined),
+                  selectedIcon: Icon(Icons.message),
+                  label: 'HQ Uplink',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.campaign_outlined),
+                  selectedIcon: Icon(Icons.campaign),
+                  label: 'Announcements',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.map_outlined),
+                  selectedIcon: Icon(Icons.map),
+                  label: 'Map',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.settings_outlined),
+                  selectedIcon: Icon(Icons.settings),
+                  label: 'Settings',
+                ),
+              ],
+            ),
           );
         },
       ),

@@ -20,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _pinController = TextEditingController();
   bool _busy = false;
   String? _error;
+  bool _obscurePin = true;
 
   @override
   void dispose() {
@@ -180,6 +181,17 @@ class _LoginScreenState extends State<LoginScreen> {
                       decoration: InputDecoration(
                         labelText: 'PIN',
                         prefixIcon: const Icon(Icons.password_rounded),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePin ? Icons.visibility_off : Icons.visibility,
+                            color: Colors.grey.shade600,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscurePin = !_obscurePin;
+                            });
+                          },
+                        ),
                         filled: true,
                         fillColor: const Color(0xFFF5F7FA),
                         border: OutlineInputBorder(
@@ -191,7 +203,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           borderSide: const BorderSide(color: AppTheme.kPrimary, width: 2),
                         ),
                       ),
-                      obscureText: true,
+                      obscureText: _obscurePin,
                       keyboardType: TextInputType.number,
                       validator: (v) => (v == null || v.trim().length < 4)
                           ? 'Enter the PIN you were issued'
