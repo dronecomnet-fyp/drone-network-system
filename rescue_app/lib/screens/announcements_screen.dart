@@ -78,23 +78,39 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.campaign,
-                              size: 72, color: Colors.blue.shade300),
-                          const SizedBox(height: 16),
+                          TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0.0, end: 1.0),
+                            duration: const Duration(milliseconds: 600),
+                            builder: (context, v, child) => Opacity(
+                              opacity: v,
+                              child: Transform.scale(scale: 0.8 + 0.2 * v, child: child),
+                            ),
+                            child: Icon(Icons.campaign_outlined,
+                                size: 96, color: Colors.grey.shade300),
+                          ),
+                          const SizedBox(height: 24),
                           Text(
                             authError
-                                ? 'Authorization required'
-                                : 'No announcements yet',
-                            style: Theme.of(context).textTheme.headlineSmall,
+                                ? 'Authorization Required'
+                                : 'No Announcements',
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineSmall
+                                ?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF1A1A2E)),
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            authError
-                                ? 'Log in again or check credentials in Settings.'
-                                : 'HQ broadcasts published from the ground '
-                                    'control center appear here.',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                            textAlign: TextAlign.center,
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 32),
+                            child: Text(
+                              authError
+                                  ? 'Log in again or check credentials in Settings.'
+                                  : 'HQ broadcasts published from the ground control center appear here.',
+                              style: const TextStyle(
+                                  color: Color(0xFF757575), height: 1.4),
+                              textAlign: TextAlign.center,
+                            ),
                           ),
                         ],
                       ),
@@ -114,10 +130,24 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                 final shared.Announcement a = announcements[index];
                 final color = _priorityColors[a.priority] ?? Colors.blue;
 
-                return Card(
-                  margin: const EdgeInsets.symmetric(vertical: 6),
+                return Container(
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.07),
+                        blurRadius: 18,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                    border: Border(
+                      left: BorderSide(color: color, width: 5),
+                    ),
+                  ),
                   child: Padding(
-                    padding: const EdgeInsets.all(14),
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -125,45 +155,52 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
+                                  horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: color.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(color: color),
+                                color: color.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                    color: color.withValues(alpha: 0.5)),
                               ),
                               child: Text(
                                 a.priority,
                                 style: TextStyle(
                                   color: color,
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w700,
                                   fontSize: 11,
+                                  letterSpacing: 0.6,
                                 ),
                               ),
                             ),
                             const Spacer(),
                             Text(
                               _formatTime(a.createdAt),
-                              style: Theme.of(context).textTheme.labelSmall,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(
+                                    color: Colors.grey.shade600,
+                                  ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 12),
                         Text(
                           a.title,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          a.body,
-                          style: Theme.of(context).textTheme.bodyMedium,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1A1A2E),
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'by ${a.createdBy}',
-                          style: Theme.of(context).textTheme.labelSmall,
+                          a.body,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            color: Color(0xFF212121),
+                            height: 1.4,
+                          ),
                         ),
                       ],
                     ),

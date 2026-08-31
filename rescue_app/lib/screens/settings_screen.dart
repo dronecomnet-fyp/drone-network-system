@@ -1,11 +1,3 @@
-/// Settings (file 05): connection, trust material, and the labeled
-/// break-glass admin path. Changes vs Phase 1:
-///   - fleet CA paste field: HTTPS trusts ONLY this root and fails closed
-///     without it (file 09 F1; replaces accept-any-cert-for-10.42.0.1)
-///   - API key demoted to optional break-glass (PIN login is the normal
-///     path); private key optional (E2E is off by default, file 09 D2)
-///   - logout button (file 05 task 5.1)
-///   - node health strip (file 05 task 5.3, useful during field tests)
 library;
 
 import 'package:flutter/material.dart';
@@ -20,6 +12,7 @@ import '../providers/auth_provider.dart';
 import '../providers/heartbeat_provider.dart';
 import '../providers/message_provider.dart';
 import '../services/api_service.dart';
+import '../widgets/custom_snackbar.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -126,21 +119,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.check_circle_outline, color: Colors.white, size: 18),
-            SizedBox(width: 8),
-            Text('Settings saved successfully.'),
-          ],
-        ),
-        backgroundColor: AppTheme.kSuccess,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
+    CustomSnackBar.show(context, 'Settings saved successfully.',
+        type: SnackBarType.success);
     _refreshHealth();
   }
 
@@ -311,10 +291,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         await Geolocator.isLocationServiceEnabled();
                                     if (!serviceEnabled) {
                                       if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(
-                                              content: Text(
-                                                  'Please enable Location Services in your device settings.')),
+                                        CustomSnackBar.show(
+                                          context,
+                                          'Please enable Location Services in your device settings.',
+                                          type: SnackBarType.error,
                                         );
                                       }
                                       await Geolocator.openLocationSettings();
@@ -325,10 +305,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     }
                                     if (perm == LocationPermission.deniedForever) {
                                       if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(
-                                              content: Text(
-                                                  'Location permissions are permanently denied. Please enable them in app settings.')),
+                                        CustomSnackBar.show(
+                                          context,
+                                          'Location permissions are permanently denied. Please enable them in app settings.',
+                                          type: SnackBarType.error,
                                         );
                                       }
                                       await Geolocator.openAppSettings();
@@ -464,22 +444,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _inputField(
-                            controller: _baseUrlController,
-                            label: 'Backend URL',
-                            hint: 'https://10.42.0.1:8443',
-                            icon: Icons.link_rounded,
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Backend URL is required';
-                              }
-                              if (!ApiConfigStore.isValidHttpUrl(value)) {
-                                return 'Use full HTTP or HTTPS URL including port';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
+
                           _inputField(
                             controller: _fleetCaController,
                             label: 'Fleet CA certificate (PEM)',
@@ -498,15 +463,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               return null;
                             },
                           ),
-                          const SizedBox(height: 4),
-                          Padding(
-                            padding: const EdgeInsets.only(left: 4, top: 4),
-                            child: Text(
-                              'The app trusts ONLY this CA for HTTPS. Without it, connections fail closed by design (evil-twin protection).',
-                              style: TextStyle(
-                                  fontSize: 11, color: Colors.grey.shade600),
-                            ),
-                          ),
+
                           const SizedBox(height: 12),
                           _switchRow(
                             icon: Icons.warning_amber_rounded,
@@ -520,9 +477,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 2),
 
                     // ── Break-glass / Advanced ────────────────────────────────
+                    /*
                     _sectionLabel('Break-glass / Advanced'),
                     _card(
                       child: Column(
@@ -585,7 +543,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 28),
+                    */
 
                     // ── Save Button ────────────────────────────────────────────
                     SizedBox(
@@ -602,7 +560,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                         child: _saving
-                            ? const SizedBox(
+                            ?
+                             const SizedBox(
                                 width: 20,
                                 height: 20,
                                 child: CircularProgressIndicator(

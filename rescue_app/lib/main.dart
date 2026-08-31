@@ -173,15 +173,27 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
               destinations: [
                 NavigationDestination(
                   icon: Badge(
-                    label: Text(newCount.toString()),
+                    label: Text(
+                      newCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     isLabelVisible: newCount > 0,
-                    backgroundColor: Colors.red,
+                    backgroundColor: Colors.white,
                     child: const Icon(Icons.list_outlined),
                   ),
                   selectedIcon: Badge(
-                    label: Text(newCount.toString()),
+                    label: Text(
+                      newCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     isLabelVisible: newCount > 0,
-                    backgroundColor: Colors.red,
+                    backgroundColor: Colors.white,
                     child: const Icon(Icons.list),
                   ),
                   label: 'Requests',

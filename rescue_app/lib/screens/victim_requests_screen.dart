@@ -7,6 +7,7 @@ import '../models/api_error_model.dart';
 import '../models/message_model.dart';
 import '../providers/message_provider.dart';
 import '../services/api_service.dart';
+import '../widgets/custom_snackbar.dart';
 import 'settings_screen.dart';
 
 class VictimRequestsScreen extends StatelessWidget {
@@ -421,99 +422,107 @@ class _RequestCard extends StatelessWidget {
               try {
                 await APIService.replyToMessage(msgId, body.trim());
                 if (ctx.mounted) Navigator.pop(ctx);
-                messenger.showSnackBar(const SnackBar(
-                    content: Text(
-                        'Reply sent. It reaches them when their phone next meets a drone.')));
+                if (ctx.mounted) {
+                  CustomSnackBar.show(
+                    context,
+                    'Reply sent. It reaches them when their phone next meets a drone.',
+                    type: SnackBarType.success,
+                  );
+                }
               } catch (e) {
                 setSheetState(() => sending = false);
-                messenger.showSnackBar(
-                    SnackBar(content: Text('Could not send reply: $e')));
+                if (ctx.mounted) {
+                  CustomSnackBar.show(context, 'Could not send reply: $e',
+                      type: SnackBarType.error);
+                }
               }
             }
 
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Handle
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(2),
+            return SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Handle
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    const Icon(Icons.reply_rounded, color: AppTheme.kPrimary),
-                    const SizedBox(width: 8),
-                    Text('Reply to Victim',
-                        style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF1A1A2E))),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'They see this in their app. It may take time to reach them.',
-                  style: TextStyle(color: Color(0xFF757575), fontSize: 13),
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _quickReplies
-                      .map((q) => ActionChip(
-                            label: Text(q,
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppTheme.kPrimary,
-                                    fontWeight: FontWeight.w600)),
-                            backgroundColor:
-                                AppTheme.kPrimary.withValues(alpha: 0.08),
-                            side:
-                                const BorderSide(color: AppTheme.kPrimary),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16)),
-                            onPressed: sending ? null : () => send(q),
-                          ))
-                      .toList(),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: controller,
-                  maxLines: 3,
-                  maxLength: 500,
-                  decoration: const InputDecoration(
-                      hintText: 'Or type your own message...'),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton.icon(
-                    icon: sending
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.send_rounded, size: 18),
-                    label: Text(sending ? 'Sending...' : 'Send Reply'),
-                    onPressed: sending ? null : () => send(controller.text),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.kPrimary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Icon(Icons.reply_rounded, color: AppTheme.kPrimary),
+                      const SizedBox(width: 8),
+                      Text('Reply to Victim',
+                          style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF1A1A2E))),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'They see this in their app. It may take time to reach them.',
+                    style: TextStyle(color: Color(0xFF757575), fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _quickReplies
+                        .map((q) => ActionChip(
+                              label: Text(q,
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppTheme.kPrimary,
+                                      fontWeight: FontWeight.w600)),
+                              backgroundColor:
+                                  AppTheme.kPrimary.withValues(alpha: 0.08),
+                              side:
+                                  const BorderSide(color: AppTheme.kPrimary),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16)),
+                              onPressed: sending ? null : () => send(q),
+                            ))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: controller,
+                    maxLines: 3,
+                    maxLength: 500,
+                    decoration: const InputDecoration(
+                        hintText: 'Or type your own message...'),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      icon: sending
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.send_rounded, size: 18),
+                      label: Text(sending ? 'Sending...' : 'Send Reply'),
+                      onPressed: sending ? null : () => send(controller.text),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.kPrimary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             );
           },
         ),
@@ -529,26 +538,28 @@ class _RequestCard extends StatelessWidget {
         backgroundColor: Colors.white,
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Confirm Claim',
+        title: const Text('Claim Request?',
             style: TextStyle(
                 color: Color(0xFF1A1A2E), fontWeight: FontWeight.bold)),
         content: const Text(
-          'Claim this request under your personnel ID?\n'
-          'Other teams on every drone will see it as yours after sync.',
+          'Are you sure you want to claim this request?',
           style: TextStyle(color: Color(0xFF757575)),
         ),
+        actionsPadding: const EdgeInsets.only(bottom: 16, right: 16),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.grey.shade600,
+            ),
+            child: const Text('Cancel',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
           ElevatedButton(
             onPressed: () {
               provider.claimMessage(msgId);
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Request claimed!')),
-              );
+              CustomSnackBar.show(context, 'Request claimed!', type: SnackBarType.success);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.kPrimary,
@@ -556,8 +567,8 @@ class _RequestCard extends StatelessWidget {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
             ),
-            child:
-                const Text('Claim', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Claim',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
