@@ -313,7 +313,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     // ── Footer link ─────────────────────────────────────────
                     const SizedBox(height: 24),
-                    TextButton(
+                    TextButton.icon(
                       onPressed: _busy
                           ? null
                           : () => Navigator.of(context).push(
@@ -321,13 +321,21 @@ class _LoginScreenState extends State<LoginScreen> {
                                   builder: (_) => const SettingsScreen(),
                                 ),
                               ),
-                      style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xFF9E9E9E),
+                      
+                      label: const Text(
+                        'Connection Settings',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.3,
+                        ),
                       ),
-                      child: const Text(
-                        'Connection settings / break-glass admin key',
-                        style: TextStyle(fontSize: 12),
-                        textAlign: TextAlign.center,
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppTheme.kPrimary,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ],
