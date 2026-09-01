@@ -94,19 +94,57 @@ class GccApp extends StatelessWidget {
 /// stay separate and each stays readable.
 class ShellNav extends ChangeNotifier {
   static const int mapTab = 0;
+  static const int liveOpsTab = 1;
   static const int missionTab = 2;
+  static const int liveFeedTab = 3;
   static const int nodesTab = 4;
   static const int degradedTab = 5;
+  static const int personnelTab = 6;
+  static const int announcementsTab = 7;
+  static const int droneTab = 8;
+  static const int fieldShareTab = 9;
+  static const int settingsTab = 10;
 
   int? _requested;
+  String? _liveFeedSource;
+  double? _targetMapLat;
+  double? _targetMapLon;
+
   int? takeRequest() {
     final r = _requested;
     _requested = null;
     return r;
   }
 
+  String? takeLiveFeedSource() {
+    final s = _liveFeedSource;
+    _liveFeedSource = null;
+    return s;
+  }
+
+  (double, double)? takeTargetMapCoord() {
+    if (_targetMapLat == null || _targetMapLon == null) return null;
+    final c = (_targetMapLat!, _targetMapLon!);
+    _targetMapLat = null;
+    _targetMapLon = null;
+    return c;
+  }
+
   void go(int tabIndex) {
     _requested = tabIndex;
+    notifyListeners();
+  }
+
+  void goToLiveFeed({String source = 'VICTIMS'}) {
+    _liveFeedSource = source;
+    _requested = liveFeedTab;
+    notifyListeners();
+  }
+
+  void goToMapAt(double lat, double lon) {
+    _targetMapLat = lat;
+    _targetMapLon = lon;
+    _requested = mapTab;
     notifyListeners();
   }
 }
@@ -120,53 +158,6 @@ class GccShell extends StatefulWidget {
 
 class _GccShellState extends State<GccShell> {
   int _index = 0;
-
-  static const _destinations = [
-    NavigationRailDestination(
-        icon: Icon(Icons.map_outlined),
-        selectedIcon: Icon(Icons.map),
-        label: Text('Map')),
-    NavigationRailDestination(
-        icon: Icon(Icons.monitor_heart_outlined),
-        selectedIcon: Icon(Icons.monitor_heart),
-        label: Text('Live Ops')),
-    NavigationRailDestination(
-        icon: Icon(Icons.assignment_outlined),
-        selectedIcon: Icon(Icons.assignment),
-        label: Text('Mission')),
-    NavigationRailDestination(
-        icon: Icon(Icons.inbox_outlined),
-        selectedIcon: Icon(Icons.inbox),
-        label: Text('Live Feed')),
-    NavigationRailDestination(
-        icon: Icon(Icons.router_outlined),
-        selectedIcon: Icon(Icons.router),
-        label: Text('Nodes')),
-    NavigationRailDestination(
-        icon: Icon(Icons.warning_amber_outlined),
-        selectedIcon: Icon(Icons.warning_amber),
-        label: Text('Degraded')),
-    NavigationRailDestination(
-        icon: Icon(Icons.badge_outlined),
-        selectedIcon: Icon(Icons.badge),
-        label: Text('Personnel')),
-    NavigationRailDestination(
-        icon: Icon(Icons.campaign_outlined),
-        selectedIcon: Icon(Icons.campaign),
-        label: Text('Announcements')),
-    NavigationRailDestination(
-        icon: Icon(Icons.flight_outlined),
-        selectedIcon: Icon(Icons.flight),
-        label: Text('Drone')),
-    NavigationRailDestination(
-        icon: Icon(Icons.wifi_tethering_outlined),
-        selectedIcon: Icon(Icons.wifi_tethering),
-        label: Text('Field Share')),
-    NavigationRailDestination(
-        icon: Icon(Icons.settings_outlined),
-        selectedIcon: Icon(Icons.settings),
-        label: Text('Settings')),
-  ];
 
   static const _screens = <Widget>[
     MapScreen(),
@@ -187,12 +178,76 @@ class _GccShellState extends State<GccShell> {
     // A screen asked to move the operator elsewhere; honour it after this
     // frame so we are not calling setState during a build.
     final nav = context.watch<ShellNav>();
+    final data = context.watch<DataStore>();
     final requested = nav.takeRequest();
     if (requested != null && requested != _index) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() => _index = requested);
       });
     }
+
+    final fieldReportsCount = data.gsMessages.items.length;
+    final newVictimCount = data.messages.items.where((m) => m.status == 'NEW').length;
+    final totalFeedAlerts = fieldReportsCount + newVictimCount;
+
+    final destinations = [
+      const NavigationRailDestination(
+          icon: Icon(Icons.map_outlined),
+          selectedIcon: Icon(Icons.map),
+          label: Text('Map')),
+      const NavigationRailDestination(
+          icon: Icon(Icons.monitor_heart_outlined),
+          selectedIcon: Icon(Icons.monitor_heart),
+          label: Text('Live Ops')),
+      const NavigationRailDestination(
+          icon: Icon(Icons.assignment_outlined),
+          selectedIcon: Icon(Icons.assignment),
+          label: Text('Mission')),
+      NavigationRailDestination(
+          icon: totalFeedAlerts > 0
+              ? Badge.count(
+                  count: totalFeedAlerts,
+                  backgroundColor: fieldReportsCount > 0 ? Colors.purpleAccent : Colors.redAccent,
+                  child: const Icon(Icons.inbox_outlined),
+                )
+              : const Icon(Icons.inbox_outlined),
+          selectedIcon: totalFeedAlerts > 0
+              ? Badge.count(
+                  count: totalFeedAlerts,
+                  backgroundColor: fieldReportsCount > 0 ? Colors.purpleAccent : Colors.redAccent,
+                  child: const Icon(Icons.inbox),
+                )
+              : const Icon(Icons.inbox),
+          label: const Text('Live Feed')),
+      const NavigationRailDestination(
+          icon: Icon(Icons.router_outlined),
+          selectedIcon: Icon(Icons.router),
+          label: Text('Nodes')),
+      const NavigationRailDestination(
+          icon: Icon(Icons.warning_amber_outlined),
+          selectedIcon: Icon(Icons.warning_amber),
+          label: Text('Degraded')),
+      const NavigationRailDestination(
+          icon: Icon(Icons.badge_outlined),
+          selectedIcon: Icon(Icons.badge),
+          label: Text('Personnel')),
+      const NavigationRailDestination(
+          icon: Icon(Icons.campaign_outlined),
+          selectedIcon: Icon(Icons.campaign),
+          label: Text('Announcements')),
+      const NavigationRailDestination(
+          icon: Icon(Icons.flight_outlined),
+          selectedIcon: Icon(Icons.flight),
+          label: Text('Drone')),
+      const NavigationRailDestination(
+          icon: Icon(Icons.wifi_tethering_outlined),
+          selectedIcon: Icon(Icons.wifi_tethering),
+          label: Text('Field Share')),
+      const NavigationRailDestination(
+          icon: Icon(Icons.settings_outlined),
+          selectedIcon: Icon(Icons.settings),
+          label: Text('Settings')),
+    ];
 
     return Scaffold(
       body: Row(
@@ -204,7 +259,7 @@ class _GccShellState extends State<GccShell> {
                   selectedIndex: _index,
                   onDestinationSelected: (i) => setState(() => _index = i),
                   labelType: NavigationRailLabelType.all,
-                  destinations: _destinations,
+                  destinations: destinations,
                 ),
               ),
               const _ConnectionBadge(),

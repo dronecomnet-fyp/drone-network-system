@@ -11,9 +11,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../services/ai_advisor.dart';
 import '../main.dart' show ShellNav;
+import '../services/ai_advisor.dart';
 import '../services/connectivity.dart';
+import '../services/mission_validator.dart';
 import '../services/portal_config.dart';
 import '../services/product_api.dart';
 import '../state/app_state.dart';
@@ -832,6 +833,16 @@ class _DeploymentsCard extends StatelessWidget {
             else
               ...m.deployments.map((d) {
                 final active = d.name == m.activeDeploymentName;
+                var outsideCount = 0;
+                for (final p in d.placements) {
+                  final chk = MissionValidator.checkPlacementLocation(
+                    lat: p.lat,
+                    lon: p.lon,
+                    mission: m,
+                  );
+                  if (!chk.isInsideArea) outsideCount++;
+                }
+
                 return ListTile(
                   dense: true,
                   leading: Icon(
@@ -851,6 +862,16 @@ class _DeploymentsCard extends StatelessWidget {
                         const Chip(
                           visualDensity: VisualDensity.compact,
                           label: Text('draft'),
+                        ),
+                      ],
+                      if (outsideCount > 0) ...[
+                        const SizedBox(width: 4),
+                        Chip(
+                          visualDensity: VisualDensity.compact,
+                          avatar: const Icon(Icons.warning_amber, size: 12, color: Colors.amberAccent),
+                          label: Text('$outsideCount outside area',
+                              style: const TextStyle(color: Colors.amberAccent, fontSize: 11)),
+                          backgroundColor: Colors.amber.shade900.withValues(alpha: 0.3),
                         ),
                       ],
                     ],
