@@ -174,8 +174,6 @@ class _AreaMapScreenState extends State<AreaMapScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Area map'),
-        backgroundColor: Colors.red.shade700,
-        foregroundColor: Colors.white,
         actions: [
           IconButton(
             tooltip: 'Fit everything',

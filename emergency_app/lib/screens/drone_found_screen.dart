@@ -100,8 +100,6 @@ class _DroneFoundScreenState extends State<DroneFoundScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Rescue drone nearby'),
-        backgroundColor: Colors.red.shade600,
-        foregroundColor: Colors.white,
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
