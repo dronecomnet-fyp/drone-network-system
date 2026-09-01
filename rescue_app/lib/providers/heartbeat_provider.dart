@@ -1,15 +1,3 @@
-/// HeartbeatProvider (M7d): shares the rescuer's location with the mesh so
-/// the ground control centre can see where teams are.
-///
-/// Battery-friendly by design: it only runs while the rescuer is logged in
-/// AND the app is in the foreground, and only every 90 seconds. Nothing runs
-/// in the background or when logged out. This is the honest tradeoff
-/// (continuous background tracking is out of scope); the operator sees each
-/// rescuer's LAST known position with its age.
-///
-/// Mirrors the message poller's single-shot self-rescheduling timer and its
-/// adaptive backoff on failure, so a node going out of range does not cause
-/// a retry storm.
 library;
 
 import 'dart:async';
@@ -26,8 +14,22 @@ class HeartbeatProvider with ChangeNotifier {
   static const Duration _maxBackoff = Duration(minutes: 5);
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
 
+  StreamSubscription<ServiceStatus>? _serviceStatusSub; // Listens to location service status changes
+
   HeartbeatProvider() {
     _load();
+    _initServiceStatus();
+  }
+
+  // Initialize location service status listener
+  Future<void> _initServiceStatus() async {
+    _serviceStatusSub = Geolocator.getServiceStatusStream().listen((status) {
+      if (status == ServiceStatus.disabled && _enabled) {
+        // If the user manually turns off OS location services, automatically
+        // disable the app's location sharing toggle to reflect reality.
+        setEnabled(value: false);
+      }
+    });
   }
 
   bool _enabled = true;
@@ -152,6 +154,7 @@ class HeartbeatProvider with ChangeNotifier {
 
   @override
   void dispose() {
+    _serviceStatusSub?.cancel();
     _timer?.cancel();
     super.dispose();
   }

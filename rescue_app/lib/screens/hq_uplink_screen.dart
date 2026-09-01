@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 
+import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/message_provider.dart';
+import '../widgets/custom_snackbar.dart';
 
 class HQUplinkScreen extends StatefulWidget {
   const HQUplinkScreen({super.key});
@@ -58,7 +60,15 @@ class _HQUplinkScreenState extends State<HQUplinkScreen> {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        throw Exception('Location services are disabled on this device.');
+        if (mounted) {
+          CustomSnackBar.show(
+            context,
+            'Please enable Location Services and press Fetch again.',
+            type: SnackBarType.error,
+          );
+        }
+        await Geolocator.openLocationSettings();
+        return;
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
@@ -90,17 +100,15 @@ class _HQUplinkScreenState extends State<HQUplinkScreen> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Current location attached.')),
-      );
+      CustomSnackBar.show(context, 'Current location attached.',
+          type: SnackBarType.success);
     } catch (e) {
       if (!mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not attach location: $e')),
-      );
+      CustomSnackBar.show(context, 'Could not attach location: $e',
+          type: SnackBarType.error);
     } finally {
       if (mounted) {
         setState(() => _isAttachingLocation = false);
@@ -110,9 +118,8 @@ class _HQUplinkScreenState extends State<HQUplinkScreen> {
 
   void _submitMessage() async {
     if (_messageController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a message')),
-      );
+      CustomSnackBar.show(context, 'Please enter a message',
+          type: SnackBarType.error);
       return;
     }
 
@@ -133,17 +140,14 @@ class _HQUplinkScreenState extends State<HQUplinkScreen> {
       _locationLat = null;
       _locationLon = null;
       _locationAccuracy = null;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Message sent to HQ!')),
-      );
+      CustomSnackBar.show(context, 'Message sent to HQ!',
+          type: SnackBarType.success);
     } catch (e) {
       final provider = Provider.of<MessageProvider>(context, listen: false);
       final authMessage = (provider.apiError?.isCredentialFailure ?? false)
           ? 'Not authorized. Log in again or check Settings.'
           : 'Error: $e';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(authMessage)),
-      );
+      CustomSnackBar.show(context, authMessage, type: SnackBarType.error);
     } finally {
       setState(() => _isSending = false);
     }
@@ -154,222 +158,283 @@ class _HQUplinkScreenState extends State<HQUplinkScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('HQ Uplink'),
-        backgroundColor: Colors.blue.shade700,
-        elevation: 4,
       ),
       body: Consumer<MessageProvider>(
         builder: (context, messageProvider, child) {
-          return Column(
-            children: [
+          return CustomScrollView(
+            slivers: [
               // Message input section
-              Container(
-                color: Colors.blue.shade50,
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Send Message to HQ',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _senderController,
-                      decoration: InputDecoration(
-                        labelText: 'Sender Name',
-                        prefixIcon: const Icon(Icons.person),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
+              SliverToBoxAdapter(
+                child: Container(
+                  margin: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.07),
+                        blurRadius: 18,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Send Message to HQ',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF1A1A2E),
+                            ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _senderController,
+                        decoration: _modernDecoration(
+                          'Sender Name',
+                          Icons.person,
+                        ),
+                        enabled: !_isSending,
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _locationController,
+                        decoration: _modernDecoration(
+                          'Location',
+                          Icons.place,
+                          hint: 'Attach your current GPS location',
+                        ),
+                        readOnly: true,
+                        enabled: !_isSending,
+                        maxLines: 2,
+                        minLines: 1,
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: _isSending || _isAttachingLocation
+                              ? null
+                              : _attachCurrentLocation,
+                          icon: const Icon(Icons.my_location),
+                          label: Text(
+                            _isAttachingLocation
+                                ? 'Fetching location...'
+                                : 'Fetch current location',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppTheme.kPrimary,
+                          ),
                         ),
                       ),
-                      enabled: !_isSending,
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _locationController,
-                      decoration: InputDecoration(
-                        labelText: 'Location',
-                        prefixIcon: const Icon(Icons.place),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _messageController,
+                        decoration: _modernDecoration(
+                          'Message',
+                          Icons.message,
+                          hint: 'Enter your field report or status update',
                         ),
-                        hintText: 'Attach your current GPS location',
+                        maxLines: 4,
+                        minLines: 3,
+                        enabled: !_isSending,
                       ),
-                      readOnly: true,
-                      enabled: !_isSending,
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed: _isSending || _isAttachingLocation
-                            ? null
-                            : _attachCurrentLocation,
-                        icon: const Icon(Icons.my_location),
-                        label: Text(
-                          _isAttachingLocation
-                              ? 'Fetching location...'
-                              : 'Fetch current location',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _messageController,
-                      decoration: InputDecoration(
-                        labelText: 'Message',
-                        prefixIcon: const Icon(Icons.message),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        hintText: 'Enter your field report or status update',
-                      ),
-                      maxLines: 4,
-                      enabled: !_isSending,
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isSending ? null : _submitMessage,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: _isSending
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isSending ? null : _submitMessage,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.kPrimary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            elevation: 2,
+                          ),
+                          child: _isSending
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white),
+                                  ),
+                                )
+                              : const Text(
+                                  'SEND TO HQ',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                    letterSpacing: 0.5,
+                                  ),
                                 ),
-                              )
-                            : const Text(
-                                'SEND TO HQ',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-              // Messages log section
-              Expanded(
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Message Log',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.refresh),
-                            onPressed: () => messageProvider.fetchGSMessages(),
-                          ),
-                        ],
+
+              // Messages log section header
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Message Log',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF1A1A2E),
+                            ),
                       ),
+                      IconButton(
+                        icon: const Icon(Icons.refresh),
+                        color: AppTheme.kPrimary,
+                        onPressed: () => messageProvider.fetchGSMessages(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Messages list or empty state
+              if (messageProvider.gsMessages.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.chat_bubble_outline,
+                            size: 64, color: Colors.grey.shade300),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No messages yet',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF1A1A2E),
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Messages will appear here',
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                      ],
                     ),
-                    if (messageProvider.gsMessages.isEmpty)
-                      Expanded(
-                        child: Center(
+                  ),
+                )
+              else
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      // Reverse order
+                      final message = messageProvider.gsMessages[
+                          messageProvider.gsMessages.length - 1 - index];
+                      final formattedTime = message.displayTime;
+
+                      return Container(
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.07),
+                              blurRadius: 18,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                          border: const Border(
+                            left: BorderSide(
+                                color: AppTheme.kPrimary, width: 5),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
                           child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.chat_bubble_outline,
-                                  size: 64, color: Colors.grey.shade400),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No messages yet',
-                                style:
-                                    Theme.of(context).textTheme.headlineSmall,
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    message.sender,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: AppTheme.kPrimary,
+                                        ),
+                                  ),
+                                  Text(
+                                    formattedTime,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.copyWith(
+                                          color: Colors.grey.shade600,
+                                        ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'Messages will appear here',
-                                style: Theme.of(context).textTheme.bodyMedium,
+                                message.content,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  color: Color(0xFF212121),
+                                  height: 1.4,
+                                ),
                               ),
                             ],
                           ),
                         ),
-                      )
-                    else
-                      Expanded(
-                        child: RefreshIndicator(
-                          onRefresh: () => messageProvider.fetchGSMessages(),
-                          child: ListView.builder(
-                            reverse: true,
-                            padding: const EdgeInsets.all(8),
-                            itemCount: messageProvider.gsMessages.length,
-                            itemBuilder: (context, index) {
-                              final message = messageProvider.gsMessages[
-                                  messageProvider.gsMessages.length -
-                                      1 -
-                                      index];
-                              final formattedTime = message.displayTime;
-
-                              return Card(
-                                margin: const EdgeInsets.symmetric(
-                                    horizontal: 4, vertical: 4),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            message.sender,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .labelMedium
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                          ),
-                                          Text(
-                                            formattedTime,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .labelSmall,
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        message.content,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                  ],
+                      );
+                    },
+                    childCount: messageProvider.gsMessages.length,
+                  ),
                 ),
-              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 40)),
             ],
           );
         },
       ),
+    );
+  }
+
+  InputDecoration _modernDecoration(String label, IconData icon,
+      {String? hint}) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      prefixIcon: Icon(icon),
+      filled: true,
+      fillColor: const Color(0xFFF5F7FA),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppTheme.kPrimary, width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
 }

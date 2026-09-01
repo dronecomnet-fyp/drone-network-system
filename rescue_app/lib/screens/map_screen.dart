@@ -178,9 +178,7 @@ class _MapScreenState extends State<MapScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ops Map'),
-        backgroundColor: Colors.indigo.shade700,
-        elevation: 4,
+        title: const Text('Operation Map'),
         actions: [
           IconButton(
             tooltip: 'Fit to markers',

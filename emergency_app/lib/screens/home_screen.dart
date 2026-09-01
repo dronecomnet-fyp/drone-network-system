@@ -1,6 +1,4 @@
-/// Home (file 06 screen 2): status card (last logged point + time, watch
-/// armed on/off), a big SOS button (disabled until connected to a drone,
-/// with the reason shown), and a link to "Your data".
+/// Home (file 06 screen 2): Main Dashboard containing the persistent BottomNavigationBar
 library;
 
 import 'package:app_settings/app_settings.dart';
@@ -23,14 +21,87 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  int _currentIndex = 0;
+
+  void _onNavTapped(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      // No AppBar here, as individual tabs (like AreaMapScreen and ConversationScreen) have their own AppBars.
+      // (_HomeTabContent also provides its own AppBar so it looks natural).
+      body: IndexedStack(
+        index: _currentIndex,
+        children: const [
+          _HomeTabContent(),
+          AreaMapScreen(),
+          ConversationScreen(),
+          SettingsScreen(),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: _onNavTapped,
+        backgroundColor: Colors.white,
+        elevation: 10,
+        shadowColor: Colors.black12,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_filled),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.map_outlined),
+            label: 'Map',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.forum_outlined),
+            label: 'Chat',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.settings_outlined),
+            label: 'Settings',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeTabContent extends StatefulWidget {
+  const _HomeTabContent();
+
+  @override
+  State<_HomeTabContent> createState() => _HomeTabContentState();
+}
+
+class _HomeTabContentState extends State<_HomeTabContent>
+    with SingleTickerProviderStateMixin {
   bool _busy = false;
+  late AnimationController _pulseController;
 
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..repeat(reverse: true);
+
     Future.microtask(() {
       if (mounted) context.read<AppController>().checkOnDrone();
     });
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
   }
 
   String _ago(String iso) {
@@ -59,196 +130,277 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final c = context.watch<AppController>();
-    final StoredPoint? last =
-        c.points.isEmpty ? null : c.points.last;
+  void _handleSosTap(AppController c) {
+    if (c.onDrone) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const ConnectedScreen()),
+      );
+    } else {
+      _showConnectModal();
+    }
+  }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Rescue Emergency'),
-        backgroundColor: Colors.red.shade600,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            tooltip: 'Map of drones, rescuers and people needing help',
-            icon: const Icon(Icons.map),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AreaMapScreen()),
+  void _showConnectModal() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 48,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
-          IconButton(
-            tooltip: 'Messages with the rescue team',
-            icon: const Icon(Icons.forum),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ConversationScreen()),
+            const SizedBox(height: 24),
+            Icon(Icons.wifi_find_rounded, size: 56, color: Colors.orange.shade700),
+            const SizedBox(height: 16),
+            const Text(
+              'Not Connected to Drone',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 12),
+            const Text(
+              'You need to be connected to a rescue drone to send an SOS. '
+              'Please go to your Wi-Fi settings and join the open "RESCUE" network.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.black87, height: 1.4),
+            ),
+            const SizedBox(height: 32),
+            FilledButton.icon(
+              icon: const Icon(Icons.settings),
+              label: const Text('Open Wi-Fi Settings', style: TextStyle(fontSize: 16)),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(double.infinity, 56),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                backgroundColor: Theme.of(context).primaryColor,
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                AppSettings.openAppSettings(type: AppSettingsType.wifi);
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusBanner(AppController c) {
+    final bool online = c.onDrone;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+      decoration: BoxDecoration(
+        color: online ? Colors.green.shade50 : Colors.orange.shade50,
+        border: Border(
+          bottom: BorderSide(
+            color: online ? Colors.green.shade200 : Colors.orange.shade200,
           ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (!online)
+            AnimatedBuilder(
+              animation: _pulseController,
+              builder: (context, child) {
+                return Opacity(
+                  opacity: 0.4 + (_pulseController.value * 0.6),
+                  child: Icon(Icons.radar, color: Colors.orange.shade800, size: 18),
+                );
+              },
+            )
+          else
+            const Icon(Icons.check_circle, color: Colors.green, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            online ? 'Connected to Rescue Network' : 'Scanning for rescue drones...',
+            style: TextStyle(
+              color: online ? Colors.green.shade900 : Colors.orange.shade900,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await c.refreshPoints();
-          await c.checkOnDrone();
-        },
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // Watch status
-            Card(
-              color: c.armed ? Colors.green.shade50 : null,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          c.armed
-                              ? Icons.bluetooth_searching
-                              : Icons.bluetooth_disabled,
-                          color: c.armed ? Colors.green : Colors.grey,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            c.armed
-                                ? 'Watch armed: scanning for a rescue drone'
-                                : 'Watch off',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                        Switch(
-                          value: c.armed,
-                          onChanged:
-                              _busy ? null : (_) => _toggleArmed(c),
-                        ),
-                      ],
-                    ),
-                    if (c.armed)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          'A notification will appear if a drone is near. '
-                          'You can lock your phone.',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ),
-                    if (c.lastSighting != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          'Last drone seen: ${c.lastSighting!.ssid} '
-                          '(signal ${c.lastSighting!.rssi} dBm)',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: Colors.green.shade800),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
+    );
+  }
 
-            // Location log status
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Your location log',
-                        style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    Text(last == null
-                        ? 'No points logged yet.'
-                        : 'Last point ${_ago(last.recordedAt)} '
-                            '(${c.points.length}/${c.maxPoints} kept)'),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Stored only on this phone. Nothing is sent until you '
-                      'reach a drone or press SOS.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                              builder: (_) => const YourDataScreen()),
-                        ),
-                        child: const Text('Your data'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // SOS
-            Column(
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  height: 72,
-                  child: FilledButton.icon(
-                    icon: const Icon(Icons.sos, size: 28),
-                    label: const Text('SEND SOS',
-                        style: TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.bold)),
-                    style: FilledButton.styleFrom(
-                      backgroundColor:
-                          c.onDrone ? Colors.red.shade700 : Colors.grey,
-                    ),
-                    onPressed: c.onDrone
-                        ? () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                  builder: (_) => const ConnectedScreen()),
-                            )
-                        : null,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  c.onDrone
-                      ? 'Connected to ${c.connectedNodeId ?? "a rescue drone"}. '
-                          'Tap SOS to send.'
-                      : 'SOS turns on automatically once you join a rescue '
-                          'drone Wi-Fi. A notification will guide you when one '
-                          'is near, or connect manually below.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                if (!c.onDrone) ...[
-                  const SizedBox(height: 8),
-                  TextButton.icon(
-                    icon: const Icon(Icons.wifi, size: 18),
-                    label: const Text('Connect to a drone manually'),
-                    onPressed: () => AppSettings.openAppSettings(
-                        type: AppSettingsType.wifi),
-                  ),
-                  Text(
-                    'Join the open "RESCUE_x" network, then come back. This '
-                    'screen updates on its own within a few seconds.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ],
-            ),
-          ],
+  Widget _buildCentralSos(AppController c) {
+    return Column(
+      children: [
+        const Text(
+          'Emergency Assistance',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
         ),
+        const SizedBox(height: 8),
+        Text(
+          'Tap below to alert the rescue team.',
+          style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: 200,
+          height: 200,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.red.withOpacity(0.3),
+                blurRadius: 30,
+                spreadRadius: 10,
+                offset: const Offset(0, 10),
+              ),
+            ],
+            gradient: const LinearGradient(
+              colors: [Color(0xFFE53935), Color(0xFFC62828)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => _handleSosTap(c),
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Image.asset('assets/emegency.png', width: 86, height: 86, color: Colors.white),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'EMERGENCY',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSystemStatusCard(AppController c, StoredPoint? last) {
+    return Card(
+      color: Colors.white,
+      elevation: 2,
+      shadowColor: Colors.black12,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          // Bluetooth Row
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: c.armed ? Colors.green.shade50 : Colors.grey.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                c.armed ? Icons.bluetooth_searching : Icons.bluetooth_disabled,
+                color: c.armed ? Colors.green.shade700 : Colors.grey.shade600,
+                size: 24,
+              ),
+            ),
+            title: const Text('Bluetooth Radar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            subtitle: Text(
+              c.armed ? 'Active' : 'Inactive',
+              style: TextStyle(
+                color: c.armed ? Colors.green.shade700 : Colors.grey.shade600,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            trailing: Switch(
+              value: c.armed,
+              activeColor: Colors.green,
+              onChanged: _busy ? null : (_) => _toggleArmed(c),
+            ),
+          ),
+          Divider(height: 1, color: Colors.grey.shade100),
+          // Location Row
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const YourDataScreen()),
+            ),
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.location_on, color: Colors.blue.shade700, size: 24),
+            ),
+            title: const Text('Location Logger', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            subtitle: Text(
+              last == null ? 'Waiting for GPS...' : 'Ready (${_ago(last.recordedAt)})',
+              style: TextStyle(
+                color: Colors.blue.shade800,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.watch<AppController>();
+    final StoredPoint? last = c.points.isEmpty ? null : c.points.last;
+
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        title: const Text('AERO-LINK Emergency'),
+      ),
+      body: Column(
+        children: [
+          _buildStatusBanner(c),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                await c.refreshPoints();
+                await c.checkOnDrone();
+              },
+              child: ListView(
+                // Padding reduced to eliminate scrolling
+                padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 20),
+                children: [
+                  _buildCentralSos(c),
+                  const SizedBox(height: 24),
+                  _buildSystemStatusCard(c, last),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
