@@ -25,6 +25,7 @@ import 'package:rescue_mesh_shared/rescue_mesh_shared.dart' as shared;
 
 import '../constants.dart';
 import '../state/app_controller.dart';
+import '../widgets/media_widgets.dart';
 
 class ConversationScreen extends StatefulWidget {
   const ConversationScreen({super.key});
@@ -227,7 +228,16 @@ class _Bubble extends StatelessWidget {
                       color: Colors.blue.shade900),
                 ),
               ),
-            Text(entry.body, style: const TextStyle(fontSize: 17)),
+            if (entry.hasAttachments) ...[
+              for (final att in entry.attachments)
+                if (att.isAudio)
+                  AudioBubblePlayer(attachment: att, isSender: mine)
+                else if (att.isImage)
+                  ImageBubbleViewer(attachment: att),
+              const SizedBox(height: 4),
+            ],
+            if (entry.body.isNotEmpty)
+              Text(entry.body, style: const TextStyle(fontSize: 17)),
             const SizedBox(height: 4),
             Row(
               mainAxisSize: MainAxisSize.min,

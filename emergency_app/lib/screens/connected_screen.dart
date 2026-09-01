@@ -18,12 +18,15 @@
 library;
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:rescue_mesh_shared/rescue_mesh_shared.dart' as shared;
 
 import '../constants.dart';
+import '../services/media_service.dart';
 import '../services/upload_service.dart';
 import '../state/app_controller.dart';
 import 'conversation_screen.dart';
@@ -38,10 +41,18 @@ class ConnectedScreen extends StatefulWidget {
 class _ConnectedScreenState extends State<ConnectedScreen>
     with SingleTickerProviderStateMixin {
   final _noteController = TextEditingController();
+  final MediaService _mediaService = MediaService();
+
   bool _uploading = false;
   bool _sending = false;
   String? _uploadMessage;
   bool _sosSent = false;
+
+  bool _isRecording = false;
+  int _recordSeconds = 0;
+  Timer? _recordTimer;
+  String? _recordedAudioPath;
+  XFile? _attachedImage;
 
   /// Stock until the node answers. Never null, so there is always
   /// something to tap even against a node running older code.
@@ -70,6 +81,8 @@ class _ConnectedScreenState extends State<ConnectedScreen>
   void dispose() {
     _pulseController.dispose();
     _noteController.dispose();
+    _recordTimer?.cancel();
+    _mediaService.dispose();
     super.dispose();
   }
 
@@ -81,10 +94,6 @@ class _ConnectedScreenState extends State<ConnectedScreen>
       if (!mounted || opts.situations.isEmpty) return;
       setState(() => _options = opts);
     } catch (_) {
-      // Older node, or a slow link. The stock list is already showing and
-      // is deliberately need-based, so it is never wrong, only less
-      // tailored. Saying nothing is right: this is not the victim's
-      // problem to solve.
     } finally {
       client.close();
     }
@@ -105,9 +114,6 @@ class _ConnectedScreenState extends State<ConnectedScreen>
     }
   }
 
-  /// What the rescue team reads. Tapped labels first because they are the
-  /// structured part, then anything typed. Built here rather than on the
-  /// node so the message is identical whichever route it arrived by.
   String _composeText() {
     final labels = _options.situations
         .where((s) => _selected.contains(s.id))
@@ -119,12 +125,138 @@ class _ConnectedScreenState extends State<ConnectedScreen>
     return note.isEmpty ? joined : '$joined. $note';
   }
 
+  Future<void> _startRecording() async {
+    final started = await _mediaService.startVoiceRecording();
+    if (!started || !mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Microphone permission required to record voice notes.')),
+      );
+      return;
+    }
+    setState(() {
+      _isRecording = true;
+      _recordSeconds = 0;
+      _recordedAudioPath = null;
+    });
+    _recordTimer?.cancel();
+    _recordTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      setState(() => _recordSeconds++);
+      if (_recordSeconds >= 30) {
+        _stopRecording();
+      }
+    });
+  }
+
+  Future<void> _stopRecording() async {
+    _recordTimer?.cancel();
+    _recordTimer = null;
+    final path = await _mediaService.stopVoiceRecording();
+    if (!mounted) return;
+    setState(() {
+      _isRecording = false;
+      _recordedAudioPath = path;
+    });
+  }
+
+  Future<void> _cancelRecording() async {
+    _recordTimer?.cancel();
+    _recordTimer = null;
+    await _mediaService.cancelVoiceRecording();
+    if (!mounted) return;
+    setState(() {
+      _isRecording = false;
+      _recordedAudioPath = null;
+    });
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final picked = await _mediaService.pickImage(source);
+    if (!mounted || picked == null) return;
+    setState(() {
+      _attachedImage = picked;
+      // Prefer one primary attachment
+      _recordedAudioPath = null;
+    });
+  }
+
+  void _removeImage() {
+    setState(() => _attachedImage = null);
+  }
+
+  void _showImagePickerSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Attach Photo',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFEFF6FF),
+                  child: Icon(Icons.camera_alt, color: Color(0xFF2563EB)),
+                ),
+                title: const Text('Take Photo with Camera'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFF3E8FF),
+                  child: Icon(Icons.photo_library, color: Color(0xFF9333EA)),
+                ),
+                title: const Text('Choose from Gallery'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _sendSos() async {
     setState(() => _sending = true);
     try {
-      await context
-          .read<AppController>()
-          .sendSos(_composeText(), includeLocation: _shareLocation);
+      List<int>? mediaBytes;
+      String? mediaFilename;
+      String? mediaMimeType;
+
+      if (_recordedAudioPath != null) {
+        final f = File(_recordedAudioPath!);
+        if (await f.exists()) {
+          mediaBytes = await f.readAsBytes();
+          mediaFilename = 'voice_sos_${DateTime.now().millisecondsSinceEpoch}.m4a';
+          mediaMimeType = 'audio/m4a';
+        }
+      } else if (_attachedImage != null) {
+        mediaBytes = await _attachedImage!.readAsBytes();
+        mediaFilename = _attachedImage!.name;
+        mediaMimeType = 'image/jpeg';
+      }
+
+      await context.read<AppController>().sendSos(
+            _composeText(),
+            includeLocation: _shareLocation,
+            mediaBytes: mediaBytes,
+            mediaFilename: mediaFilename,
+            mediaMimeType: mediaMimeType,
+          );
       if (!mounted) return;
       setState(() {
         _sosSent = true;
@@ -363,6 +495,9 @@ class _ConnectedScreenState extends State<ConnectedScreen>
           ),
         ),
       ),
+      const SizedBox(height: 16),
+
+      _buildMediaAttachmentSection(),
       const SizedBox(height: 20),
       
       // Massive SOS Button
@@ -475,6 +610,199 @@ class _ConnectedScreenState extends State<ConnectedScreen>
           }
         });
       },
+    );
+  }
+
+  Widget _buildMediaAttachmentSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Attach voice or photo (optional)',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
+            ),
+            if (_recordedAudioPath != null || _attachedImage != null)
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  foregroundColor: Colors.red.shade700,
+                  padding: EdgeInsets.zero,
+                ),
+                icon: const Icon(Icons.close, size: 16),
+                label: const Text('Clear', style: TextStyle(fontSize: 12)),
+                onPressed: () {
+                  _cancelRecording();
+                  _removeImage();
+                },
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        if (_isRecording)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.red.shade200),
+            ),
+            child: Row(
+              children: [
+                AnimatedBuilder(
+                  animation: _pulseController,
+                  builder: (context, child) => Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.4 + 0.6 * _pulseController.value),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Recording Voice Note...',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red),
+                      ),
+                      Text(
+                        '0:${_recordSeconds.toString().padLeft(2, '0')} / 0:30',
+                        style: TextStyle(fontSize: 12, color: Colors.red.shade800),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.check_circle, color: Colors.green, size: 28),
+                  tooltip: 'Done',
+                  onPressed: _stopRecording,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.cancel, color: Colors.grey, size: 28),
+                  tooltip: 'Cancel',
+                  onPressed: _cancelRecording,
+                ),
+              ],
+            ),
+          )
+        else if (_recordedAudioPath != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.green.shade200),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.mic, color: Colors.green, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Voice Note Attached',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green),
+                      ),
+                      Text(
+                        'Duration: 0:${_recordSeconds.toString().padLeft(2, '0')}',
+                        style: TextStyle(fontSize: 11, color: Colors.green.shade800),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.red, size: 22),
+                  onPressed: _cancelRecording,
+                ),
+              ],
+            ),
+          )
+        else if (_attachedImage != null)
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(
+                    File(_attachedImage!.path),
+                    width: 60,
+                    height: 60,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Photo Attached',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+                      ),
+                      Text(
+                        _attachedImage!.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.red, size: 22),
+                  onPressed: _removeImage,
+                ),
+              ],
+            ),
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.mic, color: Color(0xFFDC2626)),
+                  label: const Text('Voice Note', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    backgroundColor: Colors.white,
+                    side: BorderSide(color: Colors.grey.shade300),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  onPressed: _startRecording,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.photo_camera, color: Color(0xFF2563EB)),
+                  label: const Text('Add Photo', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    backgroundColor: Colors.white,
+                    side: BorderSide(color: Colors.grey.shade300),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  onPressed: _showImagePickerSheet,
+                ),
+              ),
+            ],
+          ),
+      ],
     );
   }
 }

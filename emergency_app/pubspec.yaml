@@ -28,6 +28,10 @@ dependencies:
   # background because there is no internet at a disaster site.
   flutter_map: ^8.1.1
   latlong2: ^0.9.1
+  record: ^5.1.2
+  audioplayers: ^6.0.0
+  image_picker: ^1.1.2
+  path_provider: ^2.1.4
   rescue_mesh_shared:
     path: ../shared_dart
 

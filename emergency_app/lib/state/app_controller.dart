@@ -203,9 +203,21 @@ class AppController extends ChangeNotifier {
 
   Future<UploadResult> uploadStored() => uploader.upload();
 
-  Future<UploadResult> sendSos(String text, {bool includeLocation = true}) =>
+  Future<UploadResult> sendSos(
+    String text, {
+    bool includeLocation = true,
+    List<int>? mediaBytes,
+    String? mediaFilename,
+    String? mediaMimeType,
+  }) =>
       uploader.upload(
-          sos: true, sosText: text, includeLocation: includeLocation);
+        sos: true,
+        sosText: text,
+        includeLocation: includeLocation,
+        mediaBytes: mediaBytes,
+        mediaFilename: mediaFilename,
+        mediaMimeType: mediaMimeType,
+      );
 
   int get pendingUploadCount => points.where((p) => !p.uploaded).length;
 

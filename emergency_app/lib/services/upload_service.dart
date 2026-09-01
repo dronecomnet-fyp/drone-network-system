@@ -44,18 +44,16 @@ class UploadService {
 
   Future<bool> isOnDrone() async => (await connectedNodeId()) != null;
 
-  /// Upload all not-yet-uploaded points, optionally with an SOS. Marks the
-  /// uploaded points locally on success (file 06). [sosText] is ignored
-  /// unless [sos] is true.
-  /// [includeLocation] false means the victim explicitly opted OUT. Their
-  /// points then stay on the phone and the SOS travels without
-  /// coordinates. Sharing is the default because a rescue team that knows
-  /// only that SOMEBODY needs help cannot act on it; opting out is offered
-  /// because it is their phone and their choice.
-  Future<UploadResult> upload(
-      {bool sos = false,
-      String sosText = '',
-      bool includeLocation = true}) async {
+  /// Upload all not-yet-uploaded points, optionally with an SOS and media attachment.
+  /// Marks the uploaded points locally on success (file 06).
+  Future<UploadResult> upload({
+    bool sos = false,
+    String sosText = '',
+    bool includeLocation = true,
+    List<int>? mediaBytes,
+    String? mediaFilename,
+    String? mediaMimeType,
+  }) async {
     final deviceId = await storage.deviceId();
     final allPoints = await storage.points();
     final pending = !includeLocation
@@ -66,12 +64,25 @@ class UploadService {
 
     final client = shared.RescueMeshClient(baseUrl: kDroneBaseUrl);
     try {
-      final result = await client.postCheckin(
-        deviceId: deviceId,
-        points: pending.map((p) => p.toCheckinPoint()).toList(),
-        sos: sos,
-        sosText: sosText,
-      );
+      final Map<String, dynamic> result;
+      if (mediaBytes != null && mediaBytes.isNotEmpty) {
+        result = await client.postCheckinWithMedia(
+          deviceId: deviceId,
+          points: pending.map((p) => p.toCheckinPoint()).toList(),
+          sos: sos,
+          sosText: sosText,
+          mediaBytes: mediaBytes,
+          mediaFilename: mediaFilename,
+          mediaMimeType: mediaMimeType,
+        );
+      } else {
+        result = await client.postCheckin(
+          deviceId: deviceId,
+          points: pending.map((p) => p.toCheckinPoint()).toList(),
+          sos: sos,
+          sosText: sosText,
+        );
+      }
       await storage
           .markUploaded(pending.map((p) => p.recordedAt).toSet());
       return UploadResult(
