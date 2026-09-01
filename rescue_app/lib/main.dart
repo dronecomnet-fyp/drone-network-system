@@ -10,6 +10,7 @@ import 'screens/hq_uplink_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/map_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/splash_screen.dart';
 import 'screens/victim_requests_screen.dart';
 import 'services/network_binder.dart';
 import 'widgets/alert_banner.dart';
@@ -55,9 +56,9 @@ class RescueApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AlertsProvider()),
       ],
       child: MaterialApp(
-        title: 'Rescue Mesh',
+        title: 'AERO-LINK',
         theme: AppTheme.darkTheme(),
-        home: const RootGate(),
+        home: const SplashScreen(),
         debugShowCheckedModeBanner: false,
       ),
     );

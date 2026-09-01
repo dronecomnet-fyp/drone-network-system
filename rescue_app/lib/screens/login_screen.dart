@@ -108,19 +108,23 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // ── Header Icon & Title ────────────────────────────────
-                    Icon(
-                      Icons.health_and_safety_rounded,
-                      size: 64,
-                      color: AppTheme.kPrimary,
+                    Image.asset(
+                      'assets/logo_login.png',
+                      height: 80,
+                      errorBuilder: (context, error, stackTrace) => Icon(
+                        Icons.health_and_safety_rounded,
+                        size: 64,
+                        color: AppTheme.kPrimary,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Rescue Mesh',
+                      'AERO-LINK',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                             fontWeight: FontWeight.w800,
-                            color: const Color(0xFF1A1A2E),
-                            letterSpacing: -0.5,
+                            color: AppTheme.kPrimary,
+                            letterSpacing: 2.0,
                           ),
                     ),
                     const SizedBox(height: 8),

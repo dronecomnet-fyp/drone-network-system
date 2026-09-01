@@ -203,7 +203,7 @@ class _RequestCard extends StatelessWidget {
     return GestureDetector(
       onTap: () => _showDetails(context),
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8),
+        margin: const EdgeInsets.symmetric(vertical: 6),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
@@ -219,7 +219,7 @@ class _RequestCard extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -253,7 +253,7 @@ class _RequestCard extends StatelessWidget {
               ),
 
               // ── Message body ──────────────────────────────────────────────
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Text(
                 message.displayContent,
                 style: const TextStyle(
@@ -265,15 +265,15 @@ class _RequestCard extends StatelessWidget {
               ),
 
               // ── GPS · CLAIM · REPLY — single row ────────────────────────
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               IntrinsicHeight(
                 child: Row(
                   children: [
                     // GPS
                     Expanded(
                       child: SizedBox(
-                        height: 46,
-                        child: OutlinedButton(
+                        height: 36,
+                        child: OutlinedButton.icon(
                           onPressed:
                               message.hasGpsLocation ? _openMaps : null,
                           style: OutlinedButton.styleFrom(
@@ -288,32 +288,17 @@ class _RequestCard extends StatelessWidget {
                                   : const Color(0xFFE0E0E0),
                             ),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
+                                borderRadius: BorderRadius.circular(10)),
                             padding: EdgeInsets.zero,
                           ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.location_on_rounded,
-                                size: 18,
-                                color: message.hasGpsLocation
-                                    ? AppTheme.kSuccess
-                                    : const Color(0xFFBDBDBD),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'MAP',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.5,
-                                  color: message.hasGpsLocation
-                                      ? AppTheme.kSuccess
-                                      : const Color(0xFFBDBDBD),
-                                ),
-                              ),
-                            ],
+                          icon: const Icon(Icons.location_on_rounded, size: 16),
+                          label: const Text(
+                            'MAP',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
                       ),
@@ -322,7 +307,7 @@ class _RequestCard extends StatelessWidget {
                     // CLAIM
                     Expanded(
                       child: SizedBox(
-                        height: 46,
+                        height: 36,
                         child: ElevatedButton(
                           onPressed: message.isClaimed
                               ? null
@@ -337,13 +322,14 @@ class _RequestCard extends StatelessWidget {
                             shadowColor:
                                 AppTheme.kPrimary.withValues(alpha: 0.3),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
+                                borderRadius: BorderRadius.circular(10)),
+                            padding: EdgeInsets.zero,
                           ),
                           child: Text(
                             message.isClaimed ? 'CLAIMED' : 'CLAIM',
                             style: const TextStyle(
                               fontWeight: FontWeight.w700,
-                              fontSize: 13,
+                              fontSize: 11,
                               letterSpacing: 0.5,
                             ),
                           ),
@@ -355,7 +341,7 @@ class _RequestCard extends StatelessWidget {
                       // REPLY
                       Expanded(
                         child: SizedBox(
-                          height: 46,
+                          height: 36,
                           child: OutlinedButton(
                             onPressed: () =>
                                 _showReplySheet(context, message.msgId),
@@ -364,13 +350,14 @@ class _RequestCard extends StatelessWidget {
                               side: const BorderSide(
                                   color: AppTheme.kPrimary, width: 1.5),
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                                  borderRadius: BorderRadius.circular(10)),
+                              padding: EdgeInsets.zero,
                             ),
                             child: const Text(
                               'REPLY',
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
-                                fontSize: 13,
+                                fontSize: 11,
                                 letterSpacing: 0.5,
                               ),
                             ),

@@ -47,7 +47,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   void _startTransition() async {
     // Wait for the animation to finish + a little extra reading time
-    await Future.delayed(const Duration(milliseconds: 2000));
+    await Future.delayed(const Duration(milliseconds: 3500));
 
     if (!mounted) return;
 
@@ -107,15 +107,20 @@ class _SplashScreenState extends State<SplashScreen>
                         color: Colors.white.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
-                        Icons.wifi_tethering_rounded,
-                        size: 72,
+                      child: Image.asset(
+                        'assets/logo.png',
+                        height: 90,
                         color: Colors.white,
+                        errorBuilder: (context, error, stackTrace) => const Icon(
+                          Icons.wifi_tethering_rounded,
+                          size: 72,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 32),
                     const Text(
-                      'RESCUE MESH',
+                      'AERO-LINK',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 28,
@@ -125,7 +130,7 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'AERIAL RELAY NETWORK',
+                      'RESCUE TEAM APPLICATION',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.8),
                         fontSize: 12,
