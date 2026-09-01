@@ -21,6 +21,7 @@ import 'package:rescue_mesh_shared/rescue_mesh_shared.dart';
 import '../main.dart' show ShellNav, showLoginDialog;
 import '../state/app_state.dart';
 import '../state/data_store.dart';
+import '../widgets/media_widgets.dart';
 
 class LiveFeedScreen extends StatefulWidget {
   const LiveFeedScreen({super.key});
@@ -219,6 +220,14 @@ class _ReportList extends StatelessWidget {
                       ),
                   ],
                 ),
+                if (g.hasAttachments) ...[
+                  const SizedBox(height: 6),
+                  for (final att in g.attachments)
+                    if (att.isAudio)
+                      GccAudioPlayerWidget(attachment: att)
+                    else if (att.isImage)
+                      GccImageViewerWidget(attachment: att),
+                ],
               ],
             ),
             isThreeLine: true,
@@ -261,16 +270,30 @@ class _MessageTile extends StatelessWidget {
           maxLines: 3,
           overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Text([
-          'via ${message.nodeId}',
-          // "~" marks a relative (pre-GPS-fix) timestamp (file 05 5.3)
-          '${message.isRelativeTime ? "~" : ""}${message.timestamp}',
-          if (message.hasUserLocation)
-            'GPS ${message.userLat!.toStringAsFixed(5)}, ${message.userLon!.toStringAsFixed(5)}',
-          if (claimed) 'claimed by ${message.claimedBy}',
-          if (message.victimDeviceId.isNotEmpty)
-            'session ${message.victimDeviceId.substring(0, 8)}...',
-        ].join('  |  ')),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text([
+              'via ${message.nodeId}',
+              // "~" marks a relative (pre-GPS-fix) timestamp (file 05 5.3)
+              '${message.isRelativeTime ? "~" : ""}${message.timestamp}',
+              if (message.hasUserLocation)
+                'GPS ${message.userLat!.toStringAsFixed(5)}, ${message.userLon!.toStringAsFixed(5)}',
+              if (claimed) 'claimed by ${message.claimedBy}',
+              if (message.victimDeviceId.isNotEmpty)
+                'session ${message.victimDeviceId.substring(0, 8)}...',
+            ].join('  |  ')),
+            if (message.hasAttachments) ...[
+              const SizedBox(height: 6),
+              for (final att in message.attachments)
+                if (att.isAudio)
+                  GccAudioPlayerWidget(attachment: att)
+                else if (att.isImage)
+                  GccImageViewerWidget(attachment: att),
+            ],
+          ],
+        ),
         trailing: claimed
             ? null
             : FilledButton.tonal(
