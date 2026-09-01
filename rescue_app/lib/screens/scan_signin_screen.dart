@@ -37,8 +37,6 @@ class _ScanSigninScreenState extends State<ScanSigninScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Scan sign-in code'),
-        backgroundColor: Colors.deepOrange.shade700,
-        foregroundColor: Colors.white,
       ),
       body: Stack(
         children: [

@@ -85,10 +85,24 @@ class _ConversationScreenState extends State<ConversationScreen> {
   Widget build(BuildContext context) {
     final entries = _convo?.entries ?? const <shared.ConversationEntry>[];
     return Scaffold(
+      backgroundColor: const Color(0xFFEFEAE2),
       appBar: AppBar(
-        title: const Text('Rescue team'),
-        backgroundColor: Colors.red.shade700,
-        foregroundColor: Colors.white,
+        title: Row(
+          children: [
+            const CircleAvatar(
+              backgroundColor: Colors.white24,
+              child: Icon(Icons.health_and_safety, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Rescue Team', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text('Official Emergency Support', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.9))),
+              ],
+            ),
+          ],
+        ),
       ),
       body: Column(
         children: [
@@ -116,21 +130,31 @@ class _OfflineStrip extends StatelessWidget {
   final String message;
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        color: Colors.amber.shade100,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: Row(children: [
-          Icon(Icons.wifi_off, size: 18, color: Colors.amber.shade900),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '$message Your messages are safe and will send when a drone '
-              'is next overhead.',
-              style: TextStyle(fontSize: 14, color: Colors.amber.shade900),
-            ),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.amber.shade100,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 1, offset: Offset(0, 1))],
           ),
-        ]),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.wifi_off, size: 16, color: Colors.amber.shade900),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  '$message Messages will send when a drone passes.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: Colors.amber.shade900, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+        ),
       );
 }
 
@@ -173,15 +197,20 @@ class _Bubble extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
         decoration: BoxDecoration(
-          color: mine ? Colors.red.shade50 : Colors.blue.shade50,
+          color: mine ? const Color(0xFFE7FFDB) : Colors.white,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(14),
             topRight: const Radius.circular(14),
             bottomLeft: Radius.circular(mine ? 14 : 2),
             bottomRight: Radius.circular(mine ? 2 : 14),
           ),
-          border: Border.all(
-              color: mine ? Colors.red.shade200 : Colors.blue.shade200),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 1,
+              offset: Offset(0, 1),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment:
@@ -265,7 +294,7 @@ class _StateLine extends StatelessWidget {
     };
     return Padding(
       padding: const EdgeInsets.only(top: 2),
-      child: Text(text, style: TextStyle(fontSize: 12, color: colour)),
+      child: Text(text, style: TextStyle(fontSize: 10, color: colour.withOpacity(0.7), fontStyle: FontStyle.italic)),
     );
   }
 }
@@ -274,15 +303,21 @@ class _ThreadFooter extends StatelessWidget {
   const _ThreadFooter();
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        color: Colors.grey.shade100,
-        child: Text(
-          'Messages can take a while to arrive. Both drones and rescuers '
-          'move around, so nothing is lost if it is not instant.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.yellow.shade100,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 1, offset: Offset(0, 1))],
+          ),
+          child: Text(
+            'Messages can take a while to arrive. Both drones and rescuers '
+            'move around, so nothing is lost if it is not instant.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: Colors.brown.shade800),
+          ),
         ),
       );
 }

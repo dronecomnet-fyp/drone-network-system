@@ -124,8 +124,46 @@ class _EmergencyAppState extends State<EmergencyApp> {
         theme: ThemeData(
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.red,
+            seedColor: const Color(0xFFD84315),
             brightness: Brightness.light,
+            primary: const Color(0xFFD84315),
+          ),
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Color(0xFFD84315),
+            foregroundColor: Colors.white,
+            elevation: 0,
+            centerTitle: true,
+            titleTextStyle: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+            iconTheme: IconThemeData(color: Colors.white),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(28),
+                bottomRight: Radius.circular(28),
+              ),
+            ),
+          ),
+          filledButtonTheme: FilledButtonThemeData(
+            style: FilledButton.styleFrom(
+              backgroundColor: Color(0xFFD84315),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(14)),
+              ),
+            ),
+          ),
+          cardTheme: CardThemeData(
+            color: Colors.white,
+            elevation: 2,
+            shadowColor: Colors.black12,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(14)),
+              side: BorderSide(color: Color(0xFFE0E0E0)),
+            ),
           ),
         ),
         home: Consumer<AppController>(
