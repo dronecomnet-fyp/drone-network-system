@@ -12,6 +12,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../main.dart' show ShellNav;
 import '../state/app_state.dart';
 import '../state/data_store.dart';
 import '../state/drone_controller.dart';
@@ -77,9 +78,10 @@ class LiveOpsScreen extends StatelessWidget {
             _StatTile(
               label: 'VICTIM MESSAGES',
               value: '$newCount NEW',
-              sub: '$claimedCount claimed',
+              sub: '$claimedCount claimed (tap to view)',
               age: data.messages.age,
               accent: newCount > 0 ? Colors.redAccent : Colors.greenAccent,
+              onTap: () => context.read<ShellNav>().goToLiveFeed(source: 'VICTIMS'),
             ),
             _StatTile(
               label: 'SOS',
@@ -91,8 +93,10 @@ class LiveOpsScreen extends StatelessWidget {
             _StatTile(
               label: 'FIELD REPORTS',
               value: '${data.gsMessages.items.length}',
-              sub: 'from rescue teams',
+              sub: 'from rescue teams (tap to view)',
               age: data.gsMessages.age,
+              accent: data.gsMessages.items.isNotEmpty ? Colors.purpleAccent : null,
+              onTap: () => context.read<ShellNav>().goToLiveFeed(source: 'REPORTS'),
             ),
             _StatTile(
               label: 'RESCUERS TRACKED',
@@ -313,6 +317,7 @@ class _StatTile extends StatelessWidget {
   final String sub;
   final Duration? age;
   final Color? accent;
+  final VoidCallback? onTap;
 
   const _StatTile({
     required this.label,
@@ -320,37 +325,56 @@ class _StatTile extends StatelessWidget {
     required this.sub,
     this.age,
     this.accent,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Container(
-        width: 190,
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.white54,
-                    letterSpacing: 0.8)),
-            const SizedBox(height: 6),
-            Text(value,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: accent, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 2),
-            Text(sub, style: Theme.of(context).textTheme.bodySmall),
-            if (age != null) ...[
-              const SizedBox(height: 6),
-              Text(formatAge(age),
-                  style: const TextStyle(fontSize: 10, color: Colors.white38)),
+    final content = Container(
+      width: 190,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(label,
+                    style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.white54,
+                        letterSpacing: 0.8)),
+              ),
+              if (onTap != null)
+                const Icon(Icons.open_in_new, size: 12, color: Colors.white38),
             ],
+          ),
+          const SizedBox(height: 6),
+          Text(value,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: accent, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          Text(sub, style: Theme.of(context).textTheme.bodySmall),
+          if (age != null) ...[
+            const SizedBox(height: 6),
+            Text(formatAge(age),
+                style: const TextStyle(fontSize: 10, color: Colors.white38)),
           ],
-        ),
+        ],
       ),
     );
+
+    if (onTap != null) {
+      return Card(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: content,
+        ),
+      );
+    }
+
+    return Card(child: content);
   }
 }
 

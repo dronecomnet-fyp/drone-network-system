@@ -27,6 +27,8 @@ import 'package:mbtiles/mbtiles.dart';
 import 'package:provider/provider.dart';
 import 'package:rescue_mesh_shared/rescue_mesh_shared.dart';
 
+import '../main.dart' show ShellNav;
+import '../services/mission_validator.dart';
 import '../state/app_state.dart';
 import '../state/data_store.dart';
 import '../state/drone_controller.dart';
@@ -188,7 +190,17 @@ class _MapScreenState extends State<MapScreen> {
     final mission = context.watch<MissionState>();
     final fleet = context.watch<FleetState>();
     final drone = context.watch<DroneController>();
+    final nav = context.watch<ShellNav>();
     _syncTiles(app.mbtilesPath);
+
+    final targetCoord = nav.takeTargetMapCoord();
+    if (targetCoord != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          _map.move(LatLng(targetCoord.$1, targetCoord.$2), 15);
+        } catch (_) {}
+      });
+    }
 
     final active = mission.activeDeployment;
     // Field backlog #3c: an UNAPPROVED plan is a proposal, and a proposal
@@ -488,11 +500,21 @@ class _MapScreenState extends State<MapScreen> {
         : const <GsMessage>[]) {
       markers.add(Marker(
         point: LatLng(g.locationLat!, g.locationLon!),
-        width: 26,
-        height: 26,
-        child: Tooltip(
-          message: 'report by ${g.sender}\n${g.content}',
-          child: const Icon(Icons.flag, size: 26, color: Colors.purpleAccent),
+        width: 30,
+        height: 30,
+        child: GestureDetector(
+          onTap: () => _showFieldReportDetails(context, g),
+          child: Tooltip(
+            message: 'Report by ${g.sender}: "${g.content}" (tap to inspect)',
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.purple.shade900.withValues(alpha: 0.8),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.purpleAccent, width: 1.5),
+              ),
+              child: const Icon(Icons.flag, size: 18, color: Colors.white),
+            ),
+          ),
         ),
       ));
     }
@@ -872,40 +894,91 @@ class _MapScreenState extends State<MapScreen> {
     final radiusCtrl =
         TextEditingController(text: app.coverageRadiusM.toStringAsFixed(0));
     var role = kRoleUserAp;
+    final check = MissionValidator.checkPlacementLocation(
+      lat: latlng.latitude,
+      lon: latlng.longitude,
+      mission: mission,
+    );
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
-          title: const Text('Placement'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
+          title: const Row(
             children: [
-              Text('${latlng.latitude.toStringAsFixed(5)}, '
-                  '${latlng.longitude.toStringAsFixed(5)}'),
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Name'),
-              ),
-              DropdownButtonFormField<String>(
-                initialValue: role,
-                decoration: const InputDecoration(labelText: 'Role'),
-                items: const [
-                  DropdownMenuItem(
-                      value: kRoleUserAp, child: Text('user AP (victim coverage)')),
-                  DropdownMenuItem(
-                      value: kRoleMeshRelay, child: Text('mesh relay')),
-                  DropdownMenuItem(
-                      value: kRoleSystemDrone, child: Text('system drone')),
-                ],
-                onChanged: (v) => setLocal(() => role = v ?? kRoleUserAp),
-              ),
-              TextField(
-                controller: radiusCtrl,
-                keyboardType: TextInputType.number,
-                decoration:
-                    const InputDecoration(labelText: 'Coverage radius (m)'),
-              ),
+              Icon(Icons.place, size: 20, color: Colors.amber),
+              SizedBox(width: 8),
+              Text('New Placement'),
             ],
+          ),
+          content: SizedBox(
+            width: 360,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${latlng.latitude.toStringAsFixed(5)}, ${latlng.longitude.toStringAsFixed(5)}',
+                  style: const TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                if (check.warnings.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade900.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.amberAccent, width: 1),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: check.warnings
+                          .map((w) => Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.warning_amber,
+                                      color: Colors.amberAccent, size: 14),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                      child: Text(w,
+                                          style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.white))),
+                                ],
+                              ))
+                          .toList(),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Name'),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: role,
+                  decoration: const InputDecoration(labelText: 'Role'),
+                  items: const [
+                    DropdownMenuItem(
+                        value: kRoleUserAp,
+                        child: Text('user AP (victim coverage)')),
+                    DropdownMenuItem(
+                        value: kRoleMeshRelay, child: Text('mesh relay')),
+                    DropdownMenuItem(
+                        value: kRoleSystemDrone, child: Text('system drone')),
+                  ],
+                  onChanged: (v) => setLocal(() => role = v ?? kRoleUserAp),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: radiusCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration:
+                      const InputDecoration(labelText: 'Coverage radius (m)'),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -913,7 +986,7 @@ class _MapScreenState extends State<MapScreen> {
                 child: const Text('Cancel')),
             FilledButton(
                 onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text('Add')),
+                child: const Text('Add Placement')),
           ],
         ),
       ),
@@ -928,6 +1001,80 @@ class _MapScreenState extends State<MapScreen> {
       radiusM: radius,
     ));
     await app.updateSettings(newCoverageRadiusM: radius);
+  }
+
+  void _showFieldReportDetails(BuildContext context, GsMessage g) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.flag, color: Colors.purpleAccent, size: 22),
+            SizedBox(width: 8),
+            Text('Field Report'),
+          ],
+        ),
+        content: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                g.content,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  Chip(
+                    visualDensity: VisualDensity.compact,
+                    avatar: const Icon(Icons.person, size: 14),
+                    label: Text(g.sender.isEmpty ? 'unknown' : g.sender),
+                  ),
+                  Chip(
+                    visualDensity: VisualDensity.compact,
+                    avatar: const Icon(Icons.access_time, size: 14),
+                    label: Text(g.timestamp),
+                  ),
+                  if (g.nodeId.isNotEmpty)
+                    Chip(
+                      visualDensity: VisualDensity.compact,
+                      avatar: const Icon(Icons.hub, size: 14),
+                      label: Text('via ${g.nodeId}'),
+                    ),
+                  if (g.hasLocation)
+                    Chip(
+                      visualDensity: VisualDensity.compact,
+                      avatar: const Icon(Icons.place, size: 14, color: Colors.cyanAccent),
+                      label: Text(
+                        '${g.locationLat!.toStringAsFixed(5)}, ${g.locationLon!.toStringAsFixed(5)}',
+                        style: const TextStyle(color: Colors.cyanAccent),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.inbox, size: 16),
+            label: const Text('Open in Live Feed'),
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.read<ShellNav>().goToLiveFeed(source: 'REPORTS');
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   /// Save over the file this mission came from, asking only the first time

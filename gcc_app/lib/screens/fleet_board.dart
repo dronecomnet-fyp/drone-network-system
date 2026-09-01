@@ -13,6 +13,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../main.dart' show ShellNav;
+import '../services/mission_validator.dart';
 import '../state/data_store.dart';
 import '../state/drone_controller.dart';
 import '../state/fleet_state.dart';
@@ -262,54 +264,89 @@ class _DeployDialogState extends State<_DeployDialog> {
     final placements = mission.activeDeployment?.placements ?? [];
     final linkFresh = widget.drone.linkFresh;
 
+    final (homeLat, homeLon) = _placement != null
+        ? _home(data, mission, _placement!)
+        : (0.0, 0.0);
+
+    final validation = (_placement != null && _drone != null)
+        ? MissionValidator.validateDroneDeployment(
+            drone: _drone!,
+            placement: _placement!,
+            mission: mission,
+            homeLat: homeLat,
+            homeLon: homeLon,
+            cruiseSpeedMs: fleet.cruiseSpeedMs,
+            avgPowerW: fleet.avgPowerW,
+            fallbackEnduranceMin: fleet.defaultEnduranceMin,
+            reserveFactor: fleet.reserveFactor,
+          )
+        : null;
+
     return AlertDialog(
-      title: const Text('Deploy a drone'),
+      title: const Row(
+        children: [
+          Icon(Icons.flight_takeoff, size: 22),
+          SizedBox(width: 8),
+          Text('Deploy a drone'),
+        ],
+      ),
       content: SizedBox(
-        width: 400,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<DronePlacement>(
-              initialValue: _placement,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'To placement'),
-              items: placements
-                  .map((p) => DropdownMenuItem(
-                        value: p,
-                        child: Text(
-                            '${p.name} (${p.role})${p.assignedDrone.isEmpty ? "" : " [${p.assignedDrone}]"}',
-                            overflow: TextOverflow.ellipsis),
-                      ))
-                  .toList(),
-              onChanged: (v) => setState(() => _placement = v),
-            ),
-            DropdownButtonFormField<DroneResource>(
-              initialValue: _drone,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Drone'),
-              items: available
-                  .map((d) => DropdownMenuItem(
-                        value: d,
-                        child: Text(
-                            '${d.label}${d.source == "brand" ? "" : " (volunteer)"}',
-                            overflow: TextOverflow.ellipsis),
-                      ))
-                  .toList(),
-              onChanged: (v) => setState(() => _drone = v),
-            ),
-            const SizedBox(height: 8),
-            SwitchListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Command over MAVLink (system drone)'),
-              subtitle: Text(linkFresh
-                  ? 'live link fresh: real deploy, PROPS-OFF bench'
-                  : 'no live link: DEMO simulation only'),
-              value: _real && linkFresh,
-              onChanged:
-                  linkFresh ? (v) => setState(() => _real = v) : null,
-            ),
-          ],
+        width: 480,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DropdownButtonFormField<DronePlacement>(
+                initialValue: _placement,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'To placement'),
+                items: placements
+                    .map((p) => DropdownMenuItem(
+                          value: p,
+                          child: Text(
+                              '${p.name} (${p.role})${p.assignedDrone.isEmpty ? "" : " [${p.assignedDrone}]"}',
+                              overflow: TextOverflow.ellipsis),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _placement = v),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<DroneResource>(
+                initialValue: _drone,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Drone'),
+                items: available
+                    .map((d) => DropdownMenuItem(
+                          value: d,
+                          child: Text(
+                              '${d.label}${d.source == "brand" ? "" : " (volunteer)"}',
+                              overflow: TextOverflow.ellipsis),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _drone = v),
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Command over MAVLink (system drone)'),
+                subtitle: Text(linkFresh
+                    ? 'live link fresh: real deploy, PROPS-OFF bench'
+                    : 'no live link: DEMO simulation only'),
+                value: _real && linkFresh,
+                onChanged:
+                    linkFresh ? (v) => setState(() => _real = v) : null,
+              ),
+              if (validation != null) ...[
+                const SizedBox(height: 12),
+                _FeasibilityCard(
+                  validation: validation,
+                  placement: _placement!,
+                ),
+              ],
+            ],
+          ),
         ),
       ),
       actions: [
@@ -317,10 +354,15 @@ class _DeployDialogState extends State<_DeployDialog> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel')),
         FilledButton(
-          onPressed: (_placement == null || _drone == null)
+          onPressed: (_placement == null || _drone == null || (validation?.isImpossible ?? false))
               ? null
               : () => _deploy(context, data),
-          child: const Text('Deploy'),
+          style: (validation?.isImpossible ?? false)
+              ? FilledButton.styleFrom(backgroundColor: Colors.grey)
+              : null,
+          child: Text(
+            (validation?.isImpossible ?? false) ? 'Impossible Mission' : 'Deploy',
+          ),
         ),
       ],
     );
@@ -332,9 +374,6 @@ class _DeployDialogState extends State<_DeployDialog> {
     final mission = widget.mission;
     final specs = mission.specsFor(d);
 
-    // Home = the connected node's GPS if it has a fix, else the operation
-    // area centroid, else a point offset from the target so the demo leg is
-    // visible.
     final (homeLat, homeLon) = _home(data, mission, p);
 
     p.assignedDrone = d.label;
@@ -359,6 +398,9 @@ class _DeployDialogState extends State<_DeployDialog> {
       DataStore data, MissionState mission, DronePlacement p) {
     final gps = data.health?.gps;
     if (gps != null && gps.hasFix) return (gps.lat!, gps.lon!);
+    if (mission.gccPosition != null) {
+      return (mission.gccPosition!.lat, mission.gccPosition!.lon);
+    }
     if (mission.area.length >= 3) {
       final lat =
           mission.area.map((v) => v.lat).reduce((a, b) => a + b) /
@@ -370,5 +412,179 @@ class _DeployDialogState extends State<_DeployDialog> {
     }
     // ~550 m south of the target.
     return (p.lat - 0.005, p.lon);
+  }
+}
+
+class _FeasibilityCard extends StatelessWidget {
+  final ValidationResult validation;
+  final DronePlacement placement;
+
+  const _FeasibilityCard({
+    required this.validation,
+    required this.placement,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final m = validation.metrics;
+    final (bgColour, borderColour, icon, title) = switch (validation.level) {
+      FeasibilityLevel.impossible => (
+          Colors.red.shade900.withValues(alpha: 0.35),
+          Colors.redAccent,
+          Icons.cancel,
+          'Technically Impossible Mission'
+        ),
+      FeasibilityLevel.warning => (
+          Colors.amber.shade900.withValues(alpha: 0.35),
+          Colors.amberAccent,
+          Icons.warning_amber,
+          'Operational Warning'
+        ),
+      FeasibilityLevel.feasible => (
+          Colors.green.shade900.withValues(alpha: 0.25),
+          Colors.greenAccent,
+          Icons.check_circle,
+          'Feasible Mission'
+        ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bgColour,
+        border: Border.all(color: borderColour, width: 1.5),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: borderColour, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: borderColour,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Metric Chips
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _metricChip('Distance', '${m.distanceKmFormatted} km'),
+              _metricChip('1-way time', m.oneWayTimeFormatted),
+              _metricChip('Flight battery', '${m.roundTripBatteryPct.toStringAsFixed(0)}%'),
+              _metricChip('Reserve needed', '${m.reserveBatteryPct.toStringAsFixed(0)}%'),
+              _metricChip(
+                'Station time',
+                validation.isImpossible ? '0 s' : m.usableStationTimeFormatted,
+                highlight: !validation.isImpossible && m.usableStationTimeS > 120,
+              ),
+            ],
+          ),
+          if (validation.errors.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ...validation.errors.map((e) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.error, color: Colors.redAccent, size: 16),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          e,
+                          style: const TextStyle(fontSize: 12, color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+          ],
+          if (validation.warnings.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            ...validation.warnings.map((w) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.warning, color: Colors.amberAccent, size: 16),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          w,
+                          style: const TextStyle(fontSize: 12, color: Colors.white70),
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+          ],
+          if (validation.recommendations.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            ...validation.recommendations.map((r) => Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.lightbulb_outline, color: Colors.cyanAccent, size: 15),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          r,
+                          style: const TextStyle(fontSize: 11, color: Colors.cyanAccent),
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+          ],
+          if (validation.isImpossible) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                icon: const Icon(Icons.edit_location_alt, size: 16),
+                label: const Text('Adjust Placement on Map'),
+                onPressed: () {
+                  Navigator.pop(context);
+                  context
+                      .read<ShellNav>()
+                      .goToMapAt(placement.lat, placement.lon);
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _metricChip(String label, String value, {bool highlight = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black38,
+        borderRadius: BorderRadius.circular(4),
+        border: highlight ? Border.all(color: Colors.greenAccent, width: 0.8) : null,
+      ),
+      child: Text(
+        '$label: $value',
+        style: TextStyle(
+          fontSize: 11,
+          color: highlight ? Colors.greenAccent : Colors.white70,
+          fontWeight: highlight ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+    );
   }
 }
