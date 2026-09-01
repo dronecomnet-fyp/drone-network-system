@@ -38,6 +38,7 @@ class Message {
   final String encryptionAlg;
   final String encryptionKid;
   final String victimDeviceId;
+  final List<shared.MediaAttachment> attachments;
 
   Message({
     required this.msgId,
@@ -59,6 +60,7 @@ class Message {
     this.encryptionAlg = '',
     this.encryptionKid = '',
     this.victimDeviceId = '',
+    this.attachments = const [],
   });
 
   factory Message.fromShared(shared.Message m) => Message(
@@ -79,12 +81,14 @@ class Message {
         encryptionAlg: m.encryptionAlg,
         encryptionKid: m.encryptionKid,
         victimDeviceId: m.victimDeviceId,
+        attachments: m.attachments,
       );
 
   bool get isClaimed => status == 'CLAIMED';
   bool get isNew => status == 'NEW';
 
   bool get isEncryptedPayload => isEncrypted;
+  bool get hasAttachments => attachments.isNotEmpty;
 
   bool get isRelativeTime => timeSource != 'gps';
 
@@ -123,6 +127,7 @@ class Message {
     String? status,
     String? claimedBy,
     String? claimedAt,
+    List<shared.MediaAttachment>? attachments,
   }) {
     return Message(
       msgId: msgId,
@@ -144,6 +149,7 @@ class Message {
       encryptionAlg: encryptionAlg,
       encryptionKid: encryptionKid,
       victimDeviceId: victimDeviceId,
+      attachments: attachments ?? this.attachments,
     );
   }
 
@@ -170,6 +176,7 @@ class GSMessage {
   final double? locationLat;
   final double? locationLon;
   final double? locationAccuracy;
+  final List<shared.MediaAttachment> attachments;
 
   GSMessage({
     required this.id,
@@ -180,6 +187,7 @@ class GSMessage {
     this.locationLat,
     this.locationLon,
     this.locationAccuracy,
+    this.attachments = const [],
   });
 
   factory GSMessage.fromShared(shared.GsMessage m) => GSMessage(
@@ -191,7 +199,10 @@ class GSMessage {
         locationLat: m.locationLat,
         locationLon: m.locationLon,
         locationAccuracy: m.locationAccuracy,
+        attachments: m.attachments,
       );
+
+  bool get hasAttachments => attachments.isNotEmpty;
 
   bool get hasGpsLocation => locationLat != null && locationLon != null;
 

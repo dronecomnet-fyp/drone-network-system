@@ -30,6 +30,9 @@ dependencies:
   # Sign-in by scanning the QR the GCC shows when credentials are
   # issued, so a rescuer types nothing (field backlog #17).
   mobile_scanner: ^5.2.3
+  audioplayers: ^6.0.0
+  image_picker: ^1.1.2
+  path_provider: ^2.1.4
   rescue_mesh_shared:
     path: ../shared_dart
 

@@ -202,20 +202,43 @@ class APIService {
 
   // --- gs uplink -----------------------------------------------------------------
 
-  static Future<bool> submitGSUplink(String content, String sender,
-      {double? locationLat,
-      double? locationLon,
-      double? locationAccuracy}) {
+  static Future<bool> submitGSUplink(
+    String content,
+    String sender, {
+    double? locationLat,
+    double? locationLon,
+    double? locationAccuracy,
+    List<int>? mediaBytes,
+    String? mediaFilename,
+    String? mediaMimeType,
+  }) {
     return _run((c) async {
-      await c.postGsUplink(
-        content,
-        sender: sender,
-        locationLat: locationLat,
-        locationLon: locationLon,
-        locationAccuracy: locationAccuracy,
-      );
+      if (mediaBytes != null && mediaBytes.isNotEmpty) {
+        await c.postGsUplinkWithMedia(
+          content: content,
+          sender: sender,
+          locationLat: locationLat,
+          locationLon: locationLon,
+          locationAccuracy: locationAccuracy,
+          mediaBytes: mediaBytes,
+          mediaFilename: mediaFilename,
+          mediaMimeType: mediaMimeType,
+        );
+      } else {
+        await c.postGsUplink(
+          content,
+          sender: sender,
+          locationLat: locationLat,
+          locationLon: locationLon,
+          locationAccuracy: locationAccuracy,
+        );
+      }
       return true;
     });
+  }
+
+  static Future<List<int>> getMediaBytes(String mediaId) {
+    return _run((c) => c.getMediaBytes(mediaId));
   }
 
   static Future<List<GSMessage>> getGSMessages() {

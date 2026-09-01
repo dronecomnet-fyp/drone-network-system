@@ -155,6 +155,9 @@ class MessageProvider with ChangeNotifier {
     double? locationLat,
     double? locationLon,
     double? locationAccuracy,
+    List<int>? mediaBytes,
+    String? mediaFilename,
+    String? mediaMimeType,
   }) async {
     try {
       final success = await APIService.submitGSUplink(
@@ -163,6 +166,9 @@ class MessageProvider with ChangeNotifier {
         locationLat: locationLat,
         locationLon: locationLon,
         locationAccuracy: locationAccuracy,
+        mediaBytes: mediaBytes,
+        mediaFilename: mediaFilename,
+        mediaMimeType: mediaMimeType,
       );
       if (success) {
         _error = null;

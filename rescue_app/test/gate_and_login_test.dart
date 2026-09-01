@@ -42,14 +42,12 @@ void main() {
       (tester) async {
     mockSecureStorage({});
     await tester.pumpWidget(const RescueApp());
-    await tester.pump(); // AuthProvider.load()
-    await tester.pump();
+    await tester.pumpAndSettle(const Duration(seconds: 4));
 
-    expect(find.text('Rescue Mesh'), findsOneWidget);
+    expect(find.text('AERO-LINK'), findsOneWidget);
     expect(find.text('LOG IN'), findsOneWidget);
-    expect(find.textContaining('Join any RESCUE_x WiFi'), findsOneWidget);
-    // break-glass path is reachable but labeled
-    expect(find.textContaining('break-glass admin key'), findsOneWidget);
+    expect(find.text('SCAN CODE FROM HQ'), findsOneWidget);
+    expect(find.text('Connection Settings'), findsOneWidget);
 
     // validation: empty submit shows field errors, no crash
     await tester.tap(find.text('LOG IN'));
@@ -69,8 +67,7 @@ void main() {
           '{"token":"t.x","expires_at":$exp,"personnel_id":"R-014","role":"RESCUE_TEAM","name":"Bob"}',
     });
     await tester.pumpWidget(const RescueApp());
-    await tester.pump();
-    await tester.pump();
+    await tester.pumpAndSettle(const Duration(seconds: 4));
 
     expect(find.text('Requests'), findsOneWidget);
     expect(find.text('HQ Uplink'), findsOneWidget);
@@ -87,8 +84,7 @@ void main() {
           '{"token":"t.x","expires_at":$exp,"personnel_id":"R-014","role":"RESCUE_TEAM","name":"Bob"}',
     });
     await tester.pumpWidget(const RescueApp());
-    await tester.pump();
-    await tester.pump();
+    await tester.pumpAndSettle(const Duration(seconds: 4));
 
     expect(find.text('LOG IN'), findsOneWidget);
 
@@ -99,8 +95,7 @@ void main() {
       (tester) async {
     mockSecureStorage({'rescue_api_key': 'bg_key_123'});
     await tester.pumpWidget(const RescueApp());
-    await tester.pump();
-    await tester.pump();
+    await tester.pumpAndSettle(const Duration(seconds: 4));
 
     expect(find.text('Requests'), findsOneWidget);
 

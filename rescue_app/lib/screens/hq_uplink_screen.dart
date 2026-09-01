@@ -1,11 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/message_provider.dart';
 import '../widgets/custom_snackbar.dart';
+import '../widgets/media_widgets.dart';
 
 class HQUplinkScreen extends StatefulWidget {
   const HQUplinkScreen({super.key});
@@ -23,6 +27,7 @@ class _HQUplinkScreenState extends State<HQUplinkScreen> {
   double? _locationLat;
   double? _locationLon;
   double? _locationAccuracy;
+  XFile? _attachedImage;
 
   @override
   void initState() {
@@ -116,9 +121,71 @@ class _HQUplinkScreenState extends State<HQUplinkScreen> {
     }
   }
 
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 75,
+      );
+      if (!mounted || picked == null) return;
+      setState(() => _attachedImage = picked);
+    } catch (e) {
+      if (!mounted) return;
+      CustomSnackBar.show(context, 'Could not select photo: $e',
+          type: SnackBarType.error);
+    }
+  }
+
+  void _showImagePickerSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Attach Field Photo',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFEFF6FF),
+                  child: Icon(Icons.camera_alt, color: Color(0xFF2563EB)),
+                ),
+                title: const Text('Take Photo with Camera'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFF3E8FF),
+                  child: Icon(Icons.photo_library, color: Color(0xFF9333EA)),
+                ),
+                title: const Text('Choose from Gallery'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _submitMessage() async {
-    if (_messageController.text.trim().isEmpty) {
-      CustomSnackBar.show(context, 'Please enter a message',
+    if (_messageController.text.trim().isEmpty && _attachedImage == null) {
+      CustomSnackBar.show(context, 'Please enter a message or attach a photo',
           type: SnackBarType.error);
       return;
     }
@@ -126,13 +193,30 @@ class _HQUplinkScreenState extends State<HQUplinkScreen> {
     setState(() => _isSending = true);
 
     try {
+      List<int>? mediaBytes;
+      String? mediaFilename;
+      String? mediaMimeType;
+
+      if (_attachedImage != null) {
+        mediaBytes = await _attachedImage!.readAsBytes();
+        mediaFilename = _attachedImage!.name;
+        mediaMimeType = 'image/jpeg';
+      }
+
       final provider = Provider.of<MessageProvider>(context, listen: false);
+      final text = _messageController.text.trim().isEmpty
+          ? 'Field Photo Report'
+          : _messageController.text.trim();
+
       await provider.submitGSUplink(
-        _messageController.text.trim(),
+        text,
         _senderController.text.trim(),
         locationLat: _locationLat,
         locationLon: _locationLon,
         locationAccuracy: _locationAccuracy,
+        mediaBytes: mediaBytes,
+        mediaFilename: mediaFilename,
+        mediaMimeType: mediaMimeType,
       );
 
       _messageController.clear();
@@ -140,6 +224,7 @@ class _HQUplinkScreenState extends State<HQUplinkScreen> {
       _locationLat = null;
       _locationLon = null;
       _locationAccuracy = null;
+      _attachedImage = null;
       CustomSnackBar.show(context, 'Message sent to HQ!',
           type: SnackBarType.success);
     } catch (e) {
@@ -149,7 +234,7 @@ class _HQUplinkScreenState extends State<HQUplinkScreen> {
           : 'Error: $e';
       CustomSnackBar.show(context, authMessage, type: SnackBarType.error);
     } finally {
-      setState(() => _isSending = false);
+      if (mounted) setState(() => _isSending = false);
     }
   }
 
@@ -242,6 +327,70 @@ class _HQUplinkScreenState extends State<HQUplinkScreen> {
                         minLines: 3,
                         enabled: !_isSending,
                       ),
+                      const SizedBox(height: 12),
+                      if (_attachedImage != null)
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(
+                                  File(_attachedImage!.path),
+                                  width: 50,
+                                  height: 50,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Photo attached',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13)),
+                                    Text(_attachedImage!.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey.shade600)),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close,
+                                    color: Colors.red, size: 20),
+                                onPressed: () =>
+                                    setState(() => _attachedImage = null),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton.icon(
+                            onPressed:
+                                _isSending ? null : _showImagePickerSheet,
+                            icon: const Icon(Icons.add_a_photo, size: 18),
+                            label: const Text('Attach Photo',
+                                style: TextStyle(fontWeight: FontWeight.w600)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppTheme.kPrimary,
+                              side: BorderSide(color: Colors.grey.shade300),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
@@ -398,6 +547,14 @@ class _HQUplinkScreenState extends State<HQUplinkScreen> {
                                   height: 1.4,
                                 ),
                               ),
+                              if (message.hasAttachments) ...[
+                                const SizedBox(height: 8),
+                                for (final att in message.attachments)
+                                  if (att.isAudio)
+                                    RescueAudioPlayerWidget(attachment: att)
+                                  else if (att.isImage)
+                                    RescueImageViewerWidget(attachment: att),
+                              ],
                             ],
                           ),
                         ),

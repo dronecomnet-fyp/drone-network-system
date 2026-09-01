@@ -8,6 +8,7 @@ import '../models/message_model.dart';
 import '../providers/message_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/custom_snackbar.dart';
+import '../widgets/media_widgets.dart';
 import 'settings_screen.dart';
 
 class VictimRequestsScreen extends StatelessWidget {
@@ -254,15 +255,26 @@ class _RequestCard extends StatelessWidget {
 
               // ── Message body ──────────────────────────────────────────────
               const SizedBox(height: 8),
-              Text(
-                message.displayContent,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Color(0xFF212121),
-                  height: 1.5,
-                  fontWeight: FontWeight.w500,
+              if (message.displayContent.isNotEmpty)
+                Text(
+                  message.displayContent,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Color(0xFF212121),
+                    height: 1.5,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
+
+              // ── Attachments (Voice / Photo) ─────────────────────────────
+              if (message.hasAttachments) ...[
+                const SizedBox(height: 8),
+                for (final att in message.attachments)
+                  if (att.isAudio)
+                    RescueAudioPlayerWidget(attachment: att)
+                  else if (att.isImage)
+                    RescueImageViewerWidget(attachment: att),
+              ],
 
               // ── GPS · CLAIM · REPLY — single row ────────────────────────
               const SizedBox(height: 10),
@@ -644,15 +656,26 @@ class _DetailSheet extends StatelessWidget {
             const SizedBox(height: 16),
 
             // ── Message body ─────────────────────────────────────────────
-            Text(
-              message.displayContent,
-              style: const TextStyle(
-                fontSize: 18,
-                color: Color(0xFF212121),
-                height: 1.55,
-                fontWeight: FontWeight.w500,
+            if (message.displayContent.isNotEmpty)
+              Text(
+                message.displayContent,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Color(0xFF212121),
+                  height: 1.55,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
+
+            // ── Attachments (Voice / Photo) ─────────────────────────────
+            if (message.hasAttachments) ...[
+              const SizedBox(height: 12),
+              for (final att in message.attachments)
+                if (att.isAudio)
+                  RescueAudioPlayerWidget(attachment: att)
+                else if (att.isImage)
+                  RescueImageViewerWidget(attachment: att),
+            ],
             const SizedBox(height: 24),
 
             // ── Detail rows ──────────────────────────────────────────────
