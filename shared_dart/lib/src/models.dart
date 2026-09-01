@@ -9,6 +9,50 @@ double? _toDouble(dynamic v) =>
 int _toInt(dynamic v, [int fallback = 0]) =>
     v == null ? fallback : (v is num ? v.toInt() : int.tryParse('$v') ?? fallback);
 
+/// A media attachment (voice note, photo) attached to a message, checkin, or gs_message.
+class MediaAttachment {
+  final String id;
+  final String parentId;
+  final String filename;
+  final String mimeType;
+  final int sizeBytes;
+  final String sha256;
+  final String createdAt;
+
+  const MediaAttachment({
+    required this.id,
+    required this.parentId,
+    required this.filename,
+    required this.mimeType,
+    required this.sizeBytes,
+    this.sha256 = '',
+    required this.createdAt,
+  });
+
+  bool get isImage => mimeType.startsWith('image/');
+  bool get isAudio => mimeType.startsWith('audio/');
+
+  factory MediaAttachment.fromJson(Map<String, dynamic> json) => MediaAttachment(
+        id: (json['id'] ?? '') as String,
+        parentId: (json['parent_id'] ?? '') as String,
+        filename: (json['filename'] ?? '') as String,
+        mimeType: (json['mime_type'] ?? 'application/octet-stream') as String,
+        sizeBytes: _toInt(json['size_bytes']),
+        sha256: (json['sha256'] ?? '') as String,
+        createdAt: (json['created_at'] ?? '') as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'parent_id': parentId,
+        'filename': filename,
+        'mime_type': mimeType,
+        'size_bytes': sizeBytes,
+        'sha256': sha256,
+        'created_at': createdAt,
+      };
+}
+
 /// A victim/rescue message (schema v3: user vs node coordinates,
 /// time_source, claimed_by).
 class Message {
@@ -33,6 +77,7 @@ class Message {
   final String encryptionAlg;
   final String encryptionKid;
   final String victimDeviceId;
+  final List<MediaAttachment> attachments;
 
   const Message({
     required this.msgId,
@@ -52,11 +97,15 @@ class Message {
     this.encryptionAlg = '',
     this.encryptionKid = '',
     this.victimDeviceId = '',
+    this.attachments = const [],
   });
 
   bool get isClaimed => status == 'CLAIMED';
   bool get isRelativeTime => timeSource != 'gps';
   bool get hasUserLocation => userLat != null && userLon != null;
+  bool get hasAttachments => attachments.isNotEmpty;
+  bool get hasAudio => attachments.any((a) => a.isAudio);
+  bool get hasImage => attachments.any((a) => a.isImage);
 
   factory Message.fromJson(Map<String, dynamic> json) => Message(
         msgId: json['msg_id'] as String,
@@ -76,6 +125,9 @@ class Message {
         encryptionAlg: (json['encryption_alg'] ?? '') as String,
         encryptionKid: (json['encryption_kid'] ?? '') as String,
         victimDeviceId: (json['victim_device_id'] ?? '') as String,
+        attachments: ((json['attachments'] as List<dynamic>?) ?? [])
+            .map((a) => MediaAttachment.fromJson(a as Map<String, dynamic>))
+            .toList(),
       );
 }
 
@@ -90,6 +142,7 @@ class GsMessage {
   final double? locationLat;
   final double? locationLon;
   final double? locationAccuracy;
+  final List<MediaAttachment> attachments;
 
   const GsMessage({
     required this.id,
@@ -100,9 +153,11 @@ class GsMessage {
     this.locationLat,
     this.locationLon,
     this.locationAccuracy,
+    this.attachments = const [],
   });
 
   bool get hasLocation => locationLat != null && locationLon != null;
+  bool get hasAttachments => attachments.isNotEmpty;
 
   factory GsMessage.fromJson(Map<String, dynamic> json) => GsMessage(
         id: json['id'] as String,
@@ -113,6 +168,9 @@ class GsMessage {
         locationLat: _toDouble(json['location_lat']),
         locationLon: _toDouble(json['location_lon']),
         locationAccuracy: _toDouble(json['location_accuracy']),
+        attachments: ((json['attachments'] as List<dynamic>?) ?? [])
+            .map((a) => MediaAttachment.fromJson(a as Map<String, dynamic>))
+            .toList(),
       );
 }
 
@@ -678,6 +736,7 @@ class ConversationEntry {
   final String sender;
   final double? lat;
   final double? lon;
+  final List<MediaAttachment> attachments;
 
   const ConversationEntry({
     required this.id,
@@ -688,9 +747,11 @@ class ConversationEntry {
     this.sender = '',
     this.lat,
     this.lon,
+    this.attachments = const [],
   });
 
   bool get hasLocation => lat != null && lon != null;
+  bool get hasAttachments => attachments.isNotEmpty;
 }
 
 /// A victim's whole thread, oldest first, ready to render as a chat.
@@ -713,6 +774,9 @@ class Conversation {
     final out = <ConversationEntry>[];
     for (final m in (json['messages'] as List<dynamic>? ?? [])) {
       final row = m as Map<String, dynamic>;
+      final atts = ((row['attachments'] as List<dynamic>?) ?? [])
+          .map((a) => MediaAttachment.fromJson(a as Map<String, dynamic>))
+          .toList();
       out.add(ConversationEntry(
         id: (row['msg_id'] ?? '') as String,
         body: (row['content'] ?? '') as String,
@@ -725,6 +789,7 @@ class Conversation {
             : DeliveryState.onDrone,
         lat: _toDouble(row['user_lat']),
         lon: _toDouble(row['user_lon']),
+        attachments: atts,
       ));
     }
     for (final r in (json['replies'] as List<dynamic>? ?? [])) {

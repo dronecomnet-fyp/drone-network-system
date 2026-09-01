@@ -16,6 +16,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
+import 'package:http_parser/http_parser.dart';
 
 import 'models.dart';
 
@@ -207,6 +208,48 @@ class RescueMeshClient {
     return (data as Map<String, dynamic>)['msg_id'] as String;
   }
 
+  Future<Map<String, dynamic>> postGsUplinkWithMedia({
+    required String content,
+    String sender = '',
+    double? locationLat,
+    double? locationLon,
+    double? locationAccuracy,
+    double? locationTimestamp,
+    List<int>? mediaBytes,
+    String? mediaFilename,
+    String? mediaMimeType,
+  }) async {
+    final uri = _uri('/gs-uplink-with-media');
+    final req = http.MultipartRequest('POST', uri);
+    req.headers.addAll(_headers(json: false));
+
+    req.fields['content'] = content;
+    if (sender.isNotEmpty) req.fields['sender'] = sender;
+    if (locationLat != null) req.fields['location_lat'] = '$locationLat';
+    if (locationLon != null) req.fields['location_lon'] = '$locationLon';
+    if (locationAccuracy != null) req.fields['location_accuracy'] = '$locationAccuracy';
+    if (locationTimestamp != null) req.fields['location_timestamp'] = '$locationTimestamp';
+
+    if (mediaBytes != null && mediaBytes.isNotEmpty) {
+      final filename = mediaFilename ?? 'uplink_photo.jpg';
+      MediaType? contentType;
+      if (mediaMimeType != null && mediaMimeType.contains('/')) {
+        final parts = mediaMimeType.split('/');
+        contentType = MediaType(parts[0], parts[1]);
+      }
+      req.files.add(http.MultipartFile.fromBytes(
+        'media',
+        mediaBytes,
+        filename: filename,
+        contentType: contentType,
+      ));
+    }
+
+    final streamedResp = await req.send().timeout(timeout);
+    final resp = await http.Response.fromStream(streamedResp);
+    return _decode(resp) as Map<String, dynamic>;
+  }
+
   // --- announcements -----------------------------------------------------------
 
   Future<List<Announcement>> getAnnouncements() async {
@@ -289,6 +332,56 @@ class RescueMeshClient {
       'points': points,
     });
     return data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> postCheckinWithMedia({
+    required String deviceId,
+    required List<Map<String, dynamic>> points,
+    bool sos = false,
+    String sosText = '',
+    List<int>? mediaBytes,
+    String? mediaFilename,
+    String? mediaMimeType,
+  }) async {
+    final uri = _uri('/checkin-with-media');
+    final req = http.MultipartRequest('POST', uri);
+    req.headers.addAll(_headers(json: false));
+
+    final checkinJson = jsonEncode({
+      'device_id': deviceId,
+      'sos': sos,
+      'sos_text': sosText,
+      'points': points,
+    });
+    req.fields['checkin_json'] = checkinJson;
+
+    if (mediaBytes != null && mediaBytes.isNotEmpty) {
+      final filename = mediaFilename ?? 'upload_${DateTime.now().millisecondsSinceEpoch}';
+      MediaType? contentType;
+      if (mediaMimeType != null && mediaMimeType.contains('/')) {
+        final parts = mediaMimeType.split('/');
+        contentType = MediaType(parts[0], parts[1]);
+      }
+      req.files.add(http.MultipartFile.fromBytes(
+        'media',
+        mediaBytes,
+        filename: filename,
+        contentType: contentType,
+      ));
+    }
+
+    final streamedResp = await req.send().timeout(timeout);
+    final resp = await http.Response.fromStream(streamedResp);
+    return _decode(resp) as Map<String, dynamic>;
+  }
+
+  Future<List<int>> getMediaBytes(String mediaId) async {
+    final uri = _uri('/media/$mediaId');
+    final resp = await _http.get(uri, headers: _headers(json: false)).timeout(timeout);
+    if (resp.statusCode >= 200 && resp.statusCode < 300) {
+      return resp.bodyBytes;
+    }
+    throw ApiException(resp.statusCode, 'Failed to fetch media: ${resp.body}');
   }
 
   Future<List<Checkin>> getCheckins() async {

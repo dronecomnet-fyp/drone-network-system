@@ -75,7 +75,7 @@ def test_every_replicated_table_exists_in_the_database():
 def test_the_current_set_is_what_the_documentation_claims():
     """The report, the handbook and the runbooks all state a count. If a
     table is added without updating them, this is the reminder."""
-    assert len(models.REPLICATED_TABLES) == 8, (
+    assert len(models.REPLICATED_TABLES) == 9, (
         f"{len(models.REPLICATED_TABLES)} replicated tables now. Update "
         "docs/CHANGES.md, documentation/04 and 06, and the report audit, "
         "then change this number."

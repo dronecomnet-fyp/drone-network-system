@@ -22,15 +22,16 @@ Static role keys remain as labeled break-glass credentials only.
 import base64
 import html
 import json
-import zlib
 import ssl
 import time
+import uuid
+import zlib
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, field_validator
 
@@ -38,6 +39,7 @@ import audit
 import aux_state
 import config
 import crypto_keys
+import media_store
 import mission_config
 import models
 import ratelimit
@@ -559,6 +561,75 @@ def post_gs_message(
         return {"msg_id": msg_id, "status": "received"}
     except Exception:
         raise HTTPException(status_code=500, detail="Internal error saving report")
+
+
+@app.post("/gs-uplink-with-media")
+async def post_gs_uplink_with_media(
+    content: str = Form(...),
+    sender: str = Form("FIELD_TEAM"),
+    location_lat: Optional[float] = Form(None),
+    location_lon: Optional[float] = Form(None),
+    location_accuracy: Optional[float] = Form(None),
+    location_timestamp: Optional[float] = Form(None),
+    media: Optional[UploadFile] = File(None),
+    auth: Auth = Depends(require_roles({Role.RESCUE_TEAM, Role.HQ})),
+):
+    try:
+        actual_sender = auth.personnel_id or sender
+        msg_id = models.save_gs_message(
+            content=content,
+            sender=actual_sender,
+            location_lat=location_lat,
+            location_lon=location_lon,
+            location_accuracy=location_accuracy,
+            location_timestamp=location_timestamp,
+        )
+        media_id = None
+        if media is not None:
+            media_bytes = await media.read()
+            if len(media_bytes) > config.MAX_MEDIA_SIZE:
+                raise HTTPException(status_code=413, detail=f"Media file exceeds {config.MAX_MEDIA_SIZE} bytes")
+            content_type = media.content_type or "image/jpeg"
+            if content_type not in config.ALLOWED_MEDIA_TYPES:
+                raise HTTPException(status_code=415, detail=f"Unsupported media type: {content_type}")
+            media_id = str(uuid.uuid4())
+            sha256_hash = media_store.save_blob(media_id, media_bytes)
+            models.save_media_attachment(
+                parent_table="gs_messages",
+                parent_id=msg_id,
+                filename=media.filename or f"upload_{media_id}",
+                mime_type=content_type,
+                size_bytes=len(media_bytes),
+                sha256=sha256_hash,
+                media_id=media_id,
+            )
+        audit_logger.info(
+            f"GS_UPLINK_MEDIA | role={auth.role.value} | sender={actual_sender} | "
+            f"msg_id={msg_id} | media_id={media_id}"
+        )
+        return {"msg_id": msg_id, "media_id": media_id, "status": "received"}
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal error saving report with media")
+
+
+@app.get("/media/{media_id}")
+def get_media_file(
+    media_id: str,
+    auth: Auth = Depends(require_roles({Role.RESCUE_TEAM, Role.HQ, Role.SYNC_NODE})),
+):
+    att = models.get_media_attachment(media_id)
+    if not att:
+        raise HTTPException(status_code=404, detail="Media attachment record not found")
+    blob = media_store.get_blob(media_id)
+    if blob is None:
+        raise HTTPException(status_code=404, detail="Media file not found on disk")
+    return Response(
+        content=blob,
+        media_type=att.get("mime_type", "application/octet-stream"),
+        headers={"Content-Disposition": f'inline; filename="{att.get("filename", media_id)}"'},
+    )
 
 
 @app.get("/gs-messages")
@@ -1120,6 +1191,18 @@ app.get("/sync/checkins")(_sync_endpoint("checkins"))
 app.get("/sync/personnel-locations")(_sync_endpoint("personnel_locations"))
 app.get("/sync/message-replies")(_sync_endpoint("message_replies"))
 app.get("/sync/lora-events")(_sync_endpoint("lora_events"))
+app.get("/sync/media-attachments")(_sync_endpoint("media_attachments"))
+
+
+@app.get("/sync/media-blob/{media_id}")
+def sync_media_blob(
+    media_id: str,
+    auth: Auth = Depends(require_roles({Role.SYNC_NODE, Role.RESCUE_TEAM, Role.HQ})),
+):
+    blob = media_store.get_blob(media_id)
+    if blob is None:
+        raise HTTPException(status_code=404, detail="Media blob not found on disk")
+    return Response(content=blob, media_type="application/octet-stream")
 
 
 if __name__ == "__main__":

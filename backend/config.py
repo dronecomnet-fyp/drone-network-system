@@ -65,6 +65,13 @@ HTTP_PORT = _int("HTTP_PORT", 80)
 # --- Storage ----------------------------------------------------------------
 DB_FILE = os.getenv("DB_FILE", "drone_mesh.db")
 AUDIT_LOG_FILE = os.getenv("AUDIT_LOG_FILE", "audit.log")
+MEDIA_DIR = os.getenv("MEDIA_DIR", "media")
+MAX_MEDIA_SIZE = _int("MAX_MEDIA_SIZE", 512000)  # 500 KB limit for voice notes / photos
+ALLOWED_MEDIA_TYPES = {
+    "image/jpeg", "image/png", "image/webp",
+    "audio/aac", "audio/mp4", "audio/m4a", "audio/opus", "audio/ogg", "audio/wav",
+}
+SYNC_MEDIA_BYTE_CAP = _int("SYNC_MEDIA_BYTE_CAP", 2097152)  # 2 MB per sync cycle
 
 # --- Trust root (file 09 F2): ONE master secret, per-purpose keys derived
 # with HKDF in crypto_keys.py. Never commit a real value (file 09 F4);

@@ -24,6 +24,7 @@ import requests
 import audit
 import config
 import crypto_keys
+import media_store
 import models
 
 audit_logger = audit.get_audit_logger()
@@ -38,6 +39,7 @@ SYNC_PATHS = {
     "personnel_locations": "personnel-locations",
     "message_replies": "message-replies",
     "lora_events": "lora-events",
+    "media_attachments": "media-attachments",
 }
 
 
@@ -203,6 +205,15 @@ def ingest_personnel_location(record, peer_node_id):
     return "kept"
 
 
+def ingest_media_attachment(record, peer_node_id):
+    # Append-only: media metadata is immutable once signed and recorded.
+    return _ingest_append_only(
+        "media_attachments", record,
+        ["id", "parent_table", "parent_id", "filename", "mime_type",
+         "size_bytes", "sha256", "created_at", "node_id", "signature"],
+    )
+
+
 INGEST_FN = {
     "messages": ingest_message,
     "personnel": ingest_personnel,
@@ -212,6 +223,7 @@ INGEST_FN = {
     "personnel_locations": ingest_personnel_location,
     "message_replies": ingest_message_reply,
     "lora_events": ingest_lora_event,
+    "media_attachments": ingest_media_attachment,
 }
 
 
@@ -332,6 +344,61 @@ def fetch_peer_health(peer: dict) -> bool:
     return True
 
 
+def sync_media_blobs_with_peer(peer: dict) -> dict:
+    """Pull missing media binary blobs from a peer for already-ingested
+    media_attachment records."""
+    peer_ip = peer["ip"]
+    peer_node_id = peer["node_id"]
+    api_port = peer.get("api_port") or config.API_PORT
+    verify = config.SYNC_CA_CERT if config.SYNC_VERIFY_TLS else False
+
+    all_attachments = models.get_all_media_attachments()
+    missing = [a for a in all_attachments if not media_store.has_blob(a["id"])]
+    if not missing:
+        return {"fetched": 0, "failed": 0, "bytes": 0}
+
+    stats = {"fetched": 0, "failed": 0, "bytes": 0}
+    total_bytes = 0
+
+    for att in missing:
+        if total_bytes >= config.SYNC_MEDIA_BYTE_CAP:
+            break
+        mid = att["id"]
+        url = f"{config.SYNC_SCHEME}://{peer_ip}:{api_port}/sync/media-blob/{mid}"
+        try:
+            resp = requests.get(
+                url,
+                headers={"X-Node-Auth": crypto_keys.NODE_AUTH_VALUE},
+                verify=verify,
+                timeout=15,
+            )
+            if resp.status_code == 404:
+                # Peer does not have this blob either (it originated on another node)
+                continue
+            resp.raise_for_status()
+            data = resp.content
+            if media_store.compute_sha256(data) != att["sha256"]:
+                audit_logger.warning(
+                    f"MEDIA_BLOB_CORRUPT | peer={peer_node_id} | id={mid} | reason=sha256_mismatch"
+                )
+                stats["failed"] += 1
+                continue
+            media_store.save_blob(mid, data)
+            stats["fetched"] += 1
+            stats["bytes"] += len(data)
+            total_bytes += len(data)
+            audit_logger.info(
+                f"MEDIA_BLOB_SYNC_OK | peer={peer_node_id} | id={mid} | bytes={len(data)}"
+            )
+        except Exception as e:  # noqa: BLE001
+            stats["failed"] += 1
+            audit_logger.warning(
+                f"MEDIA_BLOB_SYNC_FAIL | peer={peer_node_id} | id={mid} | reason={type(e).__name__}"
+            )
+
+    return stats
+
+
 def sync_with_peer(peer: dict) -> bool:
     """Sync every replicated table from one peer, isolating failures per
     table so one bad table does not stop the rest."""
@@ -376,4 +443,19 @@ def sync_with_peer(peer: dict) -> bool:
             audit_logger.warning(
                 f"SYNC_FAIL | peer={peer_node_id} | table={table} | reason={type(e).__name__}"
             )
+
+    # After table delta sync, pull any missing media blobs
+    try:
+        blob_stats = sync_media_blobs_with_peer(peer)
+        if blob_stats["fetched"] > 0 or blob_stats["failed"] > 0:
+            audit_logger.info(
+                f"MEDIA_SYNC_COMPLETE | peer={peer_node_id} | "
+                f"fetched={blob_stats['fetched']} | failed={blob_stats['failed']} | "
+                f"bytes={blob_stats['bytes']}"
+            )
+    except Exception as e:  # noqa: BLE001
+        audit_logger.warning(
+            f"MEDIA_SYNC_FAIL | peer={peer_node_id} | reason={type(e).__name__}"
+        )
+
     return not any_fail

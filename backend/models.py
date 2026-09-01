@@ -54,6 +54,7 @@ REPLICATED_TABLES = {
     "personnel_locations": "personnel_id",
     "message_replies": "id",
     "lora_events": "id",
+    "media_attachments": "id",
 }
 
 
@@ -154,6 +155,14 @@ def _lora_event_payload(r: dict) -> str:
     ))
 
 
+def _media_attachment_payload(r: dict) -> str:
+    return _canon(
+        r.get("id"), r.get("parent_table"), r.get("parent_id"),
+        r.get("filename"), r.get("mime_type"), r.get("size_bytes"),
+        r.get("sha256"), r.get("created_at"), r.get("node_id"),
+    )
+
+
 _PAYLOAD_FN = {
     "messages": _message_payload,
     "personnel": _personnel_payload,
@@ -163,6 +172,7 @@ _PAYLOAD_FN = {
     "personnel_locations": _personnel_location_payload,
     "message_replies": _message_reply_payload,
     "lora_events": _lora_event_payload,
+    "media_attachments": _media_attachment_payload,
 }
 
 
@@ -368,6 +378,23 @@ def init_db():
             local_ts TEXT
         )
     """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS media_attachments (
+            id TEXT PRIMARY KEY,
+            parent_table TEXT,
+            parent_id TEXT,
+            filename TEXT,
+            mime_type TEXT,
+            size_bytes INTEGER,
+            sha256 TEXT,
+            created_at TEXT,
+            node_id TEXT,
+            signature TEXT,
+            local_ts TEXT
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_media_parent "
+              "ON media_attachments(parent_table, parent_id)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_lora_events_time "
               "ON lora_events(received_at)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_replies_device "
@@ -487,15 +514,45 @@ def save_message(content, user_lat=None, user_lon=None, is_encrypted=False,
 def get_all_messages():
     conn = get_conn()
     rows = conn.execute("SELECT * FROM messages ORDER BY timestamp DESC").fetchall()
+    msgs = [dict(r) for r in rows]
+    msg_ids = [m["msg_id"] for m in msgs]
+    if msg_ids:
+        placeholders = ",".join("?" for _ in msg_ids)
+        att_rows = conn.execute(f"""
+            SELECT id, parent_id, filename, mime_type, size_bytes, sha256, created_at
+              FROM media_attachments
+             WHERE parent_table = 'messages' AND parent_id IN ({placeholders})
+             ORDER BY created_at ASC
+        """, msg_ids).fetchall()
+        att_map = {}
+        for a in att_rows:
+            ad = dict(a)
+            att_map.setdefault(ad["parent_id"], []).append(ad)
+        for m in msgs:
+            m["attachments"] = att_map.get(m["msg_id"], [])
+    else:
+        for m in msgs:
+            m["attachments"] = []
     conn.close()
-    return [dict(r) for r in rows]
+    return msgs
 
 
 def get_message_by_id(msg_id):
     conn = get_conn()
     row = conn.execute("SELECT * FROM messages WHERE msg_id = ?", (msg_id,)).fetchone()
+    if not row:
+        conn.close()
+        return None
+    msg = dict(row)
+    att_rows = conn.execute("""
+        SELECT id, parent_id, filename, mime_type, size_bytes, sha256, created_at
+          FROM media_attachments
+         WHERE parent_table = 'messages' AND parent_id = ?
+         ORDER BY created_at ASC
+    """, (msg_id,)).fetchall()
+    msg["attachments"] = [dict(a) for a in att_rows]
     conn.close()
-    return dict(row) if row else None
+    return msg
 
 
 def get_messages_by_victim_device_id(victim_device_id):
@@ -504,8 +561,27 @@ def get_messages_by_victim_device_id(victim_device_id):
         "SELECT * FROM messages WHERE victim_device_id = ? ORDER BY timestamp ASC",
         (victim_device_id,),
     ).fetchall()
+    msgs = [dict(r) for r in rows]
+    msg_ids = [m["msg_id"] for m in msgs]
+    if msg_ids:
+        placeholders = ",".join("?" for _ in msg_ids)
+        att_rows = conn.execute(f"""
+            SELECT id, parent_id, filename, mime_type, size_bytes, sha256, created_at
+              FROM media_attachments
+             WHERE parent_table = 'messages' AND parent_id IN ({placeholders})
+             ORDER BY created_at ASC
+        """, msg_ids).fetchall()
+        att_map = {}
+        for a in att_rows:
+            ad = dict(a)
+            att_map.setdefault(ad["parent_id"], []).append(ad)
+        for m in msgs:
+            m["attachments"] = att_map.get(m["msg_id"], [])
+    else:
+        for m in msgs:
+            m["attachments"] = []
     conn.close()
-    return [dict(r) for r in rows]
+    return msgs
 
 
 def claim_message(msg_id, claimed_by):
@@ -944,6 +1020,93 @@ def save_message_reply(msg_id, victim_device_id, body, sender, sender_role):
     return record
 
 
+def save_media_attachment(parent_table: str, parent_id: str, filename: str,
+                          mime_type: str, size_bytes: int, sha256: str,
+                          node_id: str = None, media_id: str = None,
+                          created_at: str = None) -> dict:
+    """Record a media attachment (voice note, photo) in SQLite.
+    The binary file itself is stored in config.MEDIA_DIR.
+    Signed with K_MSG over the canonical field order."""
+    mid = media_id or str(uuid.uuid4())
+    now = created_at or iso_now()
+    nid = node_id or config.NODE_ID
+    record = {
+        "id": mid,
+        "parent_table": parent_table,
+        "parent_id": parent_id,
+        "filename": filename,
+        "mime_type": mime_type,
+        "size_bytes": size_bytes,
+        "sha256": sha256,
+        "created_at": now,
+        "node_id": nid,
+    }
+    record["signature"] = sign_record("media_attachments", record)
+    conn = get_conn()
+    conn.execute("""
+        INSERT INTO media_attachments (
+            id, parent_table, parent_id, filename, mime_type, size_bytes,
+            sha256, created_at, node_id, signature, local_ts
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        record["id"], record["parent_table"], record["parent_id"],
+        record["filename"], record["mime_type"], record["size_bytes"],
+        record["sha256"], record["created_at"], record["node_id"],
+        record["signature"], iso_now(),
+    ))
+    conn.commit()
+    conn.close()
+    return record
+
+
+def get_media_attachment(media_id: str) -> Optional[dict]:
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM media_attachments WHERE id = ?", (media_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_media_attachments_for_parent(parent_table: str, parent_id: str) -> list:
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM media_attachments WHERE parent_table = ? AND parent_id = ? ORDER BY created_at ASC",
+        (parent_table, parent_id),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_media_attachments_for_parents(parent_table: str, parent_ids: list) -> dict:
+    if not parent_ids:
+        return {}
+    conn = get_conn()
+    placeholders = ",".join("?" for _ in parent_ids)
+    rows = conn.execute(
+        f"SELECT * FROM media_attachments WHERE parent_table = ? AND parent_id IN ({placeholders}) ORDER BY created_at ASC",
+        [parent_table, *parent_ids],
+    ).fetchall()
+    conn.close()
+    result = {pid: [] for pid in parent_ids}
+    for r in rows:
+        d = dict(r)
+        result[d["parent_id"]].append(d)
+    return result
+
+
+def get_all_media_ids() -> set:
+    conn = get_conn()
+    rows = conn.execute("SELECT id FROM media_attachments").fetchall()
+    conn.close()
+    return {r["id"] for r in rows}
+
+
+def get_all_media_attachments() -> list:
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM media_attachments ORDER BY created_at DESC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def get_conversation(victim_device_id: str) -> dict:
     """Everything one victim device has sent and been told, oldest first.
 
@@ -960,6 +1123,25 @@ def get_conversation(victim_device_id: str) -> dict:
          WHERE victim_device_id = ?
          ORDER BY timestamp ASC
     """, (victim_device_id,)).fetchall()
+    msg_rows = [dict(m) for m in msgs]
+    msg_ids = [m["msg_id"] for m in msg_rows]
+
+    attachments_by_msg = {}
+    if msg_ids:
+        placeholders = ",".join("?" for _ in msg_ids)
+        att_rows = conn.execute(f"""
+            SELECT id, parent_id, filename, mime_type, size_bytes, sha256, created_at
+              FROM media_attachments
+             WHERE parent_table = 'messages' AND parent_id IN ({placeholders})
+             ORDER BY created_at ASC
+        """, msg_ids).fetchall()
+        for a in att_rows:
+            ad = dict(a)
+            attachments_by_msg.setdefault(ad["parent_id"], []).append(ad)
+
+    for m in msg_rows:
+        m["attachments"] = attachments_by_msg.get(m["msg_id"], [])
+
     replies = conn.execute("""
         SELECT id, msg_id, body, sender, sender_role, created_at, node_id
           FROM message_replies
@@ -968,7 +1150,7 @@ def get_conversation(victim_device_id: str) -> dict:
     """, (victim_device_id,)).fetchall()
     conn.close()
     return {
-        "messages": [dict(m) for m in msgs],
+        "messages": msg_rows,
         "replies": [dict(r) for r in replies],
     }
 

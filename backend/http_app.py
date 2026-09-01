@@ -23,14 +23,17 @@ popup and lands victims directly on the message form.
 """
 
 import html
+import json
+import uuid
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, field_validator
 
 import audit
 import config
+import media_store
 import mission_config
 import models
 import ratelimit
@@ -550,6 +553,98 @@ def post_checkin(checkin: CheckinInput, request: Request):
         raise
     except Exception:
         raise HTTPException(status_code=500, detail="Internal error while saving the checkin.")
+
+
+@app.post("/checkin-with-media")
+async def post_checkin_with_media(
+    request: Request,
+    checkin_json: str = Form(...),
+    media: Optional[UploadFile] = File(None),
+):
+    """Emergency app upload with optional media attachment (voice note or photo).
+    Parses checkin JSON form-field and attaches media blob to the resulting SOS message."""
+    try:
+        _enforce_public_write_limits(request)
+        try:
+            raw_data = json.loads(checkin_json)
+            checkin = CheckinInput(**raw_data)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid checkin_json payload.")
+
+        ids = []
+        for point in checkin.points:
+            ids.append(models.save_checkin(
+                device_id=checkin.device_id,
+                lat=point.lat, lon=point.lon,
+                accuracy=point.accuracy,
+                recorded_at=point.recorded_at or models.iso_now(),
+                sos=1 if checkin.sos else 0,
+            ))
+        sos_msg_id = None
+        if checkin.sos:
+            latest = checkin.points[-1] if checkin.points else None
+            content = checkin.sos_text or "SOS from emergency app"
+            sos_msg_id = models.save_message(
+                content=f"[SOS] {content}",
+                user_lat=latest.lat if latest else None,
+                user_lon=latest.lon if latest else None,
+                victim_device_id=checkin.device_id,
+            )
+
+        media_id = None
+        if media is not None:
+            media_bytes = await media.read()
+            if len(media_bytes) > config.MAX_MEDIA_SIZE:
+                raise HTTPException(status_code=413, detail=f"Media file exceeds {config.MAX_MEDIA_SIZE} bytes")
+            content_type = media.content_type or "image/jpeg"
+            if content_type not in config.ALLOWED_MEDIA_TYPES:
+                raise HTTPException(status_code=415, detail=f"Unsupported media type: {content_type}")
+            media_id = str(uuid.uuid4())
+            sha256_hash = media_store.save_blob(media_id, media_bytes)
+            # Attach to the SOS message if present, otherwise to the last checkin point
+            parent_table = "messages" if sos_msg_id else "checkins"
+            parent_id = sos_msg_id if sos_msg_id else (ids[-1] if ids else media_id)
+            models.save_media_attachment(
+                parent_table=parent_table,
+                parent_id=parent_id,
+                filename=media.filename or f"upload_{media_id}",
+                mime_type=content_type,
+                size_bytes=len(media_bytes),
+                sha256=sha256_hash,
+                media_id=media_id,
+            )
+
+        audit_logger.info(
+            f"CHECKIN_MEDIA | ip={_client_ip(request)} | device={checkin.device_id} | "
+            f"points={len(ids)} | sos={checkin.sos} | media_id={media_id}"
+        )
+        return JSONResponse({"stored": len(ids), "sos_msg_id": sos_msg_id, "media_id": media_id})
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal error while saving checkin with media.")
+
+
+@app.get("/media/{media_id}")
+def get_victim_media(media_id: str, request: Request):
+    """Public media retrieval for victims to display their own sent attachments
+    or received rescue audio/images in their conversation view."""
+    try:
+        _enforce_public_write_limits(request)
+    except Exception:
+        pass  # reads shouldn't block aggressively, but limiter checks excessive spam
+
+    att = models.get_media_attachment(media_id)
+    if not att:
+        raise HTTPException(status_code=404, detail="Media attachment not found")
+    blob = media_store.get_blob(media_id)
+    if blob is None:
+        raise HTTPException(status_code=404, detail="Media file not found on disk")
+    return Response(
+        content=blob,
+        media_type=att.get("mime_type", "application/octet-stream"),
+        headers={"Content-Disposition": f'inline; filename="{att.get("filename", media_id)}"'},
+    )
 
 
 @app.get("/probe")
