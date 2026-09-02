@@ -175,8 +175,6 @@ class _GccShellState extends State<GccShell> {
 
   @override
   Widget build(BuildContext context) {
-    // A screen asked to move the operator elsewhere; honour it after this
-    // frame so we are not calling setState during a build.
     final nav = context.watch<ShellNav>();
     final data = context.watch<DataStore>();
     final requested = nav.takeRequest();
@@ -186,87 +184,18 @@ class _GccShellState extends State<GccShell> {
       });
     }
 
-    final fieldReportsCount = data.gsMessages.items.length;
     final newVictimCount = data.messages.items.where((m) => m.status == 'NEW').length;
-    final totalFeedAlerts = fieldReportsCount + newVictimCount;
-
-    final destinations = [
-      const NavigationRailDestination(
-          icon: Icon(Icons.map_outlined),
-          selectedIcon: Icon(Icons.map),
-          label: Text('Map')),
-      const NavigationRailDestination(
-          icon: Icon(Icons.monitor_heart_outlined),
-          selectedIcon: Icon(Icons.monitor_heart),
-          label: Text('Live Ops')),
-      const NavigationRailDestination(
-          icon: Icon(Icons.assignment_outlined),
-          selectedIcon: Icon(Icons.assignment),
-          label: Text('Mission')),
-      NavigationRailDestination(
-          icon: totalFeedAlerts > 0
-              ? Badge.count(
-                  count: totalFeedAlerts,
-                  backgroundColor: fieldReportsCount > 0 ? Colors.purpleAccent : Colors.redAccent,
-                  child: const Icon(Icons.inbox_outlined),
-                )
-              : const Icon(Icons.inbox_outlined),
-          selectedIcon: totalFeedAlerts > 0
-              ? Badge.count(
-                  count: totalFeedAlerts,
-                  backgroundColor: fieldReportsCount > 0 ? Colors.purpleAccent : Colors.redAccent,
-                  child: const Icon(Icons.inbox),
-                )
-              : const Icon(Icons.inbox),
-          label: const Text('Live Feed')),
-      const NavigationRailDestination(
-          icon: Icon(Icons.router_outlined),
-          selectedIcon: Icon(Icons.router),
-          label: Text('Nodes')),
-      const NavigationRailDestination(
-          icon: Icon(Icons.warning_amber_outlined),
-          selectedIcon: Icon(Icons.warning_amber),
-          label: Text('Degraded')),
-      const NavigationRailDestination(
-          icon: Icon(Icons.badge_outlined),
-          selectedIcon: Icon(Icons.badge),
-          label: Text('Personnel')),
-      const NavigationRailDestination(
-          icon: Icon(Icons.campaign_outlined),
-          selectedIcon: Icon(Icons.campaign),
-          label: Text('Announcements')),
-      const NavigationRailDestination(
-          icon: Icon(Icons.flight_outlined),
-          selectedIcon: Icon(Icons.flight),
-          label: Text('Drone')),
-      const NavigationRailDestination(
-          icon: Icon(Icons.wifi_tethering_outlined),
-          selectedIcon: Icon(Icons.wifi_tethering),
-          label: Text('Field Share')),
-      const NavigationRailDestination(
-          icon: Icon(Icons.settings_outlined),
-          selectedIcon: Icon(Icons.settings),
-          label: Text('Settings')),
-    ];
+    final fieldReportsCount = data.gsMessages.items.length;
 
     return Scaffold(
       body: Row(
         children: [
-          Column(
-            children: [
-              Expanded(
-                child: NavigationRail(
-                  selectedIndex: _index,
-                  onDestinationSelected: (i) => setState(() => _index = i),
-                  labelType: NavigationRailLabelType.all,
-                  destinations: destinations,
-                ),
-              ),
-              const _ConnectionBadge(),
-              const SizedBox(height: 8),
-            ],
+          _PremiumSidebar(
+            selectedIndex: _index,
+            newVictimCount: newVictimCount,
+            fieldReportsCount: fieldReportsCount,
+            onSelect: (i) => setState(() => _index = i),
           ),
-          const VerticalDivider(thickness: 1, width: 1),
           Expanded(child: _screens[_index]),
         ],
       ),
@@ -274,10 +203,269 @@ class _GccShellState extends State<GccShell> {
   }
 }
 
-/// Two INDEPENDENT facts, shown as two rows because operators kept reading
-/// one as the other: whether we are talking to a drone node, and whether
-/// this laptop has real internet. At a deployment the correct state is node
-/// connected and internet absent, so neither one alone means "working".
+/// ── Premium sidebar ──────────────────────────────────────────────────────────
+class _PremiumSidebar extends StatelessWidget {
+  final int selectedIndex;
+  final int newVictimCount;
+  final int fieldReportsCount;
+  final ValueChanged<int> onSelect;
+
+  const _PremiumSidebar({
+    required this.selectedIndex,
+    required this.newVictimCount,
+    required this.fieldReportsCount,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final totalAlerts = newVictimCount + fieldReportsCount;
+
+    final items = [
+      _SidebarItem(index: 0, icon: Icons.map_outlined, selectedIcon: Icons.map, label: 'Map'),
+      _SidebarItem(index: 1, icon: Icons.monitor_heart_outlined, selectedIcon: Icons.monitor_heart, label: 'Live Ops'),
+      _SidebarItem(index: 2, icon: Icons.assignment_outlined, selectedIcon: Icons.assignment, label: 'Mission'),
+      _SidebarItem(
+        index: 3,
+        icon: Icons.inbox_outlined,
+        selectedIcon: Icons.inbox,
+        label: 'Live Feed',
+        badge: totalAlerts > 0 ? totalAlerts : null,
+        badgeColor: fieldReportsCount > 0 ? Colors.purpleAccent : Colors.redAccent,
+      ),
+      _SidebarItem(index: 4, icon: Icons.router_outlined, selectedIcon: Icons.router, label: 'Nodes'),
+      _SidebarItem(index: 5, icon: Icons.warning_amber_outlined, selectedIcon: Icons.warning_amber, label: 'Degraded'),
+      _SidebarItem(index: 6, icon: Icons.badge_outlined, selectedIcon: Icons.badge, label: 'Personnel'),
+      _SidebarItem(index: 7, icon: Icons.campaign_outlined, selectedIcon: Icons.campaign, label: 'Announce'),
+      _SidebarItem(index: 8, icon: Icons.flight_outlined, selectedIcon: Icons.flight, label: 'Drone'),
+      _SidebarItem(index: 9, icon: Icons.wifi_tethering_outlined, selectedIcon: Icons.wifi_tethering, label: 'Field Share'),
+      _SidebarItem(index: 10, icon: Icons.settings_outlined, selectedIcon: Icons.settings, label: 'Settings'),
+    ];
+
+    return Container(
+      width: 72,
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F0A07),
+        border: Border(
+          right: BorderSide(color: Colors.white.withOpacity(0.07), width: 1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.5),
+            blurRadius: 12,
+            offset: const Offset(4, 0),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // ── Logo / brand mark ──
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Column(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF6D00), Color(0xFFB91C1C)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFF6D00).withOpacity(0.4),
+                        blurRadius: 12,
+                        spreadRadius: -2,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.cell_tower, color: Colors.white, size: 20),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'GCC',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white38,
+                    letterSpacing: 2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Container(height: 1, color: Colors.white.withOpacity(0.05)),
+          const SizedBox(height: 6),
+
+          // ── Nav items ──
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              children: items.map((item) {
+                final selected = selectedIndex == item.index;
+                return _SidebarNavTile(
+                  item: item,
+                  selected: selected,
+                  onTap: () => onSelect(item.index),
+                );
+              }).toList(),
+            ),
+          ),
+
+          // ── Connection status footer ──
+          const _ConnectionBadge(),
+          const SizedBox(height: 10),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarItem {
+  final int index;
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+  final int? badge;
+  final Color badgeColor;
+
+  const _SidebarItem({
+    required this.index,
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+    this.badge,
+    this.badgeColor = Colors.redAccent,
+  });
+}
+
+class _SidebarNavTile extends StatefulWidget {
+  final _SidebarItem item;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _SidebarNavTile({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  State<_SidebarNavTile> createState() => _SidebarNavTileState();
+}
+
+class _SidebarNavTileState extends State<_SidebarNavTile> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = widget.selected;
+    final item = widget.item;
+
+    return Tooltip(
+      message: item.label,
+      preferBelow: false,
+      waitDuration: const Duration(milliseconds: 400),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            margin: const EdgeInsets.symmetric(vertical: 3),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: selected
+                  ? Colors.orangeAccent.withOpacity(0.15)
+                  : _hovered
+                      ? Colors.white.withOpacity(0.05)
+                      : Colors.transparent,
+              border: selected
+                  ? Border.all(color: Colors.orangeAccent.withOpacity(0.3), width: 1)
+                  : Border.all(color: Colors.transparent, width: 1),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: Colors.orangeAccent.withOpacity(0.15),
+                        blurRadius: 12,
+                        spreadRadius: -2,
+                      ),
+                    ]
+                  : [],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(
+                      selected ? item.selectedIcon : item.icon,
+                      size: 22,
+                      color: selected
+                          ? Colors.orangeAccent
+                          : _hovered
+                              ? Colors.white70
+                              : Colors.white38,
+                    ),
+                    if (item.badge != null)
+                      Positioned(
+                        top: -6,
+                        right: -10,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                          decoration: BoxDecoration(
+                            color: item.badgeColor,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${item.badge}',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              height: 1,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  item.label,
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                    color: selected
+                        ? Colors.orangeAccent
+                        : _hovered
+                            ? Colors.white60
+                            : Colors.white30,
+                    letterSpacing: 0.3,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// ── Connection status (footer of sidebar) ────────────────────────────────────
 class _ConnectionBadge extends StatelessWidget {
   const _ConnectionBadge();
 
@@ -295,57 +483,79 @@ class _ConnectionBadge extends StatelessWidget {
       NetStatus.unknown => Colors.white24,
     };
 
-    return Column(
-      children: [
-        Tooltip(
-          message: connected
-              ? 'Connected to ${data.health?.nodeId ?? "node"} as ${app.operatorLabel}'
-              : (data.lastError ?? 'Not connected to a drone node'),
-          child: Column(
-            children: [
-              Icon(
-                connected ? Icons.wifi : Icons.wifi_off,
-                color: connected ? Colors.greenAccent : Colors.redAccent,
-                size: 20,
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Text(
-                  connected ? (data.health?.nodeId ?? '') : 'no node',
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 6),
-        Tooltip(
-          message: '${net.detail}\n\nClick to re-check now.',
-          child: InkWell(
-            onTap: net.checking ? null : net.check,
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withOpacity(0.06), width: 1),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Tooltip(
+            message: connected
+                ? 'Connected to ${data.health?.nodeId ?? "node"} as ${app.operatorLabel}'
+                : (data.lastError ?? 'Not connected to a drone node'),
             child: Column(
               children: [
-                Icon(
-                  net.isOnline ? Icons.public : Icons.public_off,
-                  color: netColour,
-                  size: 18,
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text(
-                    net.checking ? '...' : net.label,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.labelSmall,
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: connected ? Colors.greenAccent : Colors.redAccent,
+                    boxShadow: [
+                      BoxShadow(
+                        color: (connected ? Colors.greenAccent : Colors.redAccent)
+                            .withOpacity(0.6),
+                        blurRadius: 6,
+                        spreadRadius: 1,
+                      ),
+                    ],
                   ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  connected ? (data.health?.nodeId ?? 'node') : 'no node',
+                  style: const TextStyle(fontSize: 9, color: Colors.white38, letterSpacing: 0.5),
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 8),
+          Tooltip(
+            message: '${net.detail}\n\nClick to re-check now.',
+            child: InkWell(
+              onTap: net.checking ? null : net.check,
+              borderRadius: BorderRadius.circular(6),
+              child: Column(
+                children: [
+                  Icon(
+                    net.isOnline ? Icons.public : Icons.public_off,
+                    color: netColour,
+                    size: 16,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    net.checking ? '...' : net.label,
+                    style: TextStyle(fontSize: 9, color: netColour.withOpacity(0.8)),
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
+
 
 /// Login dialog: HQ operators authenticate with personnel_id + PIN, same
 /// as everyone else (file 09 plane 2). Break-glass key lives in Settings.
