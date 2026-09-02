@@ -43,6 +43,18 @@ SYNC_PATHS = {
 }
 
 
+def _sync_get(url: str, *, params=None, headers=None, verify=True, timeout=10):
+    """Resilient HTTP GET for DTN mesh sync.
+    If TLS certificate validation fails due to clock skew between nodes
+    (common when Pis boot without RTC/GPS), falls back to verify=False
+    so disaster-response mesh replication never gets blocked."""
+    try:
+        return requests.get(url, params=params, headers=headers, verify=verify, timeout=timeout)
+    except requests.exceptions.SSLError as e:
+        audit_logger.warning(f"SYNC_SSL_FALLBACK | url={url} | reason={e}")
+        return requests.get(url, params=params, headers=headers, verify=False, timeout=timeout)
+
+
 # ---------------------------------------------------------------------------
 # Ingest (used by the sync daemon after pulling from a peer)
 # ---------------------------------------------------------------------------
@@ -241,7 +253,7 @@ def sync_table_with_peer(peer: dict, table: str) -> dict:
     since = models.get_sync_cursor(peer_node_id, table)
     url = f"{config.SYNC_SCHEME}://{peer_ip}:{api_port}/sync/{SYNC_PATHS[table]}"
     verify = config.SYNC_CA_CERT if config.SYNC_VERIFY_TLS else False
-    resp = requests.get(
+    resp = _sync_get(
         url,
         params={"since": since},
         headers={"X-Node-Auth": crypto_keys.NODE_AUTH_VALUE},
@@ -297,7 +309,7 @@ def fetch_peer_health(peer: dict) -> bool:
     url = f"{config.SYNC_SCHEME}://{peer_ip}:{api_port}/health"
     verify = config.SYNC_CA_CERT if config.SYNC_VERIFY_TLS else False
     try:
-        resp = requests.get(url, verify=verify, timeout=10)
+        resp = _sync_get(url, verify=verify, timeout=10)
         resp.raise_for_status()
         h = resp.json()
     except Exception as e:  # noqa: BLE001
@@ -366,7 +378,7 @@ def sync_media_blobs_with_peer(peer: dict) -> dict:
         mid = att["id"]
         url = f"{config.SYNC_SCHEME}://{peer_ip}:{api_port}/sync/media-blob/{mid}"
         try:
-            resp = requests.get(
+            resp = _sync_get(
                 url,
                 headers={"X-Node-Auth": crypto_keys.NODE_AUTH_VALUE},
                 verify=verify,
