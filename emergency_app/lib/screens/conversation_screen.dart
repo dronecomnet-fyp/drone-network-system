@@ -47,6 +47,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
   @override
   void initState() {
     super.initState();
+    final c = context.read<AppController>();
+    if (c.cachedConvo != null) {
+      _convo = c.cachedConvo;
+      _loading = false;
+    }
     _refresh();
     _timer = Timer.periodic(_refreshEvery, (_) => _refresh());
   }
@@ -64,6 +69,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
     try {
       final convo = await client.getMyConversation(c.deviceId);
       if (!mounted) return;
+      c.cachedConvo = convo;
       setState(() {
         _convo = convo;
         _loading = false;
@@ -88,22 +94,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFEFEAE2),
       appBar: AppBar(
-        title: Row(
-          children: [
-            const CircleAvatar(
-              backgroundColor: Colors.white24,
-              child: Icon(Icons.health_and_safety, color: Colors.white),
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Rescue Team', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                Text('Official Emergency Support', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.9))),
-              ],
-            ),
-          ],
-        ),
+        title: const Text('Rescue Team'),
       ),
       body: Column(
         children: [

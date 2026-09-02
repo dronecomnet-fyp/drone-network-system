@@ -158,6 +158,12 @@ class _MapScreenState extends State<MapScreen> {
     return z == null ? 19 : z.toDouble();
   }
 
+  /// Minimum zoom the MBTiles file contains.
+  double get _minNativeZoom {
+    final z = _mbtiles?.getMetadata().minZoom;
+    return z == null ? 0 : z.toDouble();
+  }
+
   /// How far the camera may go. A little past the native maximum, so the
   /// operator can zoom in for detail on markers and get upscaled tiles
   /// rather than an empty screen.
@@ -216,6 +222,7 @@ class _MapScreenState extends State<MapScreen> {
         FlutterMap(
           mapController: _map,
           options: MapOptions(
+            backgroundColor: const Color(0xFF1A0F0A),
             initialCenter: _initialCenter(data),
             initialZoom: 13,
             // Field backlog #5: zooming in far left the screen blank.
@@ -226,7 +233,7 @@ class _MapScreenState extends State<MapScreen> {
             // maxNativeZoom on the layer upscales the deepest real tiles
             // rather than showing nothing.
             maxZoom: _maxUsefulZoom,
-            minZoom: 2,
+            minZoom: 7,
             onTap: (tapPosition, latlng) => _onMapTap(context, mission, latlng),
           ),
           children: [
@@ -237,6 +244,7 @@ class _MapScreenState extends State<MapScreen> {
                 // Beyond this the deepest available tiles are scaled up,
                 // which is blurry but readable, instead of blank.
                 maxNativeZoom: _maxNativeZoom.round(),
+                minNativeZoom: _minNativeZoom.round(),
                 maxZoom: _maxUsefulZoom,
               ),
             // The area is SHADED only while planning (field backlog #3).

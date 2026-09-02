@@ -23,46 +23,143 @@ class NodesScreen extends StatelessWidget {
     final data = context.watch<DataStore>();
     final h = data.health;
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    final nodeCount = h == null ? 0 : (h.peers.length + 1);
+    final age = data.healthUpdated == null
+        ? 'never updated'
+        : 'updated ${formatAge(DateTime.now().difference(data.healthUpdated!))}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Text('Nodes', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(width: 12),
-            Text(
-                data.healthUpdated == null
-                    ? 'never updated'
-                    : 'updated ${formatAge(DateTime.now().difference(data.healthUpdated!))}',
-                style: Theme.of(context).textTheme.bodySmall),
-          ],
-        ),
-        const SizedBox(height: 8),
-        if (data.lastError != null)
-          Card(
-            color: Theme.of(context).colorScheme.errorContainer,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(data.lastError!),
+        // ── Command-center header (matches Live Feed) ──
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A0F0A),
+            border: Border(
+              bottom: BorderSide(color: Colors.white.withOpacity(0.08), width: 1),
             ),
           ),
-        if (h == null)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('No node in range yet. Join a RESCUE_x WiFi; the '
-                  'health poll runs every 5 seconds.'),
-            ),
-          )
-        else ...[
-          _ConnectedNodeCard(healthUpdated: data.healthUpdated),
-          const SizedBox(height: 8),
-          const _PortalConfigCard(),
-          const SizedBox(height: 8),
-          _PeersCard(),
-          const SizedBox(height: 8),
-          _DegradedCard(),
-        ],
+          child: Row(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: h != null ? Colors.cyanAccent : Colors.white24,
+                          shape: BoxShape.circle,
+                          boxShadow: h != null
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.cyanAccent.withOpacity(0.5),
+                                    blurRadius: 6,
+                                  )
+                                ]
+                              : [],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'NODES',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$nodeCount node${nodeCount == 1 ? '' : 's'} known  ·  $age',
+                    style: const TextStyle(
+                        fontSize: 11, color: Colors.white38, letterSpacing: 0.3),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        // ── Scrollable content ──
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              if (data.lastError != null)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border:
+                        Border.all(color: Colors.redAccent.withOpacity(0.4)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_amber_rounded,
+                          color: Colors.redAccent, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(data.lastError!,
+                            style:
+                                const TextStyle(color: Colors.redAccent)),
+                      ),
+                    ],
+                  ),
+                ),
+              if (h == null)
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.04),
+                    borderRadius: BorderRadius.circular(14),
+                    border:
+                        Border.all(color: Colors.white.withOpacity(0.08)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.wifi_off, color: Colors.white38, size: 22),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'No node in range yet. Join a RESCUE_x WiFi; the health poll runs every 5 seconds.',
+                          style: TextStyle(color: Colors.white54, fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else ...[
+                // ── Connected node + Fleet peers side by side ──
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: _ConnectedNodeCard(
+                            healthUpdated: data.healthUpdated),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(child: _PeersCard()),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const _PortalConfigCard(),
+                const SizedBox(height: 10),
+                _DegradedCard(),
+              ],
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -83,91 +180,227 @@ class _ConnectedNodeCard extends StatelessWidget {
     final h = context.watch<DataStore>().health!;
     final gps = h.gps;
     final bat = h.battery;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const DroneGlyph(color: Colors.cyanAccent, size: 46),
-                const SizedBox(width: 12),
-                Text(h.nodeId, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(width: 8),
-                Chip(
-                  label: const Text('connected'),
-                  visualDensity: VisualDensity.compact,
-                  backgroundColor: Colors.green.shade900,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.cyanAccent.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.cyanAccent.withOpacity(0.25)),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const DroneGlyph(color: Colors.cyanAccent, size: 46),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          h.nodeId,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: Colors.greenAccent.withOpacity(0.5)),
+                          ),
+                          child: const Text(
+                            'CONNECTED',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.greenAccent,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                        if (h.aux == 'absent') ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                  color: Colors.orangeAccent.withOpacity(0.4)),
+                            ),
+                            child: const Text('aux absent',
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.orangeAccent)),
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (healthUpdated != null)
+                      Text(
+                        'health ${formatAge(DateTime.now().difference(healthUpdated!))}',
+                        style: const TextStyle(
+                            fontSize: 11, color: Colors.white38),
+                      ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                if (h.aux == 'absent')
-                  const Chip(
-                    label: Text('aux absent'),
-                    visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // ── Stats grid: 2-column bordered tiles ──
+          Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _stat(
+                      'GPS',
+                      gps.hasFix
+                          ? '${gps.lat!.toStringAsFixed(5)}, ${gps.lon!.toStringAsFixed(5)}'
+                          : 'no fix',
+                      icon: gps.hasFix ? Icons.gps_fixed : Icons.gps_not_fixed,
+                      iconColor: gps.hasFix ? Colors.greenAccent : Colors.orangeAccent,
+                      sub: gps.hasFix ? '${gps.sats} satellites' : null,
+                    ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 24,
-              runSpacing: 12,
-              children: [
-                _stat('GPS',
-                    gps.hasFix
-                        ? '${gps.lat!.toStringAsFixed(5)}, ${gps.lon!.toStringAsFixed(5)} (${gps.sats} sats)'
-                        : 'no fix'),
-                _stat('Battery A', batteryLine(bat.aV, bat.aMa),
-                    icon: batteryFlowIcon(bat.aMa),
-                    iconColor: batteryFlowColor(bat.aMa)),
-                _stat('Battery B', batteryLine(bat.bV, bat.bMa),
-                    icon: batteryFlowIcon(bat.bMa),
-                    iconColor: batteryFlowColor(bat.bMa)),
-                _stat('Uptime', _uptime(h.uptimeS)),
-                _stat('Clock', h.clockSource,
-                    warn: h.clockSource != 'gps',
-                    warnText: 'timestamps approximate until GPS fix'),
-                _stat(
-                    'Messages',
-                    h.messageCounts.entries
-                        .map((e) => '${e.key}: ${e.value}')
-                        .join('   ')),
-              ],
-            ),
-          ],
-        ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _stat('Uptime', _uptime(h.uptimeS),
+                        icon: Icons.timer_outlined,
+                        iconColor: Colors.cyanAccent),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _stat(
+                      'Battery A',
+                      batteryLine(bat.aV, bat.aMa),
+                      icon: batteryFlowIcon(bat.aMa) ?? Icons.battery_unknown,
+                      iconColor: batteryFlowColor(bat.aMa) ?? Colors.white54,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _stat(
+                      'Battery B',
+                      batteryLine(bat.bV, bat.bMa),
+                      icon: batteryFlowIcon(bat.bMa) ?? Icons.battery_unknown,
+                      iconColor: batteryFlowColor(bat.bMa) ?? Colors.white54,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _stat(
+                      'Clock',
+                      h.clockSource,
+                      icon: Icons.access_time,
+                      iconColor: h.clockSource == 'gps'
+                          ? Colors.greenAccent
+                          : Colors.orangeAccent,
+                      warn: h.clockSource != 'gps',
+                      warnText: 'Timestamps approximate until GPS fix',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _stat(
+                      'Messages',
+                      h.messageCounts.entries
+                          .map((e) => '${e.key}: ${e.value}')
+                          .join('  '),
+                      icon: Icons.message_outlined,
+                      iconColor: Colors.purpleAccent,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _stat(String label, String value,
-      {bool warn = false,
-      String warnText = '',
-      IconData? icon,
-      Color? iconColor}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: const TextStyle(fontSize: 11, color: Colors.white54)),
-        Row(
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 14, color: iconColor),
-              const SizedBox(width: 4),
-            ],
-            Text(value),
-            if (warn) ...[
-              const SizedBox(width: 4),
-              Tooltip(
-                message: warnText,
-                child: const Icon(Icons.info_outline,
-                    size: 14, color: Colors.orangeAccent),
+  Widget _stat(
+    String label,
+    String value, {
+    bool warn = false,
+    String warnText = '',
+    IconData? icon,
+    Color? iconColor,
+    String? sub,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 12, color: iconColor ?? Colors.white38),
+                const SizedBox(width: 5),
+              ],
+              Text(
+                label.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: iconColor?.withOpacity(0.7) ?? Colors.white38,
+                  letterSpacing: 0.8,
+                ),
               ),
+              if (warn) ...[
+                const SizedBox(width: 4),
+                Tooltip(
+                  message: warnText,
+                  child: const Icon(Icons.info_outline,
+                      size: 12, color: Colors.orangeAccent),
+                ),
+              ],
             ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+          if (sub != null) ...[
+            const SizedBox(height: 2),
+            Text(sub,
+                style:
+                    const TextStyle(fontSize: 10, color: Colors.white38)),
           ],
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -194,58 +427,76 @@ class _PeersCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final h = context.watch<DataStore>().health!;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text('Other drones in the fleet',
-                    style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(width: 10),
-                Text('as seen by ${h.nodeId}',
-                    style: Theme.of(context).textTheme.bodySmall),
-              ],
-            ),
-            const SizedBox(height: 10),
-            if (h.peers.isEmpty)
-              // The empty state earns its length. During testing this said
-              // only "no peers", which is indistinguishable between the
-              // normal DTN case and a dead USB adapter, and an evening was
-              // spent on the wrong theory because of it (CHANGES item 40).
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade900.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(8),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.hub_outlined, size: 16, color: Colors.cyanAccent),
+              const SizedBox(width: 8),
+              const Text(
+                'Fleet Peers',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  letterSpacing: 0.3,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('No other drone is in range right now.'),
-                    const SizedBox(height: 6),
-                    Text(
-                      'For a delay-tolerant mesh this is normal: nodes sync '
-                      'when they meet. It is ALSO what a dead USB WiFi '
-                      'adapter looks like, which is not normal. If this node '
-                      'should be hearing someone, check on it directly with '
-                      '"iw dev wlan1 info" before suspecting sync.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              )
-            else
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children:
-                    h.peers.map((p) => _peerCard(context, p)).toList(),
               ),
-          ],
-        ),
+              const SizedBox(width: 10),
+              Text(
+                'as seen by ${h.nodeId}',
+                style: const TextStyle(fontSize: 11, color: Colors.white38),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (h.peers.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade900.withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.info_outline,
+                          color: Colors.orangeAccent, size: 16),
+                      SizedBox(width: 8),
+                      Text('No other drone in range right now.',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'For a delay-tolerant mesh this is normal. If this node should be hearing someone, check for a dead USB WiFi adapter.',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.white.withOpacity(0.5)),
+                  ),
+                ],
+              ),
+            )
+          else
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children:
+                  h.peers.map((p) => _peerCard(context, p)).toList(),
+            ),
+        ],
       ),
     );
   }
@@ -338,37 +589,89 @@ class _DegradedCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final h = context.watch<DataStore>().health!;
     if (h.degradedNodes.isEmpty) return const SizedBox.shrink();
-    return Card(
-      color: Colors.red.shade900.withValues(alpha: 0.35),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.report, color: Colors.redAccent),
-                const SizedBox(width: 8),
-                Text('DEGRADED nodes (LoRa fallback beacons)',
-                    style: Theme.of(context).textTheme.titleSmall),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ...h.degradedNodes.map((d) => ListTile(
-                  dense: true,
-                  leading: const DroneGlyph(
-                      color: Colors.redAccent, size: 40, dimmed: true),
-                  title: Text(
-                      '${d.nodeId}: Pi down, aux module beaconing (last ${d.ts})'),
-                  subtitle: Text([
-                    if (d.lat != null)
-                      'last GPS ${d.lat!.toStringAsFixed(5)}, ${d.lon!.toStringAsFixed(5)}',
-                    if (d.batAV != null) 'bat A ${d.batAV!.toStringAsFixed(2)} V',
-                    if (d.batBV != null) 'bat B ${d.batBV!.toStringAsFixed(2)} V',
-                  ].join('  |  ')),
-                )),
-          ],
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.red.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.report, color: Colors.redAccent, size: 18),
+              SizedBox(width: 8),
+              Text(
+                'DEGRADED NODES',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.redAccent,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              SizedBox(width: 8),
+              Text(
+                'LoRa fallback beacons',
+                style: TextStyle(fontSize: 11, color: Colors.white38),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...h.degradedNodes.map((d) => Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border:
+                      Border.all(color: Colors.redAccent.withOpacity(0.25)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const DroneGlyph(
+                        color: Colors.redAccent, size: 40, dimmed: true),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            d.nodeId,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                color: Colors.redAccent),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Pi down, aux module beaconing  ·  last ${d.ts}',
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.white54),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            [
+                              if (d.lat != null)
+                                'GPS ${d.lat!.toStringAsFixed(5)}, ${d.lon!.toStringAsFixed(5)}',
+                              if (d.batAV != null)
+                                'bat A ${d.batAV!.toStringAsFixed(2)} V',
+                              if (d.batBV != null)
+                                'bat B ${d.batBV!.toStringAsFixed(2)} V',
+                            ].join('  ·  '),
+                            style: const TextStyle(
+                                fontSize: 11, color: Colors.white38),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+        ],
       ),
     );
   }
@@ -520,64 +823,86 @@ class _PortalConfigCardState extends State<_PortalConfigCard> {
     final cfg = data.health?.missionConfig;
     if (cfg == null) return const SizedBox.shrink();
 
-    // Compare CONTENT, not a version number. The question the operator has
-    // is "does this node serve what I have loaded?", and comparing
-    // fingerprints answers it exactly, with no counter to keep correct.
     final mission = context.watch<MissionState>();
     final wanted = portalConfigId(situations: effectiveSituations(edited: mission.portalOptions, disasterType: mission.disasterType));
     final matches = cfg.matches(wanted);
     final chipLabel = cfg.isStock
         ? 'stock options'
         : (matches ? 'matches this mission' : 'different options');
-    final chipColour = cfg.isStock
-        ? Colors.orange.shade900
-        : (matches ? Colors.green.shade900 : Colors.blue.shade900);
+    final chipColor = cfg.isStock
+        ? Colors.orangeAccent
+        : (matches ? Colors.greenAccent : Colors.blueAccent);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Text('Victim portal options',
-                  style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(width: 10),
-              Chip(
-                label: Text(chipLabel),
-                visualDensity: VisualDensity.compact,
-                backgroundColor: chipColour,
-              ),
-            ]),
-            const SizedBox(height: 6),
-            Text(
-              cfg.isStock
-                  ? 'This node serves the built-in need-based options. That '
-                      'works, it is just not tailored to this mission.'
-                  : matches
-                      ? 'Serving ${cfg.situationCount} options for '
-                          '"${cfg.missionName}". Nothing to do.'
-                      : 'Serving ${cfg.situationCount} options for '
-                          '"${cfg.missionName}", which are NOT the ones this '
-                          'mission would push. Pushing will replace them.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 10),
-            if (!app.isHq)
-              Text('HQ login required to change what victims are shown.',
-                  style: Theme.of(context).textTheme.bodySmall)
-            else
-              FilledButton.icon(
-                onPressed: _busy ? null : () => _push(context),
-                icon: _busy
-                    ? const SizedBox(
-                        width: 14, height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.upload, size: 16),
-                label: Text(_busy ? 'Pushing...' : 'Push mission options'),
-              ),
-          ],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: chipColor.withOpacity(0.3),
         ),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.broadcast_on_personal_outlined,
+                size: 16, color: chipColor),
+            const SizedBox(width: 8),
+            const Text(
+              'Victim Portal Options',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+                letterSpacing: 0.3,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: chipColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: chipColor.withOpacity(0.5)),
+              ),
+              child: Text(
+                chipLabel.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: chipColor,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          Text(
+            cfg.isStock
+                ? 'This node serves the built-in need-based options. That works, it is just not tailored to this mission.'
+                : matches
+                    ? 'Serving ${cfg.situationCount} options for "${cfg.missionName}". Nothing to do.'
+                    : 'Serving ${cfg.situationCount} options for "${cfg.missionName}", which are NOT the ones this mission would push.',
+            style: const TextStyle(fontSize: 12, color: Colors.white54),
+          ),
+          const SizedBox(height: 12),
+          if (!app.isHq)
+            Text('HQ login required to change what victims are shown.',
+                style: const TextStyle(fontSize: 12, color: Colors.white38))
+          else
+            FilledButton.icon(
+              onPressed: _busy ? null : () => _push(context),
+              icon: _busy
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.upload, size: 16),
+              label: Text(_busy ? 'Pushing...' : 'Push mission options'),
+            ),
+        ],
       ),
     );
   }

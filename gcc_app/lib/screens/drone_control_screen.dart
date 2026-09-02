@@ -61,32 +61,61 @@ class _ConnectionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final drone = context.watch<DroneController>();
-    return Padding(
-      padding: const EdgeInsets.all(12),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A0F0A),
+        border: Border(
+            bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
+      ),
       child: Row(
         children: [
-          Icon(Icons.flight, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.cyanAccent.withOpacity(0.1),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.cyanAccent.withOpacity(0.3)),
+            ),
+            child: const Icon(Icons.flight_takeoff, color: Colors.cyanAccent, size: 18),
+          ),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('System drone (MAVLink)',
-                    style: Theme.of(context).textTheme.titleMedium),
-                Text(target, style: Theme.of(context).textTheme.bodySmall),
+                const Text('SYSTEM DRONE',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: 1.5,
+                    )),
+                const SizedBox(height: 4),
+                Text('MAVLink  ·  Target: $target', 
+                    style: const TextStyle(fontSize: 11, color: Colors.white38, letterSpacing: 0.3)),
               ],
             ),
           ),
           if (drone.connected)
             OutlinedButton.icon(
-              icon: const Icon(Icons.link_off),
-              label: const Text('Disconnect'),
+              icon: const Icon(Icons.link_off, size: 16),
+              label: const Text('Disconnect', style: TextStyle(fontSize: 13)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white54,
+                side: BorderSide(color: Colors.white.withOpacity(0.2)),
+              ),
               onPressed: () => drone.disconnect(),
             )
           else
             FilledButton.icon(
-              icon: const Icon(Icons.link),
-              label: const Text('Connect'),
+              icon: const Icon(Icons.link, size: 16),
+              label: const Text('Connect', style: TextStyle(fontSize: 13)),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.cyanAccent.withOpacity(0.15),
+                foregroundColor: Colors.cyanAccent,
+                side: BorderSide(color: Colors.cyanAccent.withOpacity(0.3)),
+              ),
               onPressed: () => drone.connect(target),
             ),
         ],
@@ -104,37 +133,78 @@ class _DisconnectedHelp extends StatelessWidget {
     final drone = context.watch<DroneController>();
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Container(
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.02),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.05)),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Not connected to the flight controller',
-                  style: Theme.of(context).textTheme.titleMedium),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orangeAccent.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.flight_takeoff, size: 48, color: Colors.orangeAccent),
+              ),
+              const SizedBox(height: 24),
+              const Text('NO MAVLINK CONNECTION',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 1.2,
+                  )),
               const SizedBox(height: 12),
               const Text(
                 'Connect to the system drone\'s Pi MAVLink gateway. Either '
                 'join RESCUE_S for the direct path (10.42.0.1), or join a '
                 'volunteer AP (RESCUE_A/B) for the live relay across the mesh '
-                '(10.99.0.3). Set the target in Settings, then tap Connect. '
-                'Props OFF for all ground testing.',
+                '(10.99.0.3). Set the target in Settings, then tap Connect.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.white54, height: 1.5),
               ),
-              const SizedBox(height: 12),
-              Text('Target: $target',
-                  style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.cyanAccent.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.cyanAccent.withOpacity(0.2)),
+                ),
+                child: Text('Target: $target',
+                    style: const TextStyle(fontSize: 12, color: Colors.cyanAccent, fontWeight: FontWeight.w600)),
+              ),
               if (drone.connectError != null) ...[
-                const SizedBox(height: 12),
-                Text(drone.connectError!,
-                    style: const TextStyle(color: Colors.redAccent)),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, size: 16, color: Colors.redAccent),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(drone.connectError!,
+                            style: const TextStyle(fontSize: 12, color: Colors.redAccent)),
+                      ),
+                    ],
+                  ),
+                ),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               const Text(
-                'The relay path is live-only (never store-and-forward): '
-                'commands travel over a live link or not at all. See '
-                'docs/DRONE_LINK.md for the architecture.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+                'PROPS OFF FOR ALL GROUND TESTING',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.orangeAccent, letterSpacing: 1),
               ),
             ],
           ),
@@ -150,26 +220,45 @@ class _LinkStatusCard extends StatelessWidget {
     final drone = context.watch<DroneController>();
     final fresh = drone.linkFresh;
     final age = drone.sinceHeartbeat;
-    return Card(
-      color: fresh
-          ? Colors.green.shade900.withValues(alpha: 0.25)
-          : Colors.red.shade900.withValues(alpha: 0.25),
+    
+    final color = fresh ? Colors.greenAccent : Colors.redAccent;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Row(
           children: [
             Icon(fresh ? Icons.favorite : Icons.heart_broken,
-                color: fresh ? Colors.greenAccent : Colors.redAccent),
-            const SizedBox(width: 10),
+                color: color, size: 24),
+            const SizedBox(width: 14),
             Expanded(
-              child: Text(
-                fresh
-                    ? 'MAVLink heartbeat live. Commands enabled.'
-                    : age == null
-                        ? 'Waiting for the first heartbeat from the FC...'
-                        : 'Heartbeat stale (${age.inSeconds}s). Commands '
-                            'disabled until the link recovers.',
-                style: Theme.of(context).textTheme.bodyMedium,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    fresh ? 'LINK ACTIVE' : 'LINK STALE',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    fresh
+                        ? 'MAVLink heartbeat live. Commands enabled.'
+                        : age == null
+                            ? 'Waiting for the first heartbeat from the FC...'
+                            : 'Heartbeat stale (${age.inSeconds}s). Commands disabled until the link recovers.',
+                    style: const TextStyle(fontSize: 13, color: Colors.white70),
+                  ),
+                ],
               ),
             ),
           ],
@@ -183,60 +272,110 @@ class _TelemetryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.watch<DroneController>().telemetry;
-    Widget stat(String label, String value, {Color? color}) => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label,
-                style: const TextStyle(fontSize: 11, color: Colors.white54)),
-            Text(value,
-                style: TextStyle(fontWeight: FontWeight.w600, color: color)),
-          ],
+    Widget stat(String label, String value, {Color? color}) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.02),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white.withOpacity(0.05)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label.toUpperCase(),
+                    style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white38,
+                        letterSpacing: 0.8)),
+                const SizedBox(height: 4),
+                Text(value,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: color ?? Colors.white)),
+              ],
+            ),
+          ),
         );
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text('Telemetry',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const Spacer(),
-                Chip(
-                  label: Text(t.armed ? 'ARMED' : 'DISARMED'),
-                  backgroundColor:
-                      t.armed ? Colors.red.shade800 : Colors.green.shade800,
-                  visualDensity: VisualDensity.compact,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.02),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.speed, size: 16, color: Colors.cyanAccent),
+              const SizedBox(width: 8),
+              const Text('TELEMETRY',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: 1)),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: t.armed
+                      ? Colors.redAccent.withOpacity(0.15)
+                      : Colors.greenAccent.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                      color: t.armed
+                          ? Colors.redAccent.withOpacity(0.4)
+                          : Colors.greenAccent.withOpacity(0.4)),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 26,
-              runSpacing: 12,
-              children: [
-                stat('Mode', t.modeName),
-                stat('Battery',
-                    t.batteryVolts == null
-                        ? 'n/a'
-                        : '${t.batteryVolts!.toStringAsFixed(2)} V'
-                            '${t.batteryRemaining != null && t.batteryRemaining! >= 0 ? "  ${t.batteryRemaining}%" : ""}'),
-                stat('GPS',
-                    t.hasGpsFix
-                        ? '3D fix, ${t.satellites} sats'
-                        : 'no fix (${t.satellites} sats)',
-                    color: t.hasGpsFix ? Colors.greenAccent : Colors.orangeAccent),
-                if (t.lat != null)
-                  stat('Position',
-                      '${t.lat!.toStringAsFixed(5)}, ${t.lon!.toStringAsFixed(5)}'),
-                stat('Attitude',
-                    'R ${t.rollDeg.toStringAsFixed(0)}  P ${t.pitchDeg.toStringAsFixed(0)}  Y ${t.yawDeg.toStringAsFixed(0)}'),
-              ],
-            ),
-          ],
-        ),
+                child: Text(
+                  t.armed ? 'ARMED' : 'DISARMED',
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: t.armed ? Colors.redAccent : Colors.greenAccent,
+                      letterSpacing: 1),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              stat('Mode', t.modeName),
+              const SizedBox(width: 8),
+              stat('Battery',
+                  t.batteryVolts == null
+                      ? 'n/a'
+                      : '${t.batteryVolts!.toStringAsFixed(2)} V'
+                          '${t.batteryRemaining != null && t.batteryRemaining! >= 0 ? "  ${t.batteryRemaining}%" : ""}'),
+              const SizedBox(width: 8),
+              stat('GPS',
+                  t.hasGpsFix
+                      ? '3D fix, ${t.satellites} sats'
+                      : 'no fix (${t.satellites} sats)',
+                  color: t.hasGpsFix ? Colors.greenAccent : Colors.orangeAccent),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              stat('Attitude',
+                  'R ${t.rollDeg.toStringAsFixed(0)}  P ${t.pitchDeg.toStringAsFixed(0)}  Y ${t.yawDeg.toStringAsFixed(0)}'),
+              const SizedBox(width: 8),
+              if (t.lat != null)
+                stat('Position',
+                    '${t.lat!.toStringAsFixed(5)}, ${t.lon!.toStringAsFixed(5)}'),
+              if (t.lat == null)
+                Expanded(child: Container()), // Empty placeholder
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -248,83 +387,121 @@ class _CommandPalette extends StatelessWidget {
     final drone = context.watch<DroneController>();
     final fresh = drone.linkFresh;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text('Commands (props off)',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const Spacer(),
-                // The kill switch: always available while connected.
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.02),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.gamepad_outlined, size: 16, color: Colors.orangeAccent),
+              const SizedBox(width: 8),
+              const Text('COMMANDS (PROPS OFF)',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: 1)),
+              const Spacer(),
+              // The kill switch: always available while connected.
+              FilledButton.icon(
+                icon: const Icon(Icons.dangerous, size: 16),
+                label: const Text('FORCE DISARM', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.redAccent.withOpacity(0.2),
+                  foregroundColor: Colors.redAccent,
+                  side: const BorderSide(color: Colors.redAccent),
+                ),
+                onPressed: () => drone.forceDisarm(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            fresh
+                ? 'Link is live. Keep props OFF and the drone secured.'
+                : 'Buttons below are disabled until the heartbeat is live.',
+            style: const TextStyle(fontSize: 12, color: Colors.white54),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              FilledButton.icon(
+                icon: const Icon(Icons.lock_open, size: 16),
+                label: const Text('ARM'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.redAccent.withOpacity(0.15),
+                  foregroundColor: Colors.redAccent,
+                  side: BorderSide(color: Colors.redAccent.withOpacity(0.3)),
+                ),
+                onPressed: fresh
+                    ? () => _confirm(context, 'Arm the flight controller?',
+                        'Props MUST be off. The motors will be able to '
+                        'spin. Continue?', drone.arm)
+                    : null,
+              ),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.lock, size: 16),
+                label: const Text('DISARM'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white54,
+                  side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                ),
+                onPressed: fresh ? () => drone.disarm() : null,
+              ),
+              const SizedBox(width: 12, height: 24), // Spacer
+              for (var motor = 1; motor <= 4; motor++)
                 FilledButton.icon(
-                  icon: const Icon(Icons.dangerous),
-                  label: const Text('DISARM'),
+                  icon: const Icon(Icons.settings_input_component, size: 16),
+                  label: Text('MOTOR $motor'),
                   style: FilledButton.styleFrom(
-                      backgroundColor: Colors.red.shade700),
-                  onPressed: () => drone.forceDisarm(),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              fresh
-                  ? 'Link is live. Keep props OFF and the drone secured.'
-                  : 'Buttons below are disabled until the heartbeat is live.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                FilledButton.tonal(
-                  onPressed: fresh
-                      ? () => _confirm(context, 'Arm the flight controller?',
-                          'Props MUST be off. The motors will be able to '
-                          'spin. Continue?', drone.arm)
-                      : null,
-                  child: const Text('Arm'),
-                ),
-                OutlinedButton(
-                  onPressed: fresh ? () => drone.disarm() : null,
-                  child: const Text('Disarm'),
-                ),
-                for (var motor = 1; motor <= 4; motor++)
-                  FilledButton.tonalIcon(
-                    icon: const Icon(Icons.settings_input_component, size: 16),
-                    label: Text('Motor $motor'),
-                    onPressed: fresh
-                        ? () => _confirm(
-                            context,
-                            'Spin motor $motor?',
-                            'PROPS OFF. Motor $motor will spin briefly at low '
-                            'throttle. Everyone clear of the drone?',
-                            () => drone.motorTest(motor))
-                        : null,
+                    backgroundColor: Colors.orangeAccent.withOpacity(0.15),
+                    foregroundColor: Colors.orangeAccent,
+                    side: BorderSide(color: Colors.orangeAccent.withOpacity(0.3)),
                   ),
-                OutlinedButton(
                   onPressed: fresh
-                      ? () => drone.setMode(CopterMode.stabilize)
+                      ? () => _confirm(
+                          context,
+                          'Spin motor $motor?',
+                          'PROPS OFF. Motor $motor will spin briefly at low '
+                          'throttle. Everyone clear of the drone?',
+                          () => drone.motorTest(motor))
                       : null,
-                  child: const Text('Mode: STABILIZE'),
                 ),
-                OutlinedButton(
-                  onPressed:
-                      fresh ? () => drone.setMode(CopterMode.guided) : null,
-                  child: const Text('Mode: GUIDED'),
+              const SizedBox(width: 12, height: 24), // Spacer
+              OutlinedButton(
+                onPressed: fresh
+                    ? () => drone.setMode(CopterMode.stabilize)
+                    : null,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.cyanAccent,
+                  side: BorderSide(color: Colors.cyanAccent.withOpacity(0.3)),
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _AckLine(),
-            const Divider(height: 24),
-            _GuidedStretch(fresh: fresh),
-          ],
-        ),
+                child: const Text('MODE: STABILIZE'),
+              ),
+              OutlinedButton(
+                onPressed:
+                    fresh ? () => drone.setMode(CopterMode.guided) : null,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.cyanAccent,
+                  side: BorderSide(color: Colors.cyanAccent.withOpacity(0.3)),
+                ),
+                child: const Text('MODE: GUIDED'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _AckLine(),
+          const Divider(height: 24, color: Colors.white12),
+          _GuidedStretch(fresh: fresh),
+        ],
       ),
     );
   }
@@ -333,17 +510,100 @@ class _CommandPalette extends StatelessWidget {
       VoidCallback onYes) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(body),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Confirm')),
-        ],
+      builder: (ctx) => Dialog(
+        backgroundColor: const Color(0xFF1E1612),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orangeAccent.withOpacity(0.05),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
+                  ),
+                  border: Border(
+                    bottom: BorderSide(color: Colors.white.withOpacity(0.05)),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.orangeAccent.withOpacity(0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.warning_amber_rounded,
+                          color: Colors.orangeAccent, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        title.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.orangeAccent,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Text(
+                      body,
+                      style: const TextStyle(
+                          fontSize: 13, color: Colors.white, height: 1.4),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white54,
+                              side: BorderSide(
+                                  color: Colors.white.withOpacity(0.15)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.orangeAccent.withOpacity(0.2),
+                              foregroundColor: Colors.orangeAccent,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              side: const BorderSide(color: Colors.orangeAccent),
+                            ),
+                            child: const Text('Confirm',
+                                style: TextStyle(fontWeight: FontWeight.w700)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
     if (ok == true) onYes();
@@ -358,18 +618,30 @@ class _AckLine extends StatelessWidget {
     if (ack == null) return const SizedBox.shrink();
     // MAV_RESULT: 0 = ACCEPTED.
     final accepted = ack.result == 0;
-    return Row(
-      children: [
-        Icon(accepted ? Icons.check_circle : Icons.error,
-            size: 16,
-            color: accepted ? Colors.greenAccent : Colors.orangeAccent),
-        const SizedBox(width: 6),
-        Text(
-          'Last command (${ack.command}): '
-          '${accepted ? "accepted" : "result ${ack.result}"}',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: accepted ? Colors.greenAccent.withOpacity(0.05) : Colors.orangeAccent.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: accepted ? Colors.greenAccent.withOpacity(0.2) : Colors.orangeAccent.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(accepted ? Icons.check_circle : Icons.error,
+              size: 14,
+              color: accepted ? Colors.greenAccent : Colors.orangeAccent),
+          const SizedBox(width: 8),
+          Text(
+            'LAST COMMAND (${ack.command}): ${accepted ? "ACCEPTED" : "RESULT ${ack.result}"}',
+            style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: accepted ? Colors.greenAccent : Colors.orangeAccent,
+                letterSpacing: 0.8),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -385,9 +657,9 @@ class _GuidedStretch extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Guided reposition (stretch)',
-            style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 4),
+        const Text('GUIDED REPOSITION (STRETCH)',
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white38, letterSpacing: 0.8)),
+        const SizedBox(height: 6),
         Text(
           canGuided
               ? 'Requires an outdoor GPS fix, GUIDED mode, and armed. Sending '
@@ -396,7 +668,7 @@ class _GuidedStretch extends StatelessWidget {
               : 'Unavailable: needs a live link AND a 3D GPS fix. Indoors on '
                   'the bench there is no fix, so guided flight cannot be '
                   'commanded (expected).',
-          style: Theme.of(context).textTheme.bodySmall,
+          style: const TextStyle(fontSize: 12, color: Colors.white54, height: 1.4),
         ),
       ],
     );
@@ -407,35 +679,48 @@ class _StatusLog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final log = context.watch<DroneController>().statusLog;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Flight controller messages',
-                style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 8),
-            if (log.isEmpty)
-              const Text('No messages yet. The FC posts arming checks and '
-                  'status here (e.g. why it refused to arm).',
-                  style: TextStyle(fontSize: 12, color: Colors.grey))
-            else
-              ...log.take(12).map((s) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Text(
-                      '[${s.severity}] ${s.text}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontFamily: 'monospace',
-                        color: s.severity <= 3
-                            ? Colors.redAccent
-                            : (s.severity <= 5 ? Colors.orangeAccent : null),
-                      ),
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF15100E),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.terminal, size: 16, color: Colors.white38),
+              const SizedBox(width: 8),
+              const Text('FLIGHT CONTROLLER LOGS',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white38,
+                      letterSpacing: 1)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (log.isEmpty)
+            const Text('No messages yet. The FC posts arming checks and '
+                'status here (e.g. why it refused to arm).',
+                style: TextStyle(fontSize: 12, color: Colors.white38))
+          else
+            ...log.take(12).map((s) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Text(
+                    '[${s.severity}] ${s.text}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      color: s.severity <= 3
+                          ? Colors.redAccent
+                          : (s.severity <= 5 ? Colors.orangeAccent : Colors.white54),
                     ),
-                  )),
-          ],
-        ),
+                  ),
+                )),
+        ],
       ),
     );
   }

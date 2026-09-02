@@ -380,8 +380,8 @@ class _VictimGridState extends State<_VictimGrid> {
     }
     final sortedDrones = byDrone.keys.toList()..sort();
 
-    const gridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount: 2,
+    final gridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: sortedDrones.length >= 3 ? 1 : 2,
       mainAxisExtent: 185,
       crossAxisSpacing: 8,
       mainAxisSpacing: 8,
@@ -553,13 +553,13 @@ class _VictimGridState extends State<_VictimGrid> {
             color: Colors.greenAccent,
           ),
           SizedBox(
-            height: 210,
+            height: 240,
             child: ListView.builder(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               scrollDirection: Axis.horizontal,
               itemCount: claimed.length,
               itemBuilder: (ctx, i) => SizedBox(
-                width: 340,
+                width: 460,
                 child: Padding(
                   padding: const EdgeInsets.only(right: 10),
                   child: _MessageTile(message: claimed[i]),
@@ -749,30 +749,191 @@ class _MessageTile extends StatelessWidget {
                   }),
               ],
             ),
-            // Row 4: claim button only for unclaimed
-            if (!claimed) ...[
+            // Row 4: View button
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              height: 32,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.white.withOpacity(0.08),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  padding: EdgeInsets.zero,
+                ),
+                icon: const Icon(Icons.open_in_new, size: 14, color: Colors.white70),
+                label: const Text('View Details',
+                    style: TextStyle(fontSize: 12, color: Colors.white70)),
+                onPressed: () => _showMessageDetailsDialog(context, message),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ), // closes Container
+    ); // closes ClipRRect
+  }
+}
+
+void _showMessageDetailsDialog(BuildContext context, Message message) {
+  final claimed = message.isClaimed;
+  final accentColor = claimed ? Colors.greenAccent : Colors.orangeAccent;
+  final data = context.read<DataStore>();
+
+  showDialog(
+    context: context,
+    builder: (ctx) => Dialog(
+      backgroundColor: const Color(0xFF1F120F),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        width: 500,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Icon(
+                  claimed ? Icons.check_circle : Icons.warning_amber_rounded,
+                  color: accentColor,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Message Details',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: accentColor,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white54),
+                  onPressed: () => Navigator.of(ctx).pop(),
+                ),
+              ],
+            ),
+            const Divider(color: Colors.white12, height: 24),
+            
+            // Meta info
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _DarkMetaChip(icon: Icons.access_time, text: _formatDateTime(message.timestamp)),
+                if (message.nodeId.isNotEmpty)
+                  _DarkMetaChip(icon: Icons.hub, text: message.nodeId),
+                if (message.victimDeviceId.isNotEmpty)
+                  _DarkMetaChip(icon: Icons.phone_android, text: 'Device ID: ${message.victimDeviceId}'),
+                if (message.hasUserLocation)
+                  _DarkMetaChip(
+                    icon: Icons.place,
+                    text: '${message.userLat!.toStringAsFixed(6)}, ${message.userLon!.toStringAsFixed(6)}',
+                    iconColor: Colors.blueAccent,
+                  ),
+                if (claimed)
+                  _DarkMetaChip(
+                    icon: Icons.person,
+                    text: 'Claimed by ${message.claimedBy}',
+                    iconColor: Colors.greenAccent,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // Message content
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.black26,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Text(
+                message.isEncrypted ? '[encrypted payload]' : message.content,
+                style: const TextStyle(fontSize: 15, color: Colors.white, height: 1.5),
+              ),
+            ),
+            
+            // Attachments
+            if (message.hasAttachments) ...[
+              const SizedBox(height: 16),
+              const Text('Attachments', style: TextStyle(color: Colors.white54, fontSize: 12)),
               const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: message.attachments.map((att) {
+                  if (att.isAudio) {
+                    return FilledButton.icon(
+                      style: FilledButton.styleFrom(backgroundColor: Colors.purpleAccent.withOpacity(0.2)),
+                      icon: const Icon(Icons.mic, color: Colors.purpleAccent, size: 16),
+                      label: Text(att.filename.isEmpty ? 'Voice Note' : att.filename, style: const TextStyle(color: Colors.purpleAccent)),
+                      onPressed: () => _showAudioDialog(context, att),
+                    );
+                  } else if (att.isImage) {
+                    return GestureDetector(
+                      onTap: () => _showImageDialog(context, att),
+                      child: Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          color: Colors.black26,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: FutureBuilder<List<int>?>(
+                            future: context.read<AppState>().client.getMediaBytes(att.id),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)));
+                              }
+                              if (snapshot.hasData && snapshot.data != null) {
+                                return Image.memory(
+                                  Uint8List.fromList(snapshot.data!),
+                                  fit: BoxFit.cover,
+                                );
+                              }
+                              return const Center(child: Icon(Icons.broken_image, color: Colors.white54, size: 32));
+                            },
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  return Chip(label: Text(att.filename), backgroundColor: Colors.white10);
+                }).toList(),
+              ),
+            ],
+            
+            // Action buttons
+            if (!claimed) ...[
+              const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
-                height: 32,
+                height: 48,
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.orange.shade700,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  icon: const Icon(Icons.pan_tool, size: 14),
-                  label: const Text('Claim Request',
-                      style: TextStyle(fontSize: 12)),
+                  icon: const Icon(Icons.pan_tool),
+                  label: const Text('Claim Request', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                   onPressed: () async {
                     try {
                       await context.read<AppState>().client.claimMessage(message.msgId);
                       await data.poll();
+                      if (ctx.mounted) Navigator.of(ctx).pop();
                     } on ApiException catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Claim failed: ${e.detail}')));
+                      if (ctx.mounted) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Claim failed: ${e.detail}')));
                       }
                     }
                   },
@@ -782,9 +943,8 @@ class _MessageTile extends StatelessWidget {
           ],
         ),
       ),
-    ), // closes Container
-    ); // closes ClipRRect
-  }
+    ),
+  );
 }
 
 void _showImageDialog(BuildContext context, MediaAttachment attachment) {

@@ -42,7 +42,7 @@ class AppState extends ChangeNotifier {
   String apiKey = '';
   String fleetCaPem = '';
   bool allowInsecure = false;
-  String mbtilesPath = '';
+  String mbtilesPath = r'C:\Users\kasun\.gemini\antigravity-ide\brain\972af5a5-86f7-4c79-b3ae-12bf17480511\scratch\assets\srilanka.mbtiles';
 
   /// MAVLink target for the drone control tab. DRONE_S runs a Pi MAVLink
   /// gateway (the ESP32 is removed), reachable two ways, both live:

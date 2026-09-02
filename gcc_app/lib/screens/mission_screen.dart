@@ -54,37 +54,82 @@ class MissionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final m = context.watch<MissionState>();
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Text('Mission', style: Theme.of(context).textTheme.titleLarge),
-            const Spacer(),
-            Text(m.loadedFrom == null ? 'not saved' : 'file loaded',
-                style: Theme.of(context).textTheme.bodySmall),
-          ],
+        // ── Command-center header (matches Live Feed) ──
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A0F0A),
+            border: Border(
+              bottom: BorderSide(color: Colors.white.withOpacity(0.08), width: 1),
+            ),
+          ),
+          child: Row(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: Colors.orangeAccent,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'MISSION',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    m.loadedFrom == null
+                        ? 'not saved  ·  ${m.drones.length} drones  ·  ${m.modules.length} modules'
+                        : 'file loaded  ·  ${m.drones.length} drones  ·  ${m.modules.length} modules',
+                    style: const TextStyle(
+                        fontSize: 11, color: Colors.white38, letterSpacing: 0.5),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 12),
-        // Ordered as a sequence because it IS one (field backlog #3): the
-        // area decides the map view, the resources decide what can be
-        // placed in it, and the deployment needs both. The previous order
-        // asked for resources before there was anywhere to put them.
-        _step(context, 1, 'Where'),
-        _MissionInfoCard(),
-        const SizedBox(height: 8),
-        const _AreaCard(),
-        const SizedBox(height: 16),
-        _step(context, 2, 'What you have'),
-        _ResourceCountsCard(),
-        const SizedBox(height: 8),
-        _ModulesCard(),
-        const SizedBox(height: 8),
-        _DronesCard(),
-        const SizedBox(height: 16),
-        _step(context, 3, 'The plan'),
-        _PortalOptionsCard(),
-        _DeploymentsCard(),
+        // ── Scrollable content ──
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // Ordered as a sequence because it IS one (field backlog #3):
+              _step(context, 1, 'Where'),
+              _MissionInfoCard(),
+              const SizedBox(height: 8),
+              const _AreaCard(),
+              const SizedBox(height: 16),
+              _step(context, 2, 'What you have'),
+              _ResourceCountsCard(),
+              const SizedBox(height: 8),
+              _ModulesCard(),
+              const SizedBox(height: 8),
+              _DronesCard(),
+              const SizedBox(height: 16),
+              _step(context, 3, 'The plan'),
+              _PortalOptionsCard(),
+              _DeploymentsCard(),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -92,23 +137,68 @@ class MissionScreen extends StatelessWidget {
 
 Widget _step(BuildContext context, int n, String label) {
   return Padding(
-    padding: const EdgeInsets.only(bottom: 6),
+    padding: const EdgeInsets.only(bottom: 10, top: 4),
     child: Row(
       children: [
-        CircleAvatar(
-          radius: 11,
-          backgroundColor: Colors.white12,
-          child: Text('$n', style: const TextStyle(fontSize: 12)),
-        ),
-        const SizedBox(width: 8),
-        Text(label.toUpperCase(),
-            style: const TextStyle(
+        Container(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+            color: Colors.orangeAccent.withOpacity(0.15),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.orangeAccent.withOpacity(0.5), width: 1.5),
+          ),
+          child: Center(
+            child: Text(
+              '$n',
+              style: const TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.1,
-                color: Colors.white70)),
+                fontWeight: FontWeight.w800,
+                color: Colors.orangeAccent,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          label.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.8,
+            color: Colors.white70,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            height: 1,
+            color: Colors.white.withOpacity(0.07),
+          ),
+        ),
       ],
     ),
+  );
+}
+
+// Consistent bold section header for all mission cards – matches live feed.
+Widget _cardTitle(String label, {IconData? icon, Color? iconColor}) {
+  return Row(
+    children: [
+      if (icon != null) ...[
+        Icon(icon, size: 16, color: iconColor ?? Colors.orangeAccent),
+        const SizedBox(width: 8),
+      ],
+      Text(
+        label,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+          letterSpacing: 0.3,
+        ),
+      ),
+    ],
   );
 }
 
@@ -134,12 +224,9 @@ class _AreaCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(drawn ? Icons.check_circle : Icons.pentagon_outlined,
-                    size: 18,
-                    color: drawn ? Colors.greenAccent : Colors.orangeAccent),
-                const SizedBox(width: 8),
-                Text('Operation area',
-                    style: Theme.of(context).textTheme.titleSmall),
+                _cardTitle('Operation area',
+                    icon: drawn ? Icons.check_circle : Icons.pentagon_outlined,
+                    iconColor: drawn ? Colors.greenAccent : Colors.orangeAccent),
                 const Spacer(),
                 Text(
                     drawn
@@ -211,7 +298,7 @@ class _MissionInfoCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Identity', style: Theme.of(context).textTheme.titleSmall),
+            _cardTitle('Identity', icon: Icons.assignment_outlined),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -321,8 +408,7 @@ class _ModulesCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Text('Our comm modules',
-                    style: Theme.of(context).textTheme.titleSmall),
+                _cardTitle('Our comm modules', icon: Icons.memory),
                 const Spacer(),
                 TextButton.icon(
                   icon: const Icon(Icons.add, size: 18),
@@ -490,8 +576,7 @@ class _DronesCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Text('Drones (${m.drones.length})',
-                    style: Theme.of(context).textTheme.titleSmall),
+                _cardTitle('Drones (${m.drones.length})', icon: Icons.airplanemode_active),
                 const Spacer(),
                 TextButton.icon(
                   icon: const Icon(Icons.add, size: 18),

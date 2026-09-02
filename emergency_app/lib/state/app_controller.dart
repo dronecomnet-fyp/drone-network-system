@@ -12,6 +12,7 @@ import '../services/ble_watch_service.dart';
 import '../services/location_logger.dart';
 import '../services/storage_service.dart';
 import '../services/upload_service.dart';
+import 'package:rescue_mesh_shared/rescue_mesh_shared.dart' as shared;
 
 class AppController extends ChangeNotifier {
   final StorageService storage;
@@ -38,6 +39,10 @@ class AppController extends ChangeNotifier {
 
   /// Which node we are connected to right now (e.g. "DRONE_A"), or null.
   String? connectedNodeId;
+
+  /// Caches the victim's conversation so the screen doesn't show a loading
+  /// spinner when navigating away and back.
+  shared.Conversation? cachedConvo;
 
   Timer? _connTimer;
   bool _probing = false;

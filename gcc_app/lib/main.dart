@@ -243,7 +243,7 @@ class _PremiumSidebar extends StatelessWidget {
     ];
 
     return Container(
-      width: 72,
+      width: 120,
       decoration: BoxDecoration(
         color: const Color(0xFF0F0A07),
         border: Border(
@@ -265,33 +265,40 @@ class _PremiumSidebar extends StatelessWidget {
             child: Column(
               children: [
                 Container(
-                  width: 36,
-                  height: 36,
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF6D00), Color(0xFFB91C1C)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFFF6D00).withOpacity(0.4),
-                        blurRadius: 12,
-                        spreadRadius: -2,
-                      ),
-                    ],
+                    color: Colors.white.withOpacity(0.1),
+                    shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.cell_tower, color: Colors.white, size: 20),
+                  child: Image.asset(
+                    'assets/logo.png',
+                    height: 36,
+                    color: Colors.white,
+                    errorBuilder: (context, error, stackTrace) => const Icon(
+                      Icons.wifi_tethering_rounded,
+                      size: 32,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 const Text(
+                  'AERO-LINK',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
                   'GCC',
                   style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white38,
-                    letterSpacing: 2,
+                    color: Colors.white.withOpacity(0.8),
+                    fontSize: 8,
+                    letterSpacing: 2.0,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -501,8 +508,8 @@ class _ConnectionBadge extends StatelessWidget {
             child: Column(
               children: [
                 Container(
-                  width: 8,
-                  height: 8,
+                  width: 12,
+                  height: 12,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: connected ? Colors.greenAccent : Colors.redAccent,
@@ -516,17 +523,17 @@ class _ConnectionBadge extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   connected ? (data.health?.nodeId ?? 'node') : 'no node',
-                  style: const TextStyle(fontSize: 9, color: Colors.white38, letterSpacing: 0.5),
+                  style: const TextStyle(fontSize: 12, color: Colors.white60, letterSpacing: 0.5),
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 14),
           Tooltip(
             message: '${net.detail}\n\nClick to re-check now.',
             child: InkWell(
@@ -537,12 +544,12 @@ class _ConnectionBadge extends StatelessWidget {
                   Icon(
                     net.isOnline ? Icons.public : Icons.public_off,
                     color: netColour,
-                    size: 16,
+                    size: 24,
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 4),
                   Text(
                     net.checking ? '...' : net.label,
-                    style: TextStyle(fontSize: 9, color: netColour.withOpacity(0.8)),
+                    style: TextStyle(fontSize: 12, color: netColour.withOpacity(0.9)),
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
                   ),
