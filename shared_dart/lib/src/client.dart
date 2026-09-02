@@ -69,7 +69,13 @@ class RescueMeshClient {
     }
     final ctx = SecurityContext(withTrustedRoots: false);
     if (fleetCaPem != null && fleetCaPem!.trim().isNotEmpty) {
-      ctx.setTrustedCertificatesBytes(utf8.encode(fleetCaPem!));
+      try {
+        var pem = fleetCaPem!.replaceAll('\r\n', '\n').trim();
+        if (!pem.endsWith('\n')) pem = '$pem\n';
+        ctx.setTrustedCertificatesBytes(utf8.encode(pem));
+      } catch (_) {
+        if (!allowInsecure) rethrow;
+      }
     }
     final inner = HttpClient(context: ctx)
       ..connectionTimeout = timeout
