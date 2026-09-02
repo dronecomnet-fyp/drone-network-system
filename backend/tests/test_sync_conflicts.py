@@ -214,3 +214,38 @@ def test_beacon_replay_via_daemon_parser():
     # bad signature rejected
     beacon["sig"] = "0" * 64
     assert sync_daemon.parse_and_accept_beacon(json.dumps(beacon).encode(), "10.99.0.9") is False
+
+
+def test_beacon_recovery_after_reboot_counter_reset():
+    import json
+    import crypto_keys
+    import sync_daemon
+    import models
+
+    # Seed peer state with a high counter (e.g. 50)
+    models.accept_beacon("DRONE_REBOOTED", "10.99.0.5", 8443, 50, "{}")
+
+    # Replaying same counter (50) is rejected as duplicate
+    beacon = {
+        "node_id": "DRONE_REBOOTED",
+        "api_port": 8443,
+        "ts": models.iso_now(),
+        "counter": 50,
+        "counts": {},
+    }
+    counts_json = "{}"
+    payload = f"DRONE_REBOOTED|8443|{beacon['ts']}|50|{counts_json}"
+    beacon["sig"] = crypto_keys.hmac_hex(crypto_keys.K_SYNC, payload)
+    assert sync_daemon.parse_and_accept_beacon(json.dumps(beacon).encode(), "10.99.0.5") is False
+
+    # But when node restarts counter sequence at 1, it is accepted
+    beacon["counter"] = 1
+    payload = f"DRONE_REBOOTED|8443|{beacon['ts']}|1|{counts_json}"
+    beacon["sig"] = crypto_keys.hmac_hex(crypto_keys.K_SYNC, payload)
+    assert sync_daemon.parse_and_accept_beacon(json.dumps(beacon).encode(), "10.99.0.5") is True
+
+    # Next counter in sequence (2) is accepted
+    beacon["counter"] = 2
+    payload = f"DRONE_REBOOTED|8443|{beacon['ts']}|2|{counts_json}"
+    beacon["sig"] = crypto_keys.hmac_hex(crypto_keys.K_SYNC, payload)
+    assert sync_daemon.parse_and_accept_beacon(json.dumps(beacon).encode(), "10.99.0.5") is True

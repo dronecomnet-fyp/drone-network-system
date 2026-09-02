@@ -1243,8 +1243,10 @@ def get_peer_state(node_id):
 
 
 def accept_beacon(node_id, ip, api_port, counter, counts_json):
-    """Atomically accept a beacon only if its counter is strictly greater
-    than the last accepted one for this node (replay defence, file 09 F6).
+    """Atomically accept a beacon.
+    Replay defence: reject exact duplicate counters from the same peer
+    (counter == last_counter). Any fresh counter is accepted so drones
+    never get deadlocked when a node reboots, resets, or has its counter restart.
     Returns True when accepted."""
     conn = get_conn()
     try:
@@ -1252,7 +1254,7 @@ def accept_beacon(node_id, ip, api_port, counter, counts_json):
         cur = conn.execute(
             "SELECT last_counter FROM peer_state WHERE node_id = ?", (node_id,)
         ).fetchone()
-        if cur is not None and counter <= cur["last_counter"]:
+        if cur is not None and counter == cur["last_counter"]:
             conn.rollback()
             return False
         conn.execute("""
