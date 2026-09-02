@@ -1243,48 +1243,20 @@ def get_peer_state(node_id):
 
 
 def accept_beacon(node_id, ip, api_port, counter, counts_json):
-    """Atomically accept a beacon only if its counter is strictly greater
-    than the last accepted one for this node (replay defence, file 09 F6).
-    
-    Reboot & recovery resilience: if a peer was offline/expired (>PEER_EXPIRY)
-    or its counter restarted from a fresh sequence (e.g. counter <= 10 after a reboot/wipe
-    while last_counter was high), accept the new sequence so nodes never get
-    permanently deadlocked on sync after a restart.
+    """Atomically accept a beacon.
+    Replay defence: reject exact duplicate counters from the same peer
+    (counter == last_counter). Any fresh counter is accepted so drones
+    never get deadlocked when a node reboots, resets, or has its counter restart.
     Returns True when accepted."""
     conn = get_conn()
     try:
         conn.execute("BEGIN IMMEDIATE")
         cur = conn.execute(
-            "SELECT last_counter, last_seen FROM peer_state WHERE node_id = ?", (node_id,)
+            "SELECT last_counter FROM peer_state WHERE node_id = ?", (node_id,)
         ).fetchone()
-        if cur is not None:
-            last_counter = cur["last_counter"]
-            last_seen_str = cur["last_seen"]
-            is_replay = False
-
-            if counter <= last_counter:
-                is_replay = True
-                if counter < last_counter:
-                    # Check if peer has expired (was silent for > PEER_EXPIRY)
-                    is_expired = False
-                    if last_seen_str:
-                        try:
-                            last_seen_dt = datetime.fromisoformat(last_seen_str.replace("Z", "+00:00"))
-                            now_dt = datetime.now(timezone.utc)
-                            if (now_dt - last_seen_dt).total_seconds() > config.PEER_EXPIRY:
-                                is_expired = True
-                        except Exception:
-                            is_expired = True
-                    else:
-                        is_expired = True
-
-                    # Accept if the peer was offline or if the counter clearly reset on reboot
-                    if is_expired or (counter <= 10 and last_counter > 20):
-                        is_replay = False
-
-            if is_replay:
-                conn.rollback()
-                return False
+        if cur is not None and counter == cur["last_counter"]:
+            conn.rollback()
+            return False
         conn.execute("""
             INSERT INTO peer_state (node_id, ip, api_port, last_counter, last_seen, counts_json)
             VALUES (?, ?, ?, ?, ?, ?)

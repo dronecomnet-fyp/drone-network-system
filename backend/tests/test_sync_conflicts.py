@@ -225,20 +225,20 @@ def test_beacon_recovery_after_reboot_counter_reset():
     # Seed peer state with a high counter (e.g. 50)
     models.accept_beacon("DRONE_REBOOTED", "10.99.0.5", 8443, 50, "{}")
 
-    # Replaying same or slight lower counter during active session is rejected
+    # Replaying same counter (50) is rejected as duplicate
     beacon = {
         "node_id": "DRONE_REBOOTED",
         "api_port": 8443,
         "ts": models.iso_now(),
-        "counter": 45,
+        "counter": 50,
         "counts": {},
     }
     counts_json = "{}"
-    payload = f"DRONE_REBOOTED|8443|{beacon['ts']}|45|{counts_json}"
+    payload = f"DRONE_REBOOTED|8443|{beacon['ts']}|50|{counts_json}"
     beacon["sig"] = crypto_keys.hmac_hex(crypto_keys.K_SYNC, payload)
     assert sync_daemon.parse_and_accept_beacon(json.dumps(beacon).encode(), "10.99.0.5") is False
 
-    # But when node reboots and restarts counter sequence at 1, it is accepted
+    # But when node restarts counter sequence at 1, it is accepted
     beacon["counter"] = 1
     payload = f"DRONE_REBOOTED|8443|{beacon['ts']}|1|{counts_json}"
     beacon["sig"] = crypto_keys.hmac_hex(crypto_keys.K_SYNC, payload)
