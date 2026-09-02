@@ -29,6 +29,7 @@ updated_at wins"), so it must travel unchanged and cannot double as the
 per-hop cursor. Timestamps are ISO 8601 UTC strings with microseconds
 (sortable; the cursor comparison needs sub-second resolution).
 """
+from __future__ import annotations
 
 import hashlib
 import hmac as hmac_mod
@@ -37,6 +38,7 @@ import secrets
 import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import aux_state
 import config
