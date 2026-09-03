@@ -100,6 +100,34 @@ class AnnouncementsScreen extends StatelessWidget {
           ),
         ),
 
+        // ── Not-connected banner ──
+        if (!data.isConnected)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.red.withOpacity(0.25)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.signal_wifi_off_rounded,
+                    color: Colors.redAccent, size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    data.lastError ??
+                        'Not connected to a node — join a RESCUE_x Wi-Fi network.',
+                    style: const TextStyle(
+                        color: Colors.redAccent, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
         // ── List ──
         Expanded(
           child: data.announcements.items.isEmpty
@@ -107,13 +135,23 @@ class AnnouncementsScreen extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.campaign_outlined,
-                          size: 48, color: Colors.white24),
+                      Icon(
+                        data.isConnected
+                            ? Icons.campaign_outlined
+                            : Icons.cloud_off_rounded,
+                        size: 48,
+                        color: Colors.white24,
+                      ),
                       const SizedBox(height: 12),
-                      const Text('No announcements.',
-                          style: TextStyle(
-                              fontSize: 14, color: Colors.white54)),
-                      if (app.isHq) ...[
+                      Text(
+                        data.isConnected
+                            ? 'No announcements yet.'
+                            : 'Cannot fetch announcements — not connected.',
+                        style: const TextStyle(
+                            fontSize: 14, color: Colors.white54),
+                        textAlign: TextAlign.center,
+                      ),
+                      if (app.isHq && data.isConnected) ...[
                         const SizedBox(height: 6),
                         TextButton(
                           onPressed: () => _showComposeDialog(context),

@@ -7,6 +7,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:rescue_mesh_shared/rescue_mesh_shared.dart';
 
 import 'app_state.dart';
@@ -86,7 +87,14 @@ class DataStore extends ChangeNotifier {
       }
     } finally {
       _polling = false;
-      notifyListeners();
+      // Schedule the notification after the current frame to avoid the
+      // '!_debugDuringDeviceUpdate' Flutter assertion that fires when a
+      // periodic timer triggers notifyListeners() while the mouse tracker
+      // is mid-event (e.g. hovering over a button).
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        // ignore: invalid_use_of_protected_member
+        if (hasListeners) notifyListeners();
+      });
     }
   }
 
