@@ -9,6 +9,7 @@ import 'dart:async';
 
 import 'package:dart_mavlink/dialects/ardupilotmega.dart' show CommandAck;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../mavlink/mav_service.dart' show MavService, Telemetry, MavStatusText, CopterMode;
 
@@ -53,6 +54,13 @@ class DroneController extends ChangeNotifier {
     _tick?.cancel();
     _tick = Timer.periodic(const Duration(seconds: 1), (_) => notifyListeners());
     notifyListeners();
+  }
+
+  @override
+  void notifyListeners() {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (hasListeners) super.notifyListeners();
+    });
   }
 
   Future<void> disconnect() async {

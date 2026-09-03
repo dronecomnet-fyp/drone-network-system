@@ -24,6 +24,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../services/geo.dart';
 
@@ -317,6 +318,13 @@ class FleetState extends ChangeNotifier {
   /// [simSecondsOverride] injects the elapsed simulated time instead of
   /// [simSpeed], so tests are not wall-clock dependent.
   void stepForTest(double simSeconds) => _tick(simSecondsOverride: simSeconds);
+
+  @override
+  void notifyListeners() {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (hasListeners) super.notifyListeners();
+    });
+  }
 
   void _tick({double? simSecondsOverride}) {
     final simSeconds = simSecondsOverride ?? simSpeed;

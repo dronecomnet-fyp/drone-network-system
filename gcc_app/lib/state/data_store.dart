@@ -70,8 +70,12 @@ class DataStore extends ChangeNotifier {
         lastError = 'Node unreachable (join a RESCUE_x WiFi)';
       } on HandshakeException {
         lastError = 'TLS rejected: check the fleet CA in Settings';
+      } on TimeoutException {
+        lastError = 'Connection timed out';
       } on ApiException catch (e) {
         lastError = 'Node error: ${e.detail}';
+      } catch (e) {
+        lastError = 'Unknown error: $e';
       }
 
       if (_hasCredentials) {
@@ -111,6 +115,10 @@ class DataStore extends ChangeNotifier {
       // node dropped mid-poll; health branch reports it
     } on HandshakeException {
       // reported by the health branch
+    } on TimeoutException {
+      // connection timed out
+    } catch (_) {
+      // ignore unknown background network errors
     }
   }
 

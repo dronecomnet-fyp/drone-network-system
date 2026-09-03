@@ -177,9 +177,10 @@ class AnnouncementsScreen extends StatelessWidget {
                         border: Border.all(
                             color: Colors.white.withOpacity(0.06)),
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
+                      child: IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
                           // Priority color bar
                           Container(
                             width: 6,
@@ -277,8 +278,9 @@ class AnnouncementsScreen extends StatelessWidget {
                           ),
                         ],
                       ),
-                    );
-                  },
+                    ),
+                  );
+                },
                 ),
         ),
       ],
@@ -586,9 +588,11 @@ class AnnouncementsScreen extends StatelessWidget {
                                         if (ctx.mounted) {
                                           Navigator.of(ctx).pop();
                                         }
-                                      } on ApiException catch (e) {
+                                      } on Exception catch (e) {
                                         setState(() {
-                                          error = e.detail;
+                                          error = e is ApiException 
+                                              ? e.detail 
+                                              : 'Connection failed. Are you connected to the drone Wi-Fi?';
                                           busy = false;
                                         });
                                       }

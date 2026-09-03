@@ -37,6 +37,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 
 enum NetStatus {
   /// Not checked yet this session.
@@ -122,6 +123,13 @@ class ConnectivityService extends ChangeNotifier {
       case NetStatus.unknown:
         return 'Not checked yet.';
     }
+  }
+
+  @override
+  void notifyListeners() {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (hasListeners) super.notifyListeners();
+    });
   }
 
   Future<NetStatus> check() async {
