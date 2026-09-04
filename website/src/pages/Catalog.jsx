@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase, configured } from '../supabase.js';
+import { supabase, configured, formatBrandText } from '../supabase.js';
 
 export default function Catalog() {
   const [products, setProducts] = useState([]);
@@ -37,9 +37,9 @@ export default function Catalog() {
       <div className="grid">
         {products.map((p) => (
           <Link key={p.id} to={`/product/${p.id}`} className="card">
-            <div className="card-title">{p.name}</div>
+            <div className="card-title">{formatBrandText(p.name)}</div>
             <div className="muted">{p.model_no}</div>
-            <p>{p.description}</p>
+            <p>{formatBrandText(p.description)}</p>
             <div className="specrow">
               {p.specs?.ap_range_m && <span>AP {p.specs.ap_range_m} m</span>}
               {p.specs?.mesh_range_m && (

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useCart } from '../cart.jsx';
-import { supabase, configured } from '../supabase.js';
+import { supabase, configured, formatBrandText } from '../supabase.js';
 
 // "Checkout" is a request-a-quote: it writes one row to the quotes table
 // (anon insert is the only write RLS allows). No payment, by design.
@@ -53,7 +53,7 @@ export default function Cart() {
           <tbody>
             {cart.items.map((i) => (
               <tr key={i.id}>
-                <td>{i.name}</td>
+                <td>{formatBrandText(i.name)}</td>
                 <td>{i.model_no}</td>
                 <td>{i.qty}</td>
                 <td>

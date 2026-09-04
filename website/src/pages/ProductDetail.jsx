@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { supabase, configured } from '../supabase.js';
+import { supabase, configured, formatBrandText } from '../supabase.js';
 import { useCart } from '../cart.jsx';
 
 // Human labels + units for the spec keys we know about. Unknown keys still
@@ -80,7 +80,7 @@ export default function ProductDetail() {
           {model3d ? (
             <model-viewer
               src={model3d}
-              alt={product.name}
+              alt={formatBrandText(product.name)}
               camera-controls
               auto-rotate
               shadow-intensity="1"
@@ -93,9 +93,9 @@ export default function ProductDetail() {
           )}
         </div>
         <div className="detail-body">
-          <h1>{product.name}</h1>
+          <h1>{formatBrandText(product.name)}</h1>
           <div className="muted">{product.model_no}</div>
-          <p>{product.description}</p>
+          <p>{formatBrandText(product.description)}</p>
           <SpecTable specs={product.specs} />
           {product.price_usd != null && (
             <div className="price big">${product.price_usd}</div>
@@ -103,7 +103,7 @@ export default function ProductDetail() {
           <button
             className="btn"
             onClick={() => {
-              cart.add(product);
+              cart.add({ ...product, name: formatBrandText(product.name) });
               setAdded(true);
             }}
           >

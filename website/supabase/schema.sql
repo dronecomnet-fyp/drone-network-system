@@ -1,4 +1,4 @@
--- DroneComNet product site schema (M7c).
+-- Aero-Link product site schema (M7c).
 --
 -- Run this once in your Supabase project (SQL editor), or apply it with the
 -- Supabase MCP / CLI. It creates the products, units, and quotes tables,
@@ -76,7 +76,7 @@ insert into public.products (model_no, name, description, specs, price_usd)
 values
   (
     'DCM-STD',
-    'DroneComNet Module (standard)',
+    'Aero-Link Module (standard)',
     'The core disaster-mesh comm module: Raspberry Pi with a 5 GHz user access point and a 2.4 GHz ad-hoc mesh radio. Attaches to any drone.',
     jsonb_build_object(
       'wifi_tech', '802.11a/n dual radio',
@@ -91,7 +91,7 @@ values
   ),
   (
     'DCM-AUX',
-    'DroneComNet Aux Module',
+    'Aero-Link Aux Module',
     'Sensor and fallback module: INA3221 battery monitoring, GPS, and a LoRa fallback beacon that keeps the drone locatable if the Pi fails.',
     jsonb_build_object(
       'wifi_tech', 'none (aux only)',

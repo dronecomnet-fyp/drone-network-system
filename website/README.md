@@ -1,4 +1,4 @@
-# DroneComNet product site (M7c)
+# Aero-Link product site (M7c)
 
 A small React (Vite) site for the disaster-mesh comm modules and the AeroSync
 system drone. Products, specs, and per-unit IDs live in Supabase; the ground

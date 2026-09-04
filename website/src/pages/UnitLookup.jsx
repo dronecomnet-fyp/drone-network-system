@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase, configured } from '../supabase.js';
+import { supabase, configured, formatBrandText } from '../supabase.js';
 
 // The same lookup the ground control app performs by unit ID, exposed for
 // people to try in a browser: enter a unit ID, get its product + specs.
@@ -52,7 +52,7 @@ export default function UnitLookup() {
       {error && <p className="error">{error}</p>}
       {result && (
         <div className="card">
-          <div className="card-title">{result.products?.name}</div>
+          <div className="card-title">{formatBrandText(result.products?.name)}</div>
           <div className="muted">
             {result.products?.model_no} &middot; unit {result.unit_id} &middot;{' '}
             {result.status}

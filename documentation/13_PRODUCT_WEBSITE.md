@@ -47,7 +47,7 @@ access control:
   quote;
 - nothing else.
 
-The seed data is the real prototype catalogue: the DroneComNet standard module,
+The seed data is the real prototype catalogue: the Aero-Link standard module,
 the aux module, and the AeroSync 5 system drone, with unit rows whose ids mirror
 the physical hardware (for example `DRN-S-0007` is the system drone, and
 `DCM-A-0042`/`DCM-B-0043` are comm modules).

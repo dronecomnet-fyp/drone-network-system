@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Public client config for the DroneComNet Supabase project. The anon key
+// Public client config for the Aero-Link Supabase project. The anon key
 // is meant to be public (it ships in every client bundle); row-level
 // security is the real access control (see supabase/schema.sql). These
 // committed defaults let the built site work on any static host without
@@ -16,3 +16,8 @@ const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || FALLBACK_ANON_KEY;
 export const configured = Boolean(url && anonKey);
 
 export const supabase = configured ? createClient(url, anonKey) : null;
+
+export function formatBrandText(text) {
+  if (!text || typeof text !== 'string') return text;
+  return text.replaceAll('DroneComNet', 'Aero-Link').replaceAll('dronecomnet', 'aero-link');
+}

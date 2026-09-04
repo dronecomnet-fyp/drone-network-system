@@ -12,7 +12,7 @@ function Nav() {
   return (
     <header className="nav">
       <Link to="/" className="brand">
-        DroneComNet
+        Aero-Link
       </Link>
       <nav>
         <NavLink to="/" end>
@@ -46,7 +46,7 @@ export default function App() {
         </Routes>
       </main>
       <footer className="footer">
-        DroneComNet FYP prototype. Modules and the AeroSync system drone for
+        Aero-Link FYP prototype. Modules and the AeroSync system drone for
         disaster-area delay-tolerant mesh networking.
       </footer>
     </CartProvider>

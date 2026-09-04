@@ -1,7 +1,7 @@
 export default function About() {
   return (
     <>
-      <h1>About DroneComNet</h1>
+      <h1>About Aero-Link</h1>
       <p className="lead">
         When a disaster knocks out the cellular network, rescue teams lose the
         one thing they need most: a way to find people and coordinate. Our
