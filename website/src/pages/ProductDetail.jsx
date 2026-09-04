@@ -76,6 +76,17 @@ const FALLBACK_PRODUCTS_MAP = {
   },
 };
 
+function formatSpecValue(key, value, unit) {
+  if (typeof value === 'boolean') {
+    return value ? 'Enabled / Yes' : 'No';
+  }
+  if (value === 0) {
+    if (key === 'battery_wh') return 'Host-powered (Draws from drone)';
+    if (key === 'ap_range_m' || key === 'mesh_range_m') return 'N/A (Auxiliary sensor node)';
+  }
+  return unit ? `${value} ${unit}` : `${value}`;
+}
+
 function SpecTable({ specs }) {
   const entries = Object.entries(specs || {});
   if (!entries.length) return null;
@@ -84,14 +95,10 @@ function SpecTable({ specs }) {
       <tbody>
         {entries.map(([k, v]) => {
           const [label, unit] = SPEC_LABELS[k] || [k.replace(/_/g, ' '), ''];
-          const value = typeof v === 'boolean' ? (v ? 'Enabled / Yes' : 'No') : v;
           return (
             <tr key={k}>
               <th>{label}</th>
-              <td>
-                {value}
-                {unit ? ` ${unit}` : ''}
-              </td>
+              <td>{formatSpecValue(k, v, unit)}</td>
             </tr>
           );
         })}
